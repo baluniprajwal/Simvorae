@@ -1,0 +1,21 @@
+{
+  "name": "simvorae-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "seed": "node src/seeder/seedProducts.js",
+    "admin:create": "node src/seeder/createAdmin.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "mongoose": "^8.19.1",
+    "razorpay": "^2.9.8",
+    "resend": "^6.19.0"
+  }
+}
