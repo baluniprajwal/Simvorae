@@ -27,9 +27,8 @@ import {
   User,
   X,
 } from 'lucide-react';
-import type { Product } from './data';
 import { type Order, type OrderStatus, useOrderStore } from './store/orderStore';
-import { useProductStore } from './store/productStore';
+import { type ProductStoreItem, useProductStore } from './store/productStore';
 
 type AdminTab = 'OVERVIEW' | 'CATALOG' | 'ORDERS';
 type DashboardRange = 'week' | 'month' | 'year' | 'all' | 'custom';
@@ -503,34 +502,20 @@ function ProductModal({
   onClose,
   onSubmit,
   onChange,
-  onImageAdd,
+  onImageFilesAdd,
   onImageRemove,
+  isUploading,
 }: {
   mode: 'add' | 'edit';
   form: ProductFormState;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onChange: (field: keyof ProductFormState, value: string | number | string[] | boolean) => void;
-  onImageAdd: (url: string) => void;
+  onImageFilesAdd: (files: FileList) => void;
   onImageRemove: (index: number) => void;
+  isUploading: boolean;
 }) {
   const [isDragging, setIsDragging] = useState(false);
-
-  const processFiles = (files: FileList) => {
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) {
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          onImageAdd(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-  };
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -546,14 +531,14 @@ function ProductModal({
     setIsDragging(false);
     const files = event.dataTransfer.files;
     if (files?.length) {
-      processFiles(files);
+      onImageFilesAdd(files);
     }
   };
 
   const handleImageFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files?.length) {
-      processFiles(files);
+      onImageFilesAdd(files);
     }
   };
 
@@ -702,9 +687,10 @@ function ProductModal({
                 </div>
 
                 <div className="space-y-1">
-                  <p className="font-medium text-xs text-stone-800">
-                    Drag & drop product photographs here, or <span className="underline font-bold text-black">browse files</span>
-                  </p>
+                      <p className="font-medium text-xs text-stone-800">
+                        {isUploading ? 'Uploading product photographs...' : 'Drag & drop product photographs here, or '}
+                        {!isUploading && <span className="underline font-bold text-black">browse files</span>}
+                      </p>
                   <p className="text-[10px] text-stone-400 font-light font-sans">
                     Supports JPEG, PNG, or WebP. Try uploading multiple angles of your design.
                   </p>
@@ -1060,16 +1046,27 @@ function OrderDrawer({
 
 export default function Admin() {
   const navigate = useNavigate();
-  const { products, addProduct, updateProduct, deleteProduct } = useProductStore();
+  const {
+    products,
+    isLoading: isProductsLoading,
+    isUploading: isProductImageUploading,
+    error: productError,
+    fetchProducts,
+    uploadProductImage,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+  } = useProductStore();
   const { orders, isLoading, error, fetchOrders, markPacked, cancelOrder, createShipment } = useOrderStore();
 
   const [activeTab, setActiveTab] = useState<AdminTab>('OVERVIEW');
   const [productSearch, setProductSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [productForm, setProductForm] = useState<ProductFormState>(createEmptyForm());
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<ProductStoreItem | null>(null);
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [cancelCandidate, setCancelCandidate] = useState<Order | null>(null);
+  const [deleteProductCandidate, setDeleteProductCandidate] = useState<ProductStoreItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [dashboardRange, setDashboardRange] = useState<DashboardRange>('week');
   const [customStartDate, setCustomStartDate] = useState(getDateKey(new Date()));
@@ -1083,11 +1080,13 @@ export default function Admin() {
   const [orderEndDate, setOrderEndDate] = useState('');
   const [creatingShipmentFor, setCreatingShipmentFor] = useState('');
   const [updatingOrderFor, setUpdatingOrderFor] = useState('');
+  const [deletingProductFor, setDeletingProductFor] = useState<number | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     void fetchOrders();
-  }, [fetchOrders]);
+    void fetchProducts();
+  }, [fetchOrders, fetchProducts]);
 
   useEffect(() => {
     if (!toast) {
@@ -1417,16 +1416,6 @@ export default function Admin() {
     setProductForm((current) => ({ ...current, [field]: value }));
   };
 
-  const handleImageAdd = (url: string) => {
-    setProductForm((current) => {
-      const images = [...current.images, url];
-      return {
-        ...current,
-        images,
-      };
-    });
-  };
-
   const handleImageRemove = (index: number) => {
     setProductForm((current) => {
       const images = current.images.filter((_, imageIndex) => imageIndex !== index);
@@ -1443,13 +1432,7 @@ export default function Admin() {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (product: Product) => {
-    const inventoryProduct = product as Product & {
-      stockQuantity?: number;
-      lowStockThreshold?: number;
-      isActive?: boolean;
-    };
-
+  const openEditModal = (product: ProductStoreItem) => {
     setEditingProduct(product);
     setProductForm({
       name: product.name,
@@ -1457,15 +1440,11 @@ export default function Admin() {
       category: product.category,
       material: product.material,
       color: product.color,
-      images: 'images' in product && Array.isArray((product as Product & { images?: string[] }).images)
-        ? ((product as Product & { images?: string[] }).images ?? [])
-        : product.image
-        ? [product.image]
-        : [],
+      images: product.images.length > 0 ? product.images : product.image ? [product.image] : [],
       description: product.description ?? '',
-      stockQuantity: inventoryProduct.stockQuantity ?? 0,
-      lowStockThreshold: inventoryProduct.lowStockThreshold ?? 3,
-      isActive: inventoryProduct.isActive ?? true,
+      stockQuantity: product.stockQuantity,
+      lowStockThreshold: product.lowStockThreshold,
+      isActive: product.isActive,
     });
     setIsModalOpen(true);
   };
@@ -1475,7 +1454,7 @@ export default function Admin() {
     setIsModalOpen(false);
   };
 
-  const handleProductSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleProductSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!productForm.name.trim()) {
       return;
@@ -1487,13 +1466,59 @@ export default function Admin() {
       images: productForm.images,
     };
 
-    if (editingProduct) {
-      updateProduct(editingProduct.id, payload);
-    } else {
-      addProduct(payload);
+    try {
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, payload);
+        setToast({ type: 'success', message: `${productForm.name} updated.` });
+      } else {
+        await addProduct(payload);
+        setToast({ type: 'success', message: `${productForm.name} created.` });
+      }
+
+      closeModal();
+    } catch (error) {
+      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to save product.' });
+    }
+  };
+
+  const handleImageFilesAdd = async (files: FileList) => {
+    try {
+      const uploadedUrls = await Promise.all(
+        Array.from(files)
+          .filter((file) => file.type.startsWith('image/'))
+          .map((file) => uploadProductImage(file)),
+      );
+
+      if (uploadedUrls.length > 0) {
+        setProductForm((current) => ({
+          ...current,
+          images: [...current.images, ...uploadedUrls],
+        }));
+      }
+    } catch (error) {
+      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to upload product image.' });
+    }
+  };
+
+  const handleDeleteProduct = (product: ProductStoreItem) => {
+    setDeleteProductCandidate(product);
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!deleteProductCandidate) {
+      return;
     }
 
-    closeModal();
+    try {
+      setDeletingProductFor(deleteProductCandidate.id);
+      await deleteProduct(deleteProductCandidate.id);
+      setToast({ type: 'success', message: `${deleteProductCandidate.name} deleted.` });
+      setDeleteProductCandidate(null);
+    } catch (error) {
+      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to delete product.' });
+    } finally {
+      setDeletingProductFor(null);
+    }
   };
 
   const canCreateShipment = (order: Order) =>
@@ -1670,9 +1695,9 @@ export default function Admin() {
             </div>
           </header>
 
-          {error && (
+          {(error || productError) && (
             <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-xs font-medium text-red-700">
-              {error}
+              {error || productError}
             </div>
           )}
 
@@ -2017,16 +2042,12 @@ export default function Admin() {
                                   title="Edit product info"
                                 >
                                   <Edit2 size={12} />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    if (window.confirm(`Remove ${product.name} from catalog?`)) {
-                                      deleteProduct(product.id);
-                                    }
-                                  }}
-                                  className="p-2 bg-stone-50 hover:bg-red-600 hover:text-white text-stone-500 rounded-xl transition-all duration-300 border border-stone-200 cursor-pointer"
-                                  title="Remove product"
-                                >
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProduct(product)}
+                                className="p-2 bg-stone-50 hover:bg-red-600 hover:text-white text-stone-500 rounded-xl transition-all duration-300 border border-stone-200 cursor-pointer"
+                                title="Remove product"
+                              >
                                   <Trash2 size={12} />
                                 </button>
                               </div>
@@ -2038,7 +2059,13 @@ export default function Admin() {
                   </table>
                 </div>
 
-                {filteredCatalog.length === 0 && (
+                {isProductsLoading && (
+                  <div className="p-16 text-center text-xs font-bold uppercase tracking-[0.25em] text-stone-400">
+                    Loading catalog
+                  </div>
+                )}
+
+                {!isProductsLoading && filteredCatalog.length === 0 && (
                   <div className="p-16 text-center text-stone-400 flex flex-col items-center justify-center">
                     <p className="text-[10px] tracking-[0.25em] uppercase font-bold mb-3">Void product list</p>
                     <p className="text-xs font-light text-stone-500 mb-6">No matching items were found matching your filters.</p>
@@ -2304,8 +2331,9 @@ export default function Admin() {
           onClose={closeModal}
           onSubmit={handleProductSubmit}
           onChange={handleFormChange}
-          onImageAdd={handleImageAdd}
+          onImageFilesAdd={handleImageFilesAdd}
           onImageRemove={handleImageRemove}
+          isUploading={isProductImageUploading}
         />
       )}
 
@@ -2360,6 +2388,70 @@ export default function Admin() {
                 className="cursor-pointer rounded-xl border border-[#1a1a1a] bg-[#1a1a1a] px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-[#fcfbf9] transition-colors hover:bg-black disabled:cursor-not-allowed disabled:border-stone-400 disabled:bg-stone-400"
               >
                 {updatingOrderFor === cancelCandidate.id ? 'Cancelling' : 'Cancel Order'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteProductCandidate && (
+        <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#0c0c0c]/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-hidden rounded-[1.25rem] border border-stone-200 bg-[#fcfbf9] shadow-2xl">
+            <div className="flex items-start justify-between gap-5 border-b border-stone-200 bg-white/60 px-6 py-5">
+              <div>
+                <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.28em] text-stone-400">Catalog Action</p>
+                <h3 className="font-serif text-[2rem] font-medium leading-none tracking-tight text-[#111]">Delete product</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeleteProductCandidate(null)}
+                className="cursor-pointer rounded-xl border border-stone-200 bg-white px-3.5 py-2 text-[9px] font-bold uppercase tracking-widest text-stone-500 transition-colors hover:border-stone-400 hover:text-stone-900"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="px-6 py-5">
+              <p className="mb-5 text-xs font-light leading-6 text-stone-500">
+                This will remove <span className="font-semibold text-[#111]">{deleteProductCandidate.name}</span> from the catalog and delete its uploaded product images from storage.
+              </p>
+
+              <div className="overflow-hidden rounded-[1rem] border border-stone-200 bg-white">
+                <div className="flex gap-4 p-4">
+                  <div className="h-24 w-18 shrink-0 overflow-hidden rounded-xl border border-stone-200 bg-stone-100">
+                    <img
+                      src={deleteProductCandidate.image}
+                      alt={deleteProductCandidate.name}
+                      className="h-full w-full object-cover mix-blend-multiply"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">Product</p>
+                    <h4 className="mt-2 truncate font-serif text-xl font-medium text-[#111]">{deleteProductCandidate.name}</h4>
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-stone-400">
+                      #{deleteProductCandidate.id} · {deleteProductCandidate.category}
+                    </p>
+                    <p className="mt-3 font-mono text-xs font-bold text-[#111]">{formatCurrency(deleteProductCandidate.price)}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-stone-200 bg-white/70 px-6 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setDeleteProductCandidate(null)}
+                className="cursor-pointer rounded-xl border border-stone-200 bg-[#fcfbf9] px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-600 transition-colors hover:border-stone-400 hover:text-stone-900"
+              >
+                Keep Product
+              </button>
+              <button
+                type="button"
+                disabled={deletingProductFor === deleteProductCandidate.id}
+                onClick={() => void confirmDeleteProduct()}
+                className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-red-700 transition-colors hover:border-red-300 hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-200 disabled:text-stone-500"
+              >
+                {deletingProductFor === deleteProductCandidate.id ? 'Deleting' : 'Delete Product'}
               </button>
             </div>
           </div>

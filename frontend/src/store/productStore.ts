@@ -1,77 +1,192 @@
+import axios from 'axios';
 import { create } from 'zustand';
-import { products as seedProducts, type Product } from '../data';
+import api from '../lib/api';
+import type { Product as BackendProduct, ProductsResponse } from '../types/product';
 
-type ProductInput = Omit<Product, 'id'> & {
-  images?: string[];
-  stockQuantity?: number;
-  lowStockThreshold?: number;
-  isActive?: boolean;
+export type ProductInput = {
+  name: string;
+  price: number;
+  category: string;
+  material: string;
+  color: string;
+  image: string;
+  images: string[];
+  description?: string;
+  stockQuantity: number;
+  lowStockThreshold: number;
+  isActive: boolean;
 };
 
-export interface ProductStoreItem extends Product {
+export interface ProductStoreItem {
+  id: number;
+  mongoId: string;
+  name: string;
+  price: number;
+  category: string;
+  material: string;
+  color: string;
+  image: string;
   images: string[];
+  description?: string;
   stockQuantity: number;
   lowStockThreshold: number;
   isActive: boolean;
 }
 
+type UploadResponse = {
+  success: boolean;
+  key: string;
+  uploadUrl: string;
+  fields: Record<string, string>;
+  url: string;
+};
+
+type ProductResponse = {
+  success: boolean;
+  product: BackendProduct;
+};
+
 interface ProductStore {
   products: ProductStoreItem[];
-  addProduct: (product: ProductInput) => void;
-  updateProduct: (id: number, product: ProductInput) => void;
-  deleteProduct: (id: number) => void;
+  isLoading: boolean;
+  isUploading: boolean;
+  error: string;
+  fetchProducts: () => Promise<void>;
+  uploadProductImage: (file: File) => Promise<string>;
+  addProduct: (product: ProductInput) => Promise<void>;
+  updateProduct: (id: number, product: ProductInput) => Promise<void>;
+  deleteProduct: (id: number) => Promise<void>;
   resetProducts: () => void;
 }
 
-const buildSeedProducts = (): ProductStoreItem[] =>
-  seedProducts.map((product) => ({
-    ...product,
-    images: [product.image],
-    stockQuantity: 12,
-    lowStockThreshold: 3,
-    isActive: true,
-  }));
+const mapBackendProduct = (product: BackendProduct): ProductStoreItem => ({
+  id: product.legacyId,
+  mongoId: product._id,
+  name: product.name,
+  price: product.price,
+  category: product.category,
+  material: product.material,
+  color: product.color,
+  image: product.image,
+  images: product.images.map((image) => image.url),
+  description: product.description,
+  stockQuantity: product.stock,
+  lowStockThreshold: product.lowStockThreshold ?? 3,
+  isActive: product.isActive,
+});
 
-const normalizeProduct = (product: ProductInput): Omit<ProductStoreItem, 'id'> => {
-  const images = product.images?.filter(Boolean) ?? [];
-  const image = product.image || images[0] || '';
+const toProductPayload = (product: ProductInput) => ({
+  name: product.name,
+  price: product.price,
+  category: product.category,
+  material: product.material,
+  color: product.color,
+  images: product.images.length > 0 ? product.images : [product.image].filter(Boolean),
+  description: product.description ?? '',
+  stock: product.stockQuantity,
+  lowStockThreshold: product.lowStockThreshold,
+  isActive: product.isActive,
+});
 
-  return {
-    ...product,
-    image,
-    images: images.length > 0 ? images : image ? [image] : [],
-    stockQuantity: Math.max(0, Number(product.stockQuantity ?? 0)),
-    lowStockThreshold: Math.max(0, Number(product.lowStockThreshold ?? 3)),
-    isActive: product.isActive ?? true,
-  };
-};
+const getErrorMessage = (error: unknown, fallback: string) => (
+  axios.isAxiosError(error)
+    ? error.response?.data?.message || error.message
+    : fallback
+);
 
 export const useProductStore = create<ProductStore>((set) => ({
-  products: buildSeedProducts(),
-  addProduct: (product) =>
-    set((state) => ({
-      products: [
-        {
-          id: state.products.reduce((maxId, item) => Math.max(maxId, item.id), 0) + 1,
-          ...normalizeProduct(product),
-        },
-        ...state.products,
-      ],
-    })),
-  updateProduct: (id, product) =>
-    set((state) => ({
-      products: state.products.map((item) =>
-        item.id === id
-          ? {
-              id,
-              ...normalizeProduct(product),
-            }
-          : item,
-      ),
-    })),
-  deleteProduct: (id) =>
-    set((state) => ({
-      products: state.products.filter((item) => item.id !== id),
-    })),
-  resetProducts: () => set({ products: buildSeedProducts() }),
+  products: [],
+  isLoading: false,
+  isUploading: false,
+  error: '',
+  fetchProducts: async () => {
+    try {
+      set({ isLoading: true, error: '' });
+      const response = await api.get<ProductsResponse>('/api/products/admin');
+      set({
+        products: response.data.products.map(mapBackendProduct),
+        isLoading: false,
+      });
+    } catch (error) {
+      set({
+        error: getErrorMessage(error, 'Failed to load products.'),
+        isLoading: false,
+      });
+    }
+  },
+  uploadProductImage: async (file) => {
+    try {
+      set({ isUploading: true, error: '' });
+      const response = await api.post<UploadResponse>('/api/products/image-upload', {
+        contentType: file.type,
+        size: file.size,
+      });
+
+      const formData = new FormData();
+      Object.entries(response.data.fields).forEach(([key, value]) => {
+        formData.append(key, String(value));
+      });
+      formData.append('file', file);
+
+      const uploadResponse = await fetch(response.data.uploadUrl, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        const s3Error = await uploadResponse.text();
+        console.error('S3 image upload error:', s3Error);
+        throw new Error(s3Error || 'Image upload failed.');
+      }
+
+      set({ isUploading: false });
+      return response.data.url;
+    } catch (error) {
+      const message = getErrorMessage(error, 'Failed to upload product image.');
+      set({ error: message, isUploading: false });
+      throw new Error(message);
+    }
+  },
+  addProduct: async (product) => {
+    try {
+      set({ error: '' });
+      const response = await api.post<ProductResponse>('/api/products/admin', toProductPayload(product));
+      const createdProduct = mapBackendProduct(response.data.product);
+      set((state) => ({
+        products: [createdProduct, ...state.products],
+      }));
+    } catch (error) {
+      const message = getErrorMessage(error, 'Failed to create product.');
+      set({ error: message });
+      throw new Error(message);
+    }
+  },
+  updateProduct: async (id, product) => {
+    try {
+      set({ error: '' });
+      const response = await api.patch<ProductResponse>(`/api/products/admin/${id}`, toProductPayload(product));
+      const updatedProduct = mapBackendProduct(response.data.product);
+      set((state) => ({
+        products: state.products.map((item) => (item.id === id ? updatedProduct : item)),
+      }));
+    } catch (error) {
+      const message = getErrorMessage(error, 'Failed to update product.');
+      set({ error: message });
+      throw new Error(message);
+    }
+  },
+  deleteProduct: async (id) => {
+    try {
+      set({ error: '' });
+      await api.delete(`/api/products/admin/${id}`);
+      set((state) => ({
+        products: state.products.filter((item) => item.id !== id),
+      }));
+    } catch (error) {
+      const message = getErrorMessage(error, 'Failed to delete product.');
+      set({ error: message });
+      throw new Error(message);
+    }
+  },
+  resetProducts: () => set({ products: [] }),
 }));

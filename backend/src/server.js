@@ -7,6 +7,7 @@ import checkoutRoutes from './routes/checkoutRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import productRoutes from './routes/productRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
 import { notFound } from './middlewares/notFound.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 
@@ -36,6 +37,7 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/uploads', uploadRoutes);
 app.use(notFound);
 app.use(errorHandler);
 

@@ -19,6 +19,7 @@ export interface Product {
   description?: string;
   featured: boolean;
   stock: number;
+  lowStockThreshold: number;
   isActive: boolean;
 }
 

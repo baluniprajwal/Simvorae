@@ -75,3 +75,57 @@ export function validateProductIdentifier(req, _res, next) {
 
   next();
 }
+
+export function validateAdminProductBody(req, _res, next) {
+  const {
+    name,
+    price,
+    category,
+    material,
+    color,
+    images,
+    stock,
+    stockQuantity,
+    lowStockThreshold,
+    isActive,
+  } = req.body;
+
+  for (const [key, value] of Object.entries({ name, category, material, color })) {
+    if (typeof value !== 'string' || value.trim().length === 0) {
+      return next(createValidationError(`${key} is required.`));
+    }
+
+    if (value.trim().length > 120) {
+      return next(createValidationError(`${key} must not exceed 120 characters.`));
+    }
+  }
+
+  const parsedPrice = Number(price);
+  if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+    return next(createValidationError('price must be a valid non-negative number.'));
+  }
+
+  if (!Array.isArray(images) || images.length === 0) {
+    return next(createValidationError('At least one product image is required.'));
+  }
+
+  if (images.some((image) => typeof image !== 'string' || image.trim().length === 0)) {
+    return next(createValidationError('Every product image must be a valid URL.'));
+  }
+
+  const parsedStock = Number(stock ?? stockQuantity ?? 0);
+  if (!Number.isInteger(parsedStock) || parsedStock < 0) {
+    return next(createValidationError('stock must be a non-negative integer.'));
+  }
+
+  const parsedLowStockThreshold = Number(lowStockThreshold ?? 3);
+  if (!Number.isInteger(parsedLowStockThreshold) || parsedLowStockThreshold < 0) {
+    return next(createValidationError('lowStockThreshold must be a non-negative integer.'));
+  }
+
+  if (isActive !== undefined && typeof isActive !== 'boolean') {
+    return next(createValidationError('isActive must be a boolean.'));
+  }
+
+  next();
+}
