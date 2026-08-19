@@ -32,4 +32,28 @@ body {
 }
 
 @media (pointer: fine) {
+  .admin-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(28, 25, 23, 0.28) rgba(245, 245, 244, 0.72);
+  }
+
+  .admin-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .admin-scrollbar::-webkit-scrollbar-track {
+    background: rgba(245, 245, 244, 0.72);
+    border-radius: 999px;
+  }
+
+  .admin-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(28, 25, 23, 0.24);
+    border: 2px solid rgba(245, 245, 244, 0.72);
+    border-radius: 999px;
+  }
+
+  .admin-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(28, 25, 23, 0.42);
+  }
 }

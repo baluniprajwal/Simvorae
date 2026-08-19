@@ -65,7 +65,7 @@ async function buildOrderItems(inputItems) {
     productsById.set(String(product.legacyId), product);
   }
 
-  return inputItems.map((item) => {
+  const orderItems = inputItems.map((item) => {
     const product = productsById.get(String(item.productId));
     const quantity = Number(item.quantity);
 
@@ -94,9 +94,103 @@ async function buildOrderItems(inputItems) {
         unitPrice: product.price,
       },
       quantity,
+      packageSnapshot: {
+        lengthCm: product.packageDetails.lengthCm,
+        breadthCm: product.packageDetails.breadthCm,
+        heightCm: product.packageDetails.heightCm,
+        weightKg: product.packageDetails.weightKg,
+      },
       lineTotal: product.price * quantity,
     };
   });
+
+  const quantityByProductId = new Map();
+
+  for (const item of orderItems) {
+    const productId = item.product.toString();
+    quantityByProductId.set(productId, (quantityByProductId.get(productId) || 0) + item.quantity);
+  }
+
+  for (const [productId, quantity] of quantityByProductId.entries()) {
+    const product = productsById.get(productId);
+
+    if (product.stock < quantity) {
+      throw createHttpError(400, `${product.name} has only ${product.stock} unit(s) left.`);
+    }
+  }
+
+  return orderItems;
+}
+
+export async function validateOrderStockAvailability(order) {
+  const productIds = order.items.map((item) => item.product);
+  const products = await Product.find({ _id: { $in: productIds }, isActive: true }).select('name stock');
+  const productsById = new Map(products.map((product) => [product._id.toString(), product]));
+  const quantityByProductId = new Map();
+
+  for (const item of order.items) {
+    const productId = item.product.toString();
+    quantityByProductId.set(productId, (quantityByProductId.get(productId) || 0) + item.quantity);
+  }
+
+  for (const [productId, quantity] of quantityByProductId.entries()) {
+    const product = productsById.get(productId);
+    const orderItem = order.items.find((item) => item.product.toString() === productId);
+    const productName = orderItem?.productSnapshot?.name || 'Product';
+
+    if (!product) {
+      throw createHttpError(409, `${productName} is no longer available.`);
+    }
+
+    if (product.stock < quantity) {
+      throw createHttpError(409, `${productName} has only ${product.stock} unit(s) left.`);
+    }
+  }
+}
+
+function getOrderStockDebits(order) {
+  const debitsByProductId = new Map();
+
+  for (const item of order.items) {
+    const productId = item.product.toString();
+    const existingDebit = debitsByProductId.get(productId);
+    const productName = item.productSnapshot?.name || 'Product';
+
+    debitsByProductId.set(productId, {
+      productId: item.product,
+      productName,
+      quantity: (existingDebit?.quantity || 0) + item.quantity,
+    });
+  }
+
+  return [...debitsByProductId.values()];
+}
+
+export async function debitOrderStock(order) {
+  if (order.stockDebited) {
+    return;
+  }
+
+  await validateOrderStockAvailability(order);
+
+  for (const debit of getOrderStockDebits(order)) {
+    const result = await Product.updateOne(
+      {
+        _id: debit.productId,
+        isActive: true,
+        stock: { $gte: debit.quantity },
+      },
+      {
+        $inc: { stock: -debit.quantity },
+      },
+    );
+
+    if (result.modifiedCount !== 1) {
+      throw createHttpError(409, `${debit.productName} stock changed before payment confirmation. Please review the order.`);
+    }
+  }
+
+  order.stockDebited = true;
 }
 
 function validateCheckoutPhone(phone) {

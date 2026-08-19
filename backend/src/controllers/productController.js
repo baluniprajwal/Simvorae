@@ -39,8 +39,19 @@ function normalizeProductImages(images, name) {
     }));
 }
 
+function normalizeStringList(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item) => typeof item === 'string' && item.trim())
+    .map((item) => item.trim());
+}
+
 function buildProductPayload(body) {
   const images = normalizeProductImages(body.images || [], body.name);
+  const packageDetails = body.packageDetails || {};
 
   return {
     name: body.name.trim(),
@@ -51,6 +62,17 @@ function buildProductPayload(body) {
     color: body.color.trim(),
     images,
     description: String(body.description || '').trim(),
+    keyFeatures: normalizeStringList(body.keyFeatures),
+    whyLoveIt: String(body.whyLoveIt || '').trim(),
+    dimensions: String(body.dimensions || '').trim(),
+    shippingReturns: String(body.shippingReturns || '').trim(),
+    moreInformation: String(body.moreInformation || '').trim(),
+    packageDetails: {
+      lengthCm: Number(packageDetails.lengthCm),
+      breadthCm: Number(packageDetails.breadthCm),
+      heightCm: Number(packageDetails.heightCm),
+      weightKg: Number(packageDetails.weightKg),
+    },
     featured: Boolean(body.featured),
     stock: Number(body.stock ?? body.stockQuantity ?? 0),
     lowStockThreshold: Number(body.lowStockThreshold ?? 3),

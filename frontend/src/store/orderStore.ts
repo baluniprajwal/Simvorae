@@ -31,7 +31,10 @@ export interface Order {
   shiprocketOrderId: string;
   shipmentId: string;
   awbCode: string;
+  courierName: string;
   trackingUrl: string;
+  pickupStatus: string;
+  currentShippingStatus: string;
   total: number;
   createdAt: string;
   paymentMethod: 'Prepaid' | 'COD';
@@ -46,6 +49,7 @@ interface OrderStore {
   markPacked: (id: string) => Promise<Order>;
   cancelOrder: (id: string) => Promise<Order>;
   createShipment: (id: string) => Promise<Order>;
+  syncShipment: (id: string) => Promise<Order>;
 }
 
 type BackendOrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
@@ -87,7 +91,10 @@ type BackendOrder = {
     shiprocketOrderId?: string;
     shipmentId?: string;
     awbCode?: string;
+    courierName?: string;
     trackingUrl?: string;
+    pickupStatus?: string;
+    currentStatus?: string;
   };
   createdAt: string;
 };
@@ -138,7 +145,10 @@ const mapBackendOrder = (order: BackendOrder): Order => ({
   shiprocketOrderId: order.shipping?.shiprocketOrderId ?? '',
   shipmentId: order.shipping?.shipmentId ?? '',
   awbCode: order.shipping?.awbCode ?? '',
+  courierName: order.shipping?.courierName ?? '',
   trackingUrl: order.shipping?.trackingUrl ?? '',
+  pickupStatus: order.shipping?.pickupStatus ?? '',
+  currentShippingStatus: order.shipping?.currentStatus ?? '',
   total: order.totals.total,
   createdAt: order.createdAt,
   paymentMethod: 'Prepaid',
@@ -265,6 +275,27 @@ export const useOrderStore = create<OrderStore>((set) => ({
       const message = axios.isAxiosError(error)
         ? error.response?.data?.message || error.message
         : 'Failed to create shipment.';
+
+      set({ error: message });
+      throw new Error(message);
+    }
+  },
+  syncShipment: async (id) => {
+    try {
+      set({ error: '' });
+      const response = await api.post<OrderResponse>(`/api/orders/${id}/shipment/sync`);
+
+      const updatedOrder = mapBackendOrder(response.data.order);
+
+      set((state) => ({
+        orders: state.orders.map((order) => (order.id === id ? updatedOrder : order)),
+      }));
+
+      return updatedOrder;
+    } catch (error) {
+      const message = axios.isAxiosError(error)
+        ? error.response?.data?.message || error.message
+        : 'Failed to sync shipment.';
 
       set({ error: message });
       throw new Error(message);

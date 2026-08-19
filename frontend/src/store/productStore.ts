@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { create } from 'zustand';
 import api from '../lib/api';
-import type { Product as BackendProduct, ProductsResponse } from '../types/product';
+import type { PackageDetails, Product as BackendProduct, ProductsResponse } from '../types/product';
 
 export type ProductInput = {
   name: string;
@@ -12,6 +12,12 @@ export type ProductInput = {
   image: string;
   images: string[];
   description?: string;
+  keyFeatures: string[];
+  whyLoveIt?: string;
+  dimensions?: string;
+  shippingReturns?: string;
+  moreInformation?: string;
+  packageDetails: PackageDetails;
   stockQuantity: number;
   lowStockThreshold: number;
   isActive: boolean;
@@ -28,6 +34,12 @@ export interface ProductStoreItem {
   image: string;
   images: string[];
   description?: string;
+  keyFeatures: string[];
+  whyLoveIt?: string;
+  dimensions?: string;
+  shippingReturns?: string;
+  moreInformation?: string;
+  packageDetails: PackageDetails;
   stockQuantity: number;
   lowStockThreshold: number;
   isActive: boolean;
@@ -70,6 +82,17 @@ const mapBackendProduct = (product: BackendProduct): ProductStoreItem => ({
   image: product.image,
   images: product.images.map((image) => image.url),
   description: product.description,
+  keyFeatures: product.keyFeatures ?? [],
+  whyLoveIt: product.whyLoveIt,
+  dimensions: product.dimensions,
+  shippingReturns: product.shippingReturns,
+  moreInformation: product.moreInformation,
+  packageDetails: product.packageDetails ?? {
+    lengthCm: 20,
+    breadthCm: 15,
+    heightCm: 8,
+    weightKg: 0.5,
+  },
   stockQuantity: product.stock,
   lowStockThreshold: product.lowStockThreshold ?? 3,
   isActive: product.isActive,
@@ -83,6 +106,12 @@ const toProductPayload = (product: ProductInput) => ({
   color: product.color,
   images: product.images.length > 0 ? product.images : [product.image].filter(Boolean),
   description: product.description ?? '',
+  keyFeatures: product.keyFeatures,
+  whyLoveIt: product.whyLoveIt ?? '',
+  dimensions: product.dimensions ?? '',
+  shippingReturns: product.shippingReturns ?? '',
+  moreInformation: product.moreInformation ?? '',
+  packageDetails: product.packageDetails,
   stock: product.stockQuantity,
   lowStockThreshold: product.lowStockThreshold,
   isActive: product.isActive,

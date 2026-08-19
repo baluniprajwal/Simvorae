@@ -121,6 +121,28 @@ const orderItemSchema = new mongoose.Schema(
       required: true,
       min: 1,
     },
+    packageSnapshot: {
+      lengthCm: {
+        type: Number,
+        required: true,
+        min: 0.1,
+      },
+      breadthCm: {
+        type: Number,
+        required: true,
+        min: 0.1,
+      },
+      heightCm: {
+        type: Number,
+        required: true,
+        min: 0.1,
+      },
+      weightKg: {
+        type: Number,
+        required: true,
+        min: 0.01,
+      },
+    },
     lineTotal: {
       type: Number,
       required: true,
@@ -230,10 +252,42 @@ const shippingSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    courierName: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     trackingUrl: {
       type: String,
       trim: true,
       default: '',
+    },
+    pickupStatus: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    pickupTokenNumber: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    pickupScheduledAt: {
+      type: Date,
+      default: null,
+    },
+    currentStatus: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    statusCode: {
+      type: Number,
+      default: null,
+    },
+    trackingNotifiedAt: {
+      type: Date,
+      default: null,
     },
     shippedAt: {
       type: Date,
@@ -293,6 +347,12 @@ const orderSchema = new mongoose.Schema(
       type: paymentSchema,
       required: true,
       default: () => ({}),
+    },
+    stockDebited: {
+      type: Boolean,
+      required: true,
+      default: false,
+      index: true,
     },
     shipping: {
       type: shippingSchema,

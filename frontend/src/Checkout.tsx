@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { CheckCircle, ChevronLeft, CreditCard, ShieldCheck } from 'lucide-react';
+import api from './lib/api';
 import { useCartStore } from './store/cartStore';
 
 type CheckoutStep = 'ADDRESS' | 'PAYMENT' | 'SUCCESS';
@@ -16,14 +17,21 @@ declare global {
   interface Window {
     Razorpay?: new (options: Record<string, unknown>) => {
       open: () => void;
+      on: (event: 'payment.failed', callback: (response: RazorpayFailureResponse) => void) => void;
     };
   }
 }
 
-const api = axios.create({
-  baseURL:
-    `${(import.meta as unknown as { env?: { VITE_API_BASE_URL?: string } }).env?.VITE_API_BASE_URL || 'http://localhost:5000'}/api`,
-});
+type RazorpayFailureResponse = {
+  error?: {
+    description?: string;
+    reason?: string;
+    metadata?: {
+      payment_id?: string;
+      order_id?: string;
+    };
+  };
+};
 
 function loadRazorpayScript() {
   return new Promise<boolean>((resolve) => {
@@ -32,7 +40,15 @@ function loadRazorpayScript() {
       return;
     }
 
+    const existingScript = document.getElementById('razorpay-checkout-js') as HTMLScriptElement | null;
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(true), { once: true });
+      existingScript.addEventListener('error', () => resolve(false), { once: true });
+      return;
+    }
+
     const script = document.createElement('script');
+    script.id = 'razorpay-checkout-js';
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.onload = () => resolve(true);
     script.onerror = () => resolve(false);
@@ -68,10 +84,15 @@ export default function Checkout() {
   const handleAddressSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
+    setConfirmedOrderNumber('');
     setStep('PAYMENT');
   };
 
   const handlePayment = async () => {
+    if (isPaying) {
+      return;
+    }
+
     setError('');
     setIsPaying(true);
 
@@ -93,7 +114,7 @@ export default function Checkout() {
         throw new Error('Your cart has outdated items. Please remove them and add products again.');
       }
 
-      const checkoutResponse = await api.post('/checkout', {
+      const checkoutResponse = await api.post('/api/checkout', {
         customer: {
           name: formData.name,
           email: formData.email,
@@ -131,7 +152,7 @@ export default function Checkout() {
         },
         handler: async (response: RazorpayCheckoutResponse) => {
           try {
-            await api.post('/payments/razorpay/verify', {
+            await api.post('/api/payments/razorpay/verify', {
               orderNumber,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpaySignature: response.razorpay_signature,
@@ -152,9 +173,16 @@ export default function Checkout() {
         },
         modal: {
           ondismiss: () => {
+            setError('Payment was not completed. Your cart is still saved.');
             setIsPaying(false);
           },
         },
+      });
+
+      razorpay.on('payment.failed', (response: RazorpayFailureResponse) => {
+        const message = response.error?.description || response.error?.reason || 'Payment failed. Please try another payment method.';
+        setError(message);
+        setIsPaying(false);
       });
 
       razorpay.open();
@@ -195,8 +223,8 @@ export default function Checkout() {
           <button onClick={() => navigate('/shop')} className="px-8 py-4 bg-[#1a1a1a] text-[#fcfbf9] text-[10px] tracking-widest uppercase font-bold hover:bg-black transition-colors">
             Continue Shopping
           </button>
-          <button onClick={() => alert('View My Orders coming soon')} className="px-8 py-4 border border-[#1a1a1a] text-[#1a1a1a] text-[10px] tracking-widest uppercase font-bold hover:bg-[#1a1a1a]/5 transition-colors">
-            View My Orders
+          <button disabled className="cursor-not-allowed px-8 py-4 border border-stone-200 text-stone-400 text-[10px] tracking-widest uppercase font-bold">
+            My Orders Coming Soon
           </button>
         </div>
       </div>

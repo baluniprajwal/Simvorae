@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   CheckCircle,
+  ChevronLeft,
   ChevronRight,
   Clock,
   Copy,
@@ -42,6 +43,15 @@ type ProductFormState = {
   color: string;
   images: string[];
   description: string;
+  keyFeaturesText: string;
+  whyLoveIt: string;
+  dimensions: string;
+  shippingReturns: string;
+  moreInformation: string;
+  packageLengthCm: number;
+  packageBreadthCm: number;
+  packageHeightCm: number;
+  packageWeightKg: number;
   stockQuantity: number;
   lowStockThreshold: number;
   isActive: boolean;
@@ -68,6 +78,9 @@ const orderQueueOptions: Array<{ value: OrderQueue; label: string; description: 
   { value: 'delivered', label: 'Delivered', description: 'Completed' },
   { value: 'problems', label: 'Problems', description: 'Failed/cancelled' },
 ];
+
+const catalogPageSize = 8;
+const orderPageSize = 10;
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-IN', {
@@ -133,6 +146,15 @@ const createEmptyForm = (): ProductFormState => ({
   color: 'Black',
   images: [],
   description: '',
+  keyFeaturesText: 'Fits 15\" Laptop\nMultiple Functional Pockets\nZipper Closure',
+  whyLoveIt: 'Designed with meticulous attention to detail, this piece seamlessly blends elevated aesthetics with everyday utility. The refined craftsmanship ensures it will become a staple in your collection.',
+  dimensions: '',
+  shippingReturns: 'Complimentary express shipping on all orders. Returns are accepted within 30 days of delivery in their original condition.',
+  moreInformation: 'Each item is crafted in limited numbers to preserve its exclusivity. Contact our concierge for personalized styling advice.',
+  packageLengthCm: 20,
+  packageBreadthCm: 15,
+  packageHeightCm: 8,
+  packageWeightKg: 0.5,
   stockQuantity: 12,
   lowStockThreshold: 3,
   isActive: true,
@@ -260,14 +282,16 @@ const printPackingSlip = (order: Order) => {
           .section { margin-top: 24px; }
           .section-title { margin-bottom: 10px; font-family: Arial, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: #78716c; }
           .box { border: 1px solid #e7e5e4; padding: 14px; font-family: Arial, sans-serif; font-size: 12px; line-height: 1.65; }
+          .table-scroll { max-height: 320px; overflow: auto; border: 1px solid #e7e5e4; }
           table { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px; }
+          thead { position: sticky; top: 0; background: #fff; z-index: 1; }
           th { text-align: left; border-bottom: 1px solid #d6d3d1; padding: 10px 8px; font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: #78716c; }
           td { border-bottom: 1px solid #f5f5f4; padding: 12px 8px; vertical-align: top; }
           .checklist { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-family: Arial, sans-serif; font-size: 12px; }
           .check { display: flex; align-items: center; gap: 8px; border: 1px solid #e7e5e4; padding: 10px; }
           .check-box { width: 12px; height: 12px; flex: 0 0 12px; border: 1px solid #111; }
           .footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid #d6d3d1; font-family: Arial, sans-serif; font-size: 10px; color: #78716c; }
-          @media print { body { padding: 0; } .page { border: 0; max-width: none; } }
+          @media print { body { padding: 0; } .page { border: 0; max-width: none; } .table-scroll { max-height: none; overflow: visible; border: 0; } thead { position: static; } }
         </style>
       </head>
       <body>
@@ -307,16 +331,18 @@ const printPackingSlip = (order: Order) => {
 
           <section class="section">
             <div class="section-title">Items To Pack</div>
-            <table>
-              <thead>
-                <tr>
-                  <th>SKU</th>
-                  <th>Product</th>
-                  <th>Qty</th>
-                </tr>
-              </thead>
-              <tbody>${itemRows}</tbody>
-            </table>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Product</th>
+                    <th>Qty</th>
+                  </tr>
+                </thead>
+                <tbody>${itemRows}</tbody>
+              </table>
+            </div>
           </section>
 
           <section class="section">
@@ -386,7 +412,9 @@ const printInvoice = (order: Order) => {
           .section { margin-top: 24px; }
           .section-title { margin-bottom: 10px; font-family: Arial, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: #78716c; }
           .box { border: 1px solid #e7e5e4; padding: 14px; font-family: Arial, sans-serif; font-size: 12px; line-height: 1.65; min-height: 104px; }
+          .table-scroll { max-height: 340px; overflow: auto; border: 1px solid #e7e5e4; }
           table { width: 100%; border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px; }
+          thead { position: sticky; top: 0; background: #fff; z-index: 1; }
           th { text-align: left; border-bottom: 1px solid #d6d3d1; padding: 10px 8px; font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: #78716c; }
           td { border-bottom: 1px solid #f5f5f4; padding: 12px 8px; vertical-align: top; }
           th:nth-child(3), td:nth-child(3) { text-align: center; }
@@ -395,7 +423,7 @@ const printInvoice = (order: Order) => {
           .total-row { display: flex; justify-content: space-between; border-bottom: 1px solid #f5f5f4; padding: 10px 0; }
           .grand-total { font-weight: 700; font-size: 15px; border-bottom: 1px solid #111; }
           .footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid #d6d3d1; font-family: Arial, sans-serif; font-size: 10px; line-height: 1.6; color: #78716c; }
-          @media print { body { padding: 0; } .page { border: 0; max-width: none; } }
+          @media print { body { padding: 0; } .page { border: 0; max-width: none; } .table-scroll { max-height: none; overflow: visible; border: 0; } thead { position: static; } }
         </style>
       </head>
       <body>
@@ -432,18 +460,20 @@ const printInvoice = (order: Order) => {
 
           <section class="section">
             <div class="section-title">Order Items</div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>SKU</th>
-                  <th>Qty</th>
-                  <th>Unit Price</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>${itemRows}</tbody>
-            </table>
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>SKU</th>
+                    <th>Qty</th>
+                    <th>Unit Price</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>${itemRows}</tbody>
+              </table>
+            </div>
           </section>
 
           <section class="section">
@@ -495,6 +525,60 @@ const printInvoice = (order: Order) => {
   printWindow.document.write(documentHtml);
   printWindow.document.close();
 };
+
+function PaginationControls({
+  page,
+  pageCount,
+  totalCount,
+  pageSize,
+  label,
+  onPageChange,
+}: {
+  page: number;
+  pageCount: number;
+  totalCount: number;
+  pageSize: number;
+  label: string;
+  onPageChange: (page: number) => void;
+}) {
+  const startItem = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endItem = Math.min(page * pageSize, totalCount);
+  const safePageCount = Math.max(pageCount, 1);
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-stone-100 bg-white/80 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">
+        Showing {startItem}-{endItem} of {totalCount} {label}
+      </p>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-stone-200 bg-[#fcfbf9] px-3 text-[9px] font-bold uppercase tracking-widest text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:border-stone-100 disabled:text-stone-300"
+        >
+          <ChevronLeft size={12} />
+          Prev
+        </button>
+
+        <span className="rounded-full border border-stone-200 bg-white px-3 py-2 font-mono text-[10px] font-bold text-stone-500">
+          {page} / {safePageCount}
+        </span>
+
+        <button
+          type="button"
+          disabled={page >= safePageCount}
+          onClick={() => onPageChange(page + 1)}
+          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-stone-200 bg-[#fcfbf9] px-3 text-[9px] font-bold uppercase tracking-widest text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:border-stone-100 disabled:text-stone-300"
+        >
+          Next
+          <ChevronRight size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function ProductModal({
   mode,
@@ -555,7 +639,7 @@ function ProductModal({
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="p-6 md:p-8 space-y-6 overflow-y-auto flex-1 font-sans text-xs">
+        <form onSubmit={onSubmit} className="admin-scrollbar p-6 md:p-8 space-y-6 overflow-y-auto flex-1 font-sans text-xs">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-1.5 md:col-span-2">
               <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Product Name</label>
@@ -659,6 +743,64 @@ function ProductModal({
               </select>
             </div>
 
+            <div className="space-y-3 md:col-span-2 rounded-[1.1rem] border border-stone-200 bg-white/70 p-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-stone-500">Shiprocket Package Details</p>
+                <p className="mt-1 text-[10px] font-light text-stone-400">Required for shipment pricing, AWB creation, and courier allocation.</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[9px] tracking-widest uppercase text-stone-500 font-semibold">Length (cm)</label>
+                  <input
+                    type="number"
+                    required
+                    min="0.1"
+                    step="0.1"
+                    value={form.packageLengthCm}
+                    onChange={(event) => onChange('packageLengthCm', Number(event.target.value))}
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-mono font-bold"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[9px] tracking-widest uppercase text-stone-500 font-semibold">Breadth (cm)</label>
+                  <input
+                    type="number"
+                    required
+                    min="0.1"
+                    step="0.1"
+                    value={form.packageBreadthCm}
+                    onChange={(event) => onChange('packageBreadthCm', Number(event.target.value))}
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-mono font-bold"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[9px] tracking-widest uppercase text-stone-500 font-semibold">Height (cm)</label>
+                  <input
+                    type="number"
+                    required
+                    min="0.1"
+                    step="0.1"
+                    value={form.packageHeightCm}
+                    onChange={(event) => onChange('packageHeightCm', Number(event.target.value))}
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-mono font-bold"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[9px] tracking-widest uppercase text-stone-500 font-semibold">Weight (kg)</label>
+                  <input
+                    type="number"
+                    required
+                    min="0.01"
+                    step="0.01"
+                    value={form.packageWeightKg}
+                    onChange={(event) => onChange('packageWeightKg', Number(event.target.value))}
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-mono font-bold"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-3.5 md:col-span-2">
               <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-bold">Product Images (Multiple Direct Photo Uploads)</label>
 
@@ -744,6 +886,59 @@ function ProductModal({
                 value={form.description}
                 onChange={(event) => onChange('description', event.target.value)}
                 placeholder="e.g., Premium leather shoulder bag with spacious compartments."
+                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-light resize-none"
+              />
+            </div>
+
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Key Features</label>
+              <textarea
+                rows={3}
+                value={form.keyFeaturesText}
+                onChange={(event) => onChange('keyFeaturesText', event.target.value)}
+                placeholder={'One feature per line, e.g.\nFits 15" Laptop\nZipper Closure'}
+                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-light resize-none"
+              />
+            </div>
+
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Why You'll Love It?</label>
+              <textarea
+                rows={3}
+                value={form.whyLoveIt}
+                onChange={(event) => onChange('whyLoveIt', event.target.value)}
+                placeholder="Shown inside the Why You'll Love It accordion."
+                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-light resize-none"
+              />
+            </div>
+
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Dimensions</label>
+              <input
+                type="text"
+                value={form.dimensions}
+                onChange={(event) => onChange('dimensions', event.target.value)}
+                placeholder="e.g., 38 x 29 x 14 cm"
+                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-light"
+              />
+            </div>
+
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Shipping & Returns</label>
+              <textarea
+                rows={2}
+                value={form.shippingReturns}
+                onChange={(event) => onChange('shippingReturns', event.target.value)}
+                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-light resize-none"
+              />
+            </div>
+
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">More Information</label>
+              <textarea
+                rows={2}
+                value={form.moreInformation}
+                onChange={(event) => onChange('moreInformation', event.target.value)}
                 className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-light resize-none"
               />
             </div>
@@ -841,17 +1036,21 @@ function OrderDrawer({
   onClose,
   onMarkPacked,
   onCreateShipment,
+  onSyncShipment,
   onCancelOrder,
   isUpdating,
   isCreatingShipment,
+  isSyncingShipment,
 }: {
   order: Order;
   onClose: () => void;
   onMarkPacked: () => void;
   onCreateShipment: () => void;
+  onSyncShipment: () => void;
   onCancelOrder: () => void;
   isUpdating: boolean;
   isCreatingShipment: boolean;
+  isSyncingShipment: boolean;
 }) {
   const subtotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const isShiprocketControlledStatus = order.status === 'Shipped' || order.status === 'Delivered';
@@ -861,7 +1060,7 @@ function OrderDrawer({
 
   return (
     <div className="fixed inset-0 bg-[#0c0c0c]/85 backdrop-blur-sm z-[200] flex items-center justify-end">
-      <div className="bg-[#fcfbf9] w-full max-w-lg h-full p-8 shadow-2xl flex flex-col justify-between overflow-y-auto relative border-l border-stone-200">
+      <div className="admin-scrollbar bg-[#fcfbf9] w-full max-w-3xl h-full p-8 shadow-2xl flex flex-col justify-between overflow-y-auto relative border-l border-stone-200">
         <button
           onClick={onClose}
           className="absolute top-6 right-6 p-2 bg-stone-100 hover:bg-stone-200 rounded-full transition-colors cursor-pointer"
@@ -968,9 +1167,12 @@ function OrderDrawer({
               <DetailRow label="Razorpay Order ID" value={order.razorpayOrderId} />
               <DetailRow label="Razorpay Payment ID" value={order.razorpayPaymentId} />
               <DetailRow label="Shipping Status" value={formatStatusLabel(order.shippingStatus)} copyable={false} />
+              <DetailRow label="Current Courier Status" value={order.currentShippingStatus} copyable={false} />
+              <DetailRow label="Courier" value={order.courierName} copyable={false} />
               <DetailRow label="Shiprocket Order ID" value={order.shiprocketOrderId} />
               <DetailRow label="Shipment ID" value={order.shipmentId} />
               <DetailRow label="AWB Code" value={order.awbCode} />
+              <DetailRow label="Pickup Status" value={order.pickupStatus} copyable={false} />
               <DetailRow label="Tracking URL" value={order.trackingUrl} />
             </div>
           </div>
@@ -988,6 +1190,15 @@ function OrderDrawer({
                 Print Packing Slip
               </button>
               <DrawerCopyAction value={order.customer.address} label="Copy Address" />
+              <button
+                type="button"
+                disabled={(!order.shipmentId && !order.awbCode) || isSyncingShipment}
+                onClick={onSyncShipment}
+                className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3.5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <RotateCcw size={13} />
+                {isSyncingShipment ? 'Syncing' : 'Sync Shipment'}
+              </button>
               <button
                 type="button"
                 disabled={!order.trackingUrl}
@@ -1057,7 +1268,7 @@ export default function Admin() {
     updateProduct,
     deleteProduct,
   } = useProductStore();
-  const { orders, isLoading, error, fetchOrders, markPacked, cancelOrder, createShipment } = useOrderStore();
+  const { orders, isLoading, error, fetchOrders, markPacked, cancelOrder, createShipment, syncShipment } = useOrderStore();
 
   const [activeTab, setActiveTab] = useState<AdminTab>('OVERVIEW');
   const [productSearch, setProductSearch] = useState('');
@@ -1078,7 +1289,10 @@ export default function Admin() {
   const [activeOrderQueue, setActiveOrderQueue] = useState<OrderQueue>('all');
   const [orderStartDate, setOrderStartDate] = useState('');
   const [orderEndDate, setOrderEndDate] = useState('');
+  const [catalogPage, setCatalogPage] = useState(1);
+  const [orderPage, setOrderPage] = useState(1);
   const [creatingShipmentFor, setCreatingShipmentFor] = useState('');
+  const [syncingShipmentFor, setSyncingShipmentFor] = useState('');
   const [updatingOrderFor, setUpdatingOrderFor] = useState('');
   const [deletingProductFor, setDeletingProductFor] = useState<number | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -1096,6 +1310,19 @@ export default function Admin() {
     const timeoutId = window.setTimeout(() => setToast(null), 3000);
     return () => window.clearTimeout(timeoutId);
   }, [toast]);
+
+  useEffect(() => {
+    const hasOpenOverlay = Boolean(isModalOpen || viewingOrder || cancelCandidate || deleteProductCandidate);
+    const previousOverflow = document.body.style.overflow;
+
+    if (hasOpenOverlay) {
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [cancelCandidate, deleteProductCandidate, isModalOpen, viewingOrder]);
 
   const rangeLabel = useMemo(
     () => getDateRangeLabel(dashboardRange, customStartDate, customEndDate),
@@ -1270,6 +1497,12 @@ export default function Admin() {
     };
   }, [products]);
 
+  const catalogPageCount = Math.max(1, Math.ceil(filteredCatalog.length / catalogPageSize));
+  const paginatedCatalog = useMemo(
+    () => filteredCatalog.slice((catalogPage - 1) * catalogPageSize, catalogPage * catalogPageSize),
+    [catalogPage, filteredCatalog],
+  );
+
   const recentOrders = useMemo(() => [...orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5), [orders]);
 
   const orderQueueCounts = useMemo(
@@ -1315,6 +1548,36 @@ export default function Admin() {
     paymentStatusFilter,
     shippingStatusFilter,
   ]);
+
+  const orderPageCount = Math.max(1, Math.ceil(filteredOrders.length / orderPageSize));
+  const paginatedOrders = useMemo(
+    () => filteredOrders.slice((orderPage - 1) * orderPageSize, orderPage * orderPageSize),
+    [filteredOrders, orderPage],
+  );
+
+  useEffect(() => {
+    setCatalogPage(1);
+  }, [productSearch, selectedCategory]);
+
+  useEffect(() => {
+    setOrderPage(1);
+  }, [
+    activeOrderQueue,
+    orderEndDate,
+    orderSearch,
+    orderStartDate,
+    orderStatusFilter,
+    paymentStatusFilter,
+    shippingStatusFilter,
+  ]);
+
+  useEffect(() => {
+    setCatalogPage((page) => Math.min(page, catalogPageCount));
+  }, [catalogPageCount]);
+
+  useEffect(() => {
+    setOrderPage((page) => Math.min(page, orderPageCount));
+  }, [orderPageCount]);
 
   const salesHistory = useMemo(() => {
     const paidOrders = orders.filter((order) => order.paymentStatus === 'paid');
@@ -1442,6 +1705,15 @@ export default function Admin() {
       color: product.color,
       images: product.images.length > 0 ? product.images : product.image ? [product.image] : [],
       description: product.description ?? '',
+      keyFeaturesText: product.keyFeatures.join('\n'),
+      whyLoveIt: product.whyLoveIt ?? '',
+      dimensions: product.dimensions ?? '',
+      shippingReturns: product.shippingReturns ?? '',
+      moreInformation: product.moreInformation ?? '',
+      packageLengthCm: product.packageDetails.lengthCm,
+      packageBreadthCm: product.packageDetails.breadthCm,
+      packageHeightCm: product.packageDetails.heightCm,
+      packageWeightKg: product.packageDetails.weightKg,
       stockQuantity: product.stockQuantity,
       lowStockThreshold: product.lowStockThreshold,
       isActive: product.isActive,
@@ -1464,6 +1736,16 @@ export default function Admin() {
       ...productForm,
       image: productForm.images[0] || '',
       images: productForm.images,
+      keyFeatures: productForm.keyFeaturesText
+        .split('\n')
+        .map((feature) => feature.trim())
+        .filter(Boolean),
+      packageDetails: {
+        lengthCm: productForm.packageLengthCm,
+        breadthCm: productForm.packageBreadthCm,
+        heightCm: productForm.packageHeightCm,
+        weightKg: productForm.packageWeightKg,
+      },
     };
 
     try {
@@ -1574,6 +1856,19 @@ export default function Admin() {
       setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to create shipment.' });
     } finally {
       setCreatingShipmentFor('');
+    }
+  };
+
+  const handleSyncShipment = async (order: Order) => {
+    try {
+      setSyncingShipmentFor(order.id);
+      const updatedOrder = await syncShipment(order.id);
+      setViewingOrder(updatedOrder);
+      setToast({ type: 'success', message: `Shipment synced for ${order.id}.` });
+    } catch (error) {
+      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to sync shipment.' });
+    } finally {
+      setSyncingShipmentFor('');
     }
   };
 
@@ -1885,9 +2180,9 @@ export default function Admin() {
                   </button>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="admin-scrollbar max-h-[620px] overflow-auto">
                   <table className="w-full text-left font-sans text-xs border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-10 bg-white">
                       <tr className="border-b border-stone-100 text-stone-400 uppercase tracking-widest text-[9px] font-bold">
                         <th className="pb-3.5 font-semibold">ID</th>
                         <th className="pb-3.5 font-semibold">Customer</th>
@@ -1982,9 +2277,9 @@ export default function Admin() {
               </div>
 
               <div className="bg-white border border-stone-200 rounded-[1.5rem] shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
+                <div className="admin-scrollbar max-h-[620px] overflow-auto">
                   <table className="w-full text-left font-sans text-xs border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-10 bg-white">
                       <tr className="border-b border-stone-100 text-stone-400 uppercase tracking-widest text-[9px] font-bold bg-stone-50/50">
                         <th className="py-4 px-6 font-semibold">ID</th>
                         <th className="py-4 px-6 font-semibold">Preview</th>
@@ -1998,7 +2293,7 @@ export default function Admin() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-50">
-                      {filteredCatalog.map((product) => {
+                      {paginatedCatalog.map((product) => {
                         const inventoryStatus = getInventoryStatus(product);
 
                         return (
@@ -2080,6 +2375,17 @@ export default function Admin() {
                     </button>
                   </div>
                 )}
+
+                {!isProductsLoading && filteredCatalog.length > 0 && (
+                  <PaginationControls
+                    page={catalogPage}
+                    pageCount={catalogPageCount}
+                    totalCount={filteredCatalog.length}
+                    pageSize={catalogPageSize}
+                    label="products"
+                    onPageChange={setCatalogPage}
+                  />
+                )}
               </div>
             </div>
           )}
@@ -2087,7 +2393,7 @@ export default function Admin() {
           {activeTab === 'ORDERS' && (
             <div className="space-y-6">
               <div className="rounded-[1.15rem] border border-stone-200 bg-white/85 px-3 py-2.5 shadow-sm">
-                <div className="flex gap-1.5 overflow-x-auto">
+                <div className="admin-scrollbar flex gap-1.5 overflow-x-auto">
                   {orderQueueOptions.map((queue) => {
                     const isActive = activeOrderQueue === queue.value;
 
@@ -2212,9 +2518,9 @@ export default function Admin() {
               </div>
 
               <div className="bg-white border border-stone-200 rounded-[1.5rem] shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
+                <div className="admin-scrollbar max-h-[650px] overflow-auto">
                   <table className="w-full text-left font-sans text-xs border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-10 bg-white">
                       <tr className="border-b border-stone-100 text-stone-400 uppercase tracking-widest text-[9px] font-bold bg-stone-50/50">
                         <th className="py-4 px-6 font-semibold">Order ID</th>
                         <th className="py-4 px-6 font-semibold">Date Placed</th>
@@ -2228,7 +2534,7 @@ export default function Admin() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-50">
-                      {filteredOrders.map((order) => (
+                      {paginatedOrders.map((order) => (
                         <tr key={order.id} className="group hover:bg-stone-50/40 transition-colors">
                           <td className="py-4 px-6 font-mono font-bold text-stone-900">{order.id}</td>
                           <td className="py-4 px-6 text-stone-500 font-mono">
@@ -2317,6 +2623,17 @@ export default function Admin() {
                   <div className="p-16 text-center text-xs font-bold uppercase tracking-[0.25em] text-stone-400">
                     Loading orders
                   </div>
+                )}
+
+                {!isLoading && filteredOrders.length > 0 && (
+                  <PaginationControls
+                    page={orderPage}
+                    pageCount={orderPageCount}
+                    totalCount={filteredOrders.length}
+                    pageSize={orderPageSize}
+                    label="orders"
+                    onPageChange={setOrderPage}
+                  />
                 )}
               </div>
             </div>
@@ -2468,11 +2785,15 @@ export default function Admin() {
           onCreateShipment={() => {
             void handleCreateShipment(viewingOrder);
           }}
+          onSyncShipment={() => {
+            void handleSyncShipment(viewingOrder);
+          }}
           onCancelOrder={() => {
             setCancelCandidate(viewingOrder);
           }}
           isUpdating={updatingOrderFor === viewingOrder.id}
           isCreatingShipment={creatingShipmentFor === viewingOrder.id}
+          isSyncingShipment={syncingShipmentFor === viewingOrder.id}
         />
       )}
     </div>

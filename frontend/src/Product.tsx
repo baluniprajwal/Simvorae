@@ -67,6 +67,9 @@ export default function Product() {
   const imageRef = useRef<HTMLImageElement>(null);
 
   const productImages = product?.images?.length ? product.images.map((image) => image.url) : [];
+  const keyFeatures = product?.keyFeatures?.length
+    ? product.keyFeatures
+    : ['Fits 15" Laptop', 'Multiple Functional Pockets', 'Zipper Closure'];
 
   useEffect(() => {
     let ignore = false;
@@ -312,17 +315,16 @@ export default function Product() {
             <div className="reveal-text mb-12">
               <h3 className="text-[16px] md:text-[18px] font-medium mb-6">Key Features</h3>
               <ul className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6 text-sm font-light text-[#1a1a1a] list-disc pl-5">
-                <li className="pl-2">Fits 15&quot; Laptop</li>
-                <li className="pl-2">Multiple Functional Pockets</li>
-                <li className="pl-2">Zipper Closure</li>
+                {keyFeatures.map((feature) => (
+                  <li key={feature} className="pl-2">{feature}</li>
+                ))}
               </ul>
             </div>
 
             <div className="reveal-text spec-grid font-sans border-t border-[#1a1a1a]/10 mb-16 max-w-xl">
               <AccordionItem title="Why You'll Love It?" defaultOpen={true}>
                 <p>
-                  Designed with meticulous attention to detail, this piece seamlessly blends elevated aesthetics with everyday utility.
-                  The refined craftsmanship ensures it will become a staple in your collection.
+                  {product.whyLoveIt || 'Designed with meticulous attention to detail, this piece seamlessly blends elevated aesthetics with everyday utility. The refined craftsmanship ensures it will become a staple in your collection.'}
                 </p>
               </AccordionItem>
               <AccordionItem title="Details & Dimensions">
@@ -339,13 +341,33 @@ export default function Product() {
                     <span className="text-stone-500">Category</span>
                     <span className="font-medium text-[#1a1a1a]">{product.category}</span>
                   </div>
+                  {product.dimensions && (
+                    <div className="flex justify-between">
+                      <span className="text-stone-500">Dimensions</span>
+                      <span className="font-medium text-[#1a1a1a]">{product.dimensions}</span>
+                    </div>
+                  )}
+                  {product.packageDetails && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-stone-500">Package Size</span>
+                        <span className="font-medium text-[#1a1a1a]">
+                          {product.packageDetails.lengthCm} x {product.packageDetails.breadthCm} x {product.packageDetails.heightCm} cm
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-stone-500">Package Weight</span>
+                        <span className="font-medium text-[#1a1a1a]">{product.packageDetails.weightKg} kg</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </AccordionItem>
               <AccordionItem title="Shipping & Returns">
-                <p>Complimentary express shipping on all orders. Returns are accepted within 30 days of delivery in their original condition.</p>
+                <p>{product.shippingReturns || 'Complimentary express shipping on all orders. Returns are accepted within 30 days of delivery in their original condition.'}</p>
               </AccordionItem>
               <AccordionItem title="More Information">
-                <p>Each item is crafted in limited numbers to preserve its exclusivity. Contact our concierge for personalized styling advice.</p>
+                <p>{product.moreInformation || 'Each item is crafted in limited numbers to preserve its exclusivity. Contact our concierge for personalized styling advice.'}</p>
               </AccordionItem>
             </div>
           </div>

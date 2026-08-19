@@ -27,6 +27,34 @@ const productImageSchema = new mongoose.Schema(
   },
 );
 
+const packageDetailsSchema = new mongoose.Schema(
+  {
+    lengthCm: {
+      type: Number,
+      required: true,
+      min: 0.1,
+    },
+    breadthCm: {
+      type: Number,
+      required: true,
+      min: 0.1,
+    },
+    heightCm: {
+      type: Number,
+      required: true,
+      min: 0.1,
+    },
+    weightKg: {
+      type: Number,
+      required: true,
+      min: 0.01,
+    },
+  },
+  {
+    _id: false,
+  },
+);
+
 const productSchema = new mongoose.Schema(
   {
     legacyId: {
@@ -82,6 +110,34 @@ const productSchema = new mongoose.Schema(
       type: String,
       default: '',
       trim: true,
+    },
+    keyFeatures: {
+      type: [String],
+      default: [],
+    },
+    whyLoveIt: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    dimensions: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    shippingReturns: {
+      type: String,
+      default: 'Complimentary express shipping on all orders. Returns are accepted within 30 days of delivery in their original condition.',
+      trim: true,
+    },
+    moreInformation: {
+      type: String,
+      default: 'Each item is crafted in limited numbers to preserve its exclusivity. Contact our concierge for personalized styling advice.',
+      trim: true,
+    },
+    packageDetails: {
+      type: packageDetailsSchema,
+      required: true,
     },
     featured: {
       type: Boolean,

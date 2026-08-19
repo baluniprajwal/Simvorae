@@ -1,5 +1,6 @@
 import { Order } from '../models/Order.js';
 import { sendPaymentConfirmedEmails } from '../services/emailService.js';
+import { debitOrderStock } from '../services/orderService.js';
 import { verifyRazorpaySignature } from '../services/razorpayService.js';
 import { createHttpError } from '../utils/createHttpError.js';
 
@@ -38,6 +39,8 @@ export async function verifyPayment(req, res, next) {
     }
 
     if (order.payment.status !== 'paid') {
+      await debitOrderStock(order);
+
       order.payment.status = 'paid';
       order.payment.razorpayPaymentId = razorpayPaymentId;
       order.payment.razorpaySignature = razorpaySignature;

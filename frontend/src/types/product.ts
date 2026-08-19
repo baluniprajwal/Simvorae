@@ -5,6 +5,13 @@ export interface ProductImage {
   order: number;
 }
 
+export interface PackageDetails {
+  lengthCm: number;
+  breadthCm: number;
+  heightCm: number;
+  weightKg: number;
+}
+
 export interface Product {
   _id: string;
   legacyId: number;
@@ -17,6 +24,12 @@ export interface Product {
   image: string;
   images: ProductImage[];
   description?: string;
+  keyFeatures: string[];
+  whyLoveIt?: string;
+  dimensions?: string;
+  shippingReturns?: string;
+  moreInformation?: string;
+  packageDetails: PackageDetails;
   featured: boolean;
   stock: number;
   lowStockThreshold: number;

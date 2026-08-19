@@ -1,6 +1,6 @@
 import { Order } from '../models/Order.js';
 import { sendShipmentTrackingEmail } from '../services/emailService.js';
-import { createShiprocketOrder } from '../services/shiprocketService.js';
+import { createShiprocketOrder, getShiprocketTracking } from '../services/shiprocketService.js';
 import { createHttpError } from '../utils/createHttpError.js';
 
 const ADMIN_ORDER_STATUSES = ['processing', 'cancelled'];
@@ -76,11 +76,17 @@ export async function createOrderShipment(req, res, next) {
     order.shipping.shiprocketOrderId = shipment.shiprocketOrderId;
     order.shipping.shipmentId = shipment.shipmentId;
     order.shipping.awbCode = shipment.awbCode;
+    order.shipping.courierName = shipment.courierName;
     order.shipping.trackingUrl = shipment.trackingUrl;
+    order.shipping.pickupStatus = shipment.pickupStatus;
+    order.shipping.pickupTokenNumber = shipment.pickupTokenNumber;
+    order.shipping.pickupScheduledAt = shipment.pickupScheduledAt;
     await order.save();
 
-    if (shipment.awbCode || shipment.trackingUrl) {
+    if ((shipment.awbCode || shipment.trackingUrl) && !order.shipping.trackingNotifiedAt) {
       await sendShipmentTrackingEmail(order);
+      order.shipping.trackingNotifiedAt = new Date();
+      await order.save();
     }
 
     return res.status(201).json({
@@ -88,6 +94,65 @@ export async function createOrderShipment(req, res, next) {
       message: 'Shipment created successfully.',
       order,
       shipment,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function syncOrderShipment(req, res, next) {
+  try {
+    const order = await Order.findOne({ orderNumber: req.params.orderNumber });
+
+    if (!order) {
+      return next(createHttpError(404, 'Order not found.'));
+    }
+
+    if (!order.shipping.shipmentId && !order.shipping.awbCode) {
+      return next(createHttpError(400, 'Shipment has not been created for this order.'));
+    }
+
+    const tracking = await getShiprocketTracking(order);
+
+    if (tracking.skipped) {
+      return next(createHttpError(503, 'Shiprocket credentials are not configured.'));
+    }
+
+    const hadTrackingInfo = Boolean(order.shipping.awbCode || order.shipping.trackingUrl);
+
+    order.shipping.awbCode = tracking.awbCode || order.shipping.awbCode;
+    order.shipping.trackingUrl = tracking.trackingUrl || order.shipping.trackingUrl;
+    order.shipping.currentStatus = tracking.currentStatus || order.shipping.currentStatus;
+    order.shipping.statusCode = tracking.statusCode ?? order.shipping.statusCode;
+    order.shipping.courierName = tracking.courierName || order.shipping.courierName;
+    order.shipping.status = tracking.shippingStatus || order.shipping.status;
+
+    if (tracking.orderStatus) {
+      order.orderStatus = tracking.orderStatus;
+    }
+
+    if (tracking.shippedAt && !order.shipping.shippedAt) {
+      order.shipping.shippedAt = tracking.shippedAt;
+    }
+
+    if (tracking.deliveredAt && !order.shipping.deliveredAt) {
+      order.shipping.deliveredAt = tracking.deliveredAt;
+    }
+
+    await order.save();
+
+    const hasNewTrackingInfo = Boolean(order.shipping.awbCode || order.shipping.trackingUrl);
+    if (!hadTrackingInfo && hasNewTrackingInfo && !order.shipping.trackingNotifiedAt) {
+      await sendShipmentTrackingEmail(order);
+      order.shipping.trackingNotifiedAt = new Date();
+      await order.save();
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Shipment synced successfully.',
+      order,
+      tracking,
     });
   } catch (error) {
     return next(error);

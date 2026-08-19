@@ -88,6 +88,12 @@ export function validateAdminProductBody(req, _res, next) {
     stockQuantity,
     lowStockThreshold,
     isActive,
+    keyFeatures,
+    whyLoveIt,
+    dimensions,
+    shippingReturns,
+    moreInformation,
+    packageDetails,
   } = req.body;
 
   for (const [key, value] of Object.entries({ name, category, material, color })) {
@@ -105,12 +111,49 @@ export function validateAdminProductBody(req, _res, next) {
     return next(createValidationError('price must be a valid non-negative number.'));
   }
 
+  if (!packageDetails || typeof packageDetails !== 'object' || Array.isArray(packageDetails)) {
+    return next(createValidationError('Shiprocket package details are required.'));
+  }
+
+  for (const [key, value] of Object.entries({
+    lengthCm: packageDetails.lengthCm,
+    breadthCm: packageDetails.breadthCm,
+    heightCm: packageDetails.heightCm,
+    weightKg: packageDetails.weightKg,
+  })) {
+    const parsedValue = Number(value);
+
+    if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+      return next(createValidationError(`${key} must be a positive number.`));
+    }
+  }
+
   if (!Array.isArray(images) || images.length === 0) {
     return next(createValidationError('At least one product image is required.'));
   }
 
   if (images.some((image) => typeof image !== 'string' || image.trim().length === 0)) {
     return next(createValidationError('Every product image must be a valid URL.'));
+  }
+
+  if (keyFeatures !== undefined) {
+    if (!Array.isArray(keyFeatures)) {
+      return next(createValidationError('keyFeatures must be an array of text values.'));
+    }
+
+    if (keyFeatures.length > 8) {
+      return next(createValidationError('keyFeatures must not exceed 8 items.'));
+    }
+
+    if (keyFeatures.some((feature) => typeof feature !== 'string' || feature.trim().length > 120)) {
+      return next(createValidationError('Each key feature must be text under 120 characters.'));
+    }
+  }
+
+  for (const [key, value] of Object.entries({ whyLoveIt, dimensions, shippingReturns, moreInformation })) {
+    if (value !== undefined && (typeof value !== 'string' || value.trim().length > 1000)) {
+      return next(createValidationError(`${key} must be text under 1000 characters.`));
+    }
   }
 
   const parsedStock = Number(stock ?? stockQuantity ?? 0);
