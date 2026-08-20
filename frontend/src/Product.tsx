@@ -350,13 +350,19 @@ export default function Product() {
                   {product.packageDetails && (
                     <>
                       <div className="flex justify-between">
-                        <span className="text-stone-500">Package Size</span>
-                        <span className="font-medium text-[#1a1a1a]">
-                          {product.packageDetails.lengthCm} x {product.packageDetails.breadthCm} x {product.packageDetails.heightCm} cm
-                        </span>
+                        <span className="text-stone-500">Length</span>
+                        <span className="font-medium text-[#1a1a1a]">{product.packageDetails.lengthCm} cm</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-stone-500">Package Weight</span>
+                        <span className="text-stone-500">Breadth</span>
+                        <span className="font-medium text-[#1a1a1a]">{product.packageDetails.breadthCm} cm</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-stone-500">Height</span>
+                        <span className="font-medium text-[#1a1a1a]">{product.packageDetails.heightCm} cm</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-stone-500">Weight</span>
                         <span className="font-medium text-[#1a1a1a]">{product.packageDetails.weightKg} kg</span>
                       </div>
                     </>

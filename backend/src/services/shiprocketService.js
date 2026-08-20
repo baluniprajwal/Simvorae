@@ -82,7 +82,12 @@ async function shiprocketRequest(path, options = {}) {
   const data = text ? JSON.parse(text) : {};
 
   if (!response.ok) {
-    throw createHttpError(502, data.message || data.error || 'Shiprocket API request failed.');
+    const shiprocketMessage = data.message || data.error || data.errors || text || 'Shiprocket API request failed.';
+    const message = typeof shiprocketMessage === 'string'
+      ? shiprocketMessage
+      : JSON.stringify(shiprocketMessage);
+
+    throw createHttpError(502, `Shiprocket error: ${message}`);
   }
 
   return { skipped: false, data };
@@ -141,6 +146,11 @@ function buildShiprocketPayload(order) {
 
 function extractAwbAssignment(awbData) {
   const assignmentData = awbData?.response?.data || awbData?.data || awbData;
+  const awbAssignStatus = Number(awbData?.awb_assign_status ?? assignmentData?.awb_code_status ?? 0);
+
+  if (awbAssignStatus === 0 && assignmentData?.awb_assign_error) {
+    throw createHttpError(502, `Shiprocket AWB error: ${assignmentData.awb_assign_error}`);
+  }
 
   return {
     awbCode: assignmentData?.awb_code ? String(assignmentData.awb_code) : '',
@@ -253,6 +263,7 @@ export async function createShiprocketOrder(order) {
     courierName: '',
     shiprocketOrderId: data.order_id ? String(data.order_id) : '',
     shipmentId,
+    assignmentMessage: '',
   };
   let pickup = {
     pickupStatus: '',
@@ -273,6 +284,7 @@ export async function createShiprocketOrder(order) {
     awb = {
       ...awb,
       ...extractAwbAssignment(awbResponse.data),
+      assignmentMessage: awbResponse.data?.message || '',
     };
   }
 
@@ -290,6 +302,7 @@ export async function createShiprocketOrder(order) {
   return {
     skipped: false,
     raw: data,
+    awbAssignmentMessage: awb.assignmentMessage,
     shiprocketOrderId: awb.shiprocketOrderId || (data.order_id ? String(data.order_id) : ''),
     shipmentId: awb.shipmentId || shipmentId,
     awbCode: awb.awbCode,
@@ -321,5 +334,53 @@ export async function getShiprocketTracking(order) {
     skipped: false,
     raw: response.data,
     ...extractTrackingData(response.data),
+  };
+}
+
+export async function cancelShiprocketOrder(shiprocketOrderId) {
+  if (!shiprocketOrderId) {
+    throw createHttpError(400, 'Shiprocket order ID is required.');
+  }
+
+  const response = await shiprocketRequest('/orders/cancel', {
+    method: 'POST',
+    body: JSON.stringify({
+      ids: [Number(shiprocketOrderId)],
+    }),
+  });
+
+  if (response.skipped) {
+    return {
+      skipped: true,
+    };
+  }
+
+  return {
+    skipped: false,
+    raw: response.data,
+  };
+}
+
+export async function cancelShiprocketShipmentByAwb(awbCode) {
+  if (!awbCode) {
+    throw createHttpError(400, 'AWB code is required.');
+  }
+
+  const response = await shiprocketRequest('/orders/cancel/shipment/awbs', {
+    method: 'POST',
+    body: JSON.stringify({
+      awbs: [String(awbCode)],
+    }),
+  });
+
+  if (response.skipped) {
+    return {
+      skipped: true,
+    };
+  }
+
+  return {
+    skipped: false,
+    raw: response.data,
   };
 }

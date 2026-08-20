@@ -17,7 +17,22 @@ function createImages(url, name) {
   ];
 }
 
-export const seedProducts = [
+const packageDetailsByLegacyId = {
+  1: { lengthCm: 40, breadthCm: 14, heightCm: 32, weightKg: 0.9 },
+  2: { lengthCm: 34, breadthCm: 12, heightCm: 28, weightKg: 0.75 },
+  3: { lengthCm: 24, breadthCm: 8, heightCm: 18, weightKg: 0.55 },
+  4: { lengthCm: 22, breadthCm: 7, heightCm: 14, weightKg: 0.5 },
+  5: { lengthCm: 42, breadthCm: 16, heightCm: 34, weightKg: 1 },
+  6: { lengthCm: 28, breadthCm: 10, heightCm: 20, weightKg: 0.6 },
+  7: { lengthCm: 20, breadthCm: 7, heightCm: 15, weightKg: 0.45 },
+  8: { lengthCm: 48, breadthCm: 22, heightCm: 34, weightKg: 1.35 },
+  9: { lengthCm: 46, breadthCm: 20, heightCm: 32, weightKg: 1.25 },
+  10: { lengthCm: 30, breadthCm: 12, heightCm: 22, weightKg: 0.8 },
+  11: { lengthCm: 18, breadthCm: 6, heightCm: 12, weightKg: 0.4 },
+  12: { lengthCm: 21, breadthCm: 7, heightCm: 14, weightKg: 0.42 },
+};
+
+const rawSeedProducts = [
   {
     legacyId: 1,
     name: 'The Drape Tote',
@@ -167,3 +182,10 @@ export const seedProducts = [
     stock: 5,
   },
 ];
+
+export const seedProducts = rawSeedProducts.map((product) => ({
+  ...product,
+  whyLoveIt: product.whyLoveIt || product.description,
+  dimensions: product.dimensions || `${packageDetailsByLegacyId[product.legacyId].lengthCm} x ${packageDetailsByLegacyId[product.legacyId].breadthCm} x ${packageDetailsByLegacyId[product.legacyId].heightCm} cm`,
+  packageDetails: packageDetailsByLegacyId[product.legacyId],
+}));

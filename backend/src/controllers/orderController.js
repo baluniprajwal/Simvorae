@@ -1,6 +1,11 @@
 import { Order } from '../models/Order.js';
 import { sendShipmentTrackingEmail } from '../services/emailService.js';
-import { createShiprocketOrder, getShiprocketTracking } from '../services/shiprocketService.js';
+import {
+  cancelShiprocketOrder,
+  cancelShiprocketShipmentByAwb,
+  createShiprocketOrder,
+  getShiprocketTracking,
+} from '../services/shiprocketService.js';
 import { createHttpError } from '../utils/createHttpError.js';
 
 const ADMIN_ORDER_STATUSES = ['processing', 'cancelled'];
@@ -31,6 +36,18 @@ export async function updateOrderStatus(req, res, next) {
 
     if (!order) {
       return next(createHttpError(404, 'Order not found.'));
+    }
+
+    const hasShippingProcessStarted = order.shipping.status !== 'not_created';
+    const hasShiprocketIdentifiers = Boolean(
+      order.shipping.shiprocketOrderId ||
+        order.shipping.shipmentId ||
+        order.shipping.awbCode,
+    );
+    const hasActiveShipment = (hasShippingProcessStarted || hasShiprocketIdentifiers) && order.shipping.status !== 'cancelled';
+
+    if (status === 'cancelled' && hasActiveShipment) {
+      return next(createHttpError(409, 'Cancel the Shiprocket shipment before cancelling this order.'));
     }
 
     order.orderStatus = status;
@@ -81,6 +98,9 @@ export async function createOrderShipment(req, res, next) {
     order.shipping.pickupStatus = shipment.pickupStatus;
     order.shipping.pickupTokenNumber = shipment.pickupTokenNumber;
     order.shipping.pickupScheduledAt = shipment.pickupScheduledAt;
+    order.shipping.currentStatus = shipment.awbCode
+      ? 'AWB assigned'
+      : shipment.awbAssignmentMessage || 'AWB assignment pending in Shiprocket';
     await order.save();
 
     if ((shipment.awbCode || shipment.trackingUrl) && !order.shipping.trackingNotifiedAt) {
@@ -110,6 +130,14 @@ export async function syncOrderShipment(req, res, next) {
 
     if (!order.shipping.shipmentId && !order.shipping.awbCode) {
       return next(createHttpError(400, 'Shipment has not been created for this order.'));
+    }
+
+    if (order.shipping.status === 'cancelled') {
+      return res.status(200).json({
+        success: true,
+        message: 'Shipment is already cancelled. Tracking sync skipped.',
+        order,
+      });
     }
 
     const tracking = await getShiprocketTracking(order);
@@ -153,6 +181,77 @@ export async function syncOrderShipment(req, res, next) {
       message: 'Shipment synced successfully.',
       order,
       tracking,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function cancelOrderShipment(req, res, next) {
+  try {
+    const order = await Order.findOne({ orderNumber: req.params.orderNumber });
+
+    if (!order) {
+      return next(createHttpError(404, 'Order not found.'));
+    }
+
+    if (!order.shipping.awbCode && !order.shipping.shiprocketOrderId) {
+      return next(createHttpError(400, 'No Shiprocket shipment/order exists for this order.'));
+    }
+
+    if (order.shipping.status === 'cancelled') {
+      return next(createHttpError(409, 'Shipment cancellation has already been requested.'));
+    }
+
+    if (order.shipping.status === 'in_transit' || order.shipping.status === 'delivered') {
+      return next(createHttpError(409, 'Shipment cannot be cancelled after pickup/in-transit/delivery has started.'));
+    }
+
+    const cancellation = order.shipping.awbCode
+      ? await cancelShiprocketShipmentByAwb(order.shipping.awbCode)
+      : await cancelShiprocketOrder(order.shipping.shiprocketOrderId);
+
+    if (cancellation.skipped) {
+      return next(createHttpError(503, 'Shiprocket credentials are not configured.'));
+    }
+
+    order.shipmentAttempts.push({
+      provider: order.shipping.provider,
+      status: 'cancelled',
+      shipmentId: order.shipping.shipmentId,
+      shiprocketOrderId: order.shipping.shiprocketOrderId,
+      awbCode: order.shipping.awbCode,
+      courierName: order.shipping.courierName,
+      trackingUrl: order.shipping.trackingUrl,
+      pickupStatus: order.shipping.pickupStatus || 'Cancelled before pickup',
+      currentStatus: 'Cancellation requested',
+      cancelledAt: new Date(),
+    });
+
+    order.shipping = {
+      provider: 'shiprocket',
+      status: 'not_created',
+      shipmentId: '',
+      shiprocketOrderId: '',
+      awbCode: '',
+      courierName: '',
+      trackingUrl: '',
+      pickupStatus: 'Previous shipment cancelled',
+      pickupTokenNumber: '',
+      pickupScheduledAt: null,
+      currentStatus: 'Ready to create shipment again',
+      statusCode: null,
+      trackingNotifiedAt: null,
+      shippedAt: null,
+      deliveredAt: null,
+    };
+    await order.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Shiprocket cancellation requested successfully.',
+      order,
+      cancellation,
     });
   } catch (error) {
     return next(error);

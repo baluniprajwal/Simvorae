@@ -20,6 +20,15 @@ export interface OrderItem {
   image: string;
 }
 
+export interface ShipmentAttempt {
+  status: Order['shippingStatus'];
+  shiprocketOrderId: string;
+  shipmentId: string;
+  awbCode: string;
+  courierName: string;
+  cancelledAt: string;
+}
+
 export interface Order {
   id: string;
   customer: CustomerQuery;
@@ -39,6 +48,7 @@ export interface Order {
   createdAt: string;
   paymentMethod: 'Prepaid' | 'COD';
   items: OrderItem[];
+  shipmentAttempts: ShipmentAttempt[];
 }
 
 interface OrderStore {
@@ -50,6 +60,7 @@ interface OrderStore {
   cancelOrder: (id: string) => Promise<Order>;
   createShipment: (id: string) => Promise<Order>;
   syncShipment: (id: string) => Promise<Order>;
+  cancelShipment: (id: string) => Promise<Order>;
 }
 
 type BackendOrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
@@ -96,6 +107,14 @@ type BackendOrder = {
     pickupStatus?: string;
     currentStatus?: string;
   };
+  shipmentAttempts?: Array<{
+    status?: Order['shippingStatus'];
+    shiprocketOrderId?: string;
+    shipmentId?: string;
+    awbCode?: string;
+    courierName?: string;
+    cancelledAt?: string;
+  }>;
   createdAt: string;
 };
 
@@ -158,6 +177,14 @@ const mapBackendOrder = (order: BackendOrder): Order => ({
     quantity: item.quantity,
     price: item.productSnapshot.unitPrice,
     image: item.productSnapshot.image,
+  })),
+  shipmentAttempts: (order.shipmentAttempts ?? []).map((attempt) => ({
+    status: attempt.status ?? 'cancelled',
+    shiprocketOrderId: attempt.shiprocketOrderId ?? '',
+    shipmentId: attempt.shipmentId ?? '',
+    awbCode: attempt.awbCode ?? '',
+    courierName: attempt.courierName ?? '',
+    cancelledAt: attempt.cancelledAt ?? '',
   })),
 });
 
@@ -296,6 +323,27 @@ export const useOrderStore = create<OrderStore>((set) => ({
       const message = axios.isAxiosError(error)
         ? error.response?.data?.message || error.message
         : 'Failed to sync shipment.';
+
+      set({ error: message });
+      throw new Error(message);
+    }
+  },
+  cancelShipment: async (id) => {
+    try {
+      set({ error: '' });
+      const response = await api.post<OrderResponse>(`/api/orders/${id}/shipment/cancel`);
+
+      const updatedOrder = mapBackendOrder(response.data.order);
+
+      set((state) => ({
+        orders: state.orders.map((order) => (order.id === id ? updatedOrder : order)),
+      }));
+
+      return updatedOrder;
+    } catch (error) {
+      const message = axios.isAxiosError(error)
+        ? error.response?.data?.message || error.message
+        : 'Failed to cancel shipment.';
 
       set({ error: message });
       throw new Error(message);

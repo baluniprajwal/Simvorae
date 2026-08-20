@@ -301,6 +301,63 @@ const shippingSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const shipmentAttemptSchema = new mongoose.Schema(
+  {
+    provider: {
+      type: String,
+      required: true,
+      trim: true,
+      default: 'shiprocket',
+    },
+    status: {
+      type: String,
+      enum: SHIPPING_STATUS,
+      required: true,
+      default: 'cancelled',
+    },
+    shipmentId: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    shiprocketOrderId: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    awbCode: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    courierName: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    trackingUrl: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    pickupStatus: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    currentStatus: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    cancelledAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false },
+);
+
 const orderSchema = new mongoose.Schema(
   {
     orderNumber: {
@@ -358,6 +415,10 @@ const orderSchema = new mongoose.Schema(
       type: shippingSchema,
       required: true,
       default: () => ({}),
+    },
+    shipmentAttempts: {
+      type: [shipmentAttemptSchema],
+      default: [],
     },
     notes: {
       type: String,

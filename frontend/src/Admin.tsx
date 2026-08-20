@@ -1,5 +1,5 @@
 import { type ChangeEvent, type DragEvent, type FormEvent, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   AlertTriangle,
@@ -81,6 +81,24 @@ const orderQueueOptions: Array<{ value: OrderQueue; label: string; description: 
 
 const catalogPageSize = 8;
 const orderPageSize = 10;
+
+const adminTabRoutes: Record<AdminTab, string> = {
+  OVERVIEW: '/admin/overview',
+  CATALOG: '/admin/catalog',
+  ORDERS: '/admin/orders',
+};
+
+const adminPathToTab = (pathname: string): AdminTab => {
+  if (pathname.startsWith('/admin/catalog')) {
+    return 'CATALOG';
+  }
+
+  if (pathname.startsWith('/admin/orders')) {
+    return 'ORDERS';
+  }
+
+  return 'OVERVIEW';
+};
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-IN', {
@@ -1037,208 +1055,290 @@ function OrderDrawer({
   onMarkPacked,
   onCreateShipment,
   onSyncShipment,
+  onCancelShipment,
   onCancelOrder,
   isUpdating,
   isCreatingShipment,
   isSyncingShipment,
+  isCancellingShipment,
+  variant = 'drawer',
 }: {
   order: Order;
   onClose: () => void;
   onMarkPacked: () => void;
   onCreateShipment: () => void;
   onSyncShipment: () => void;
+  onCancelShipment: () => void;
   onCancelOrder: () => void;
   isUpdating: boolean;
   isCreatingShipment: boolean;
   isSyncingShipment: boolean;
+  isCancellingShipment: boolean;
+  variant?: 'drawer' | 'page';
 }) {
   const subtotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const isShiprocketControlledStatus = order.status === 'Shipped' || order.status === 'Delivered';
   const canMarkPacked = order.paymentStatus === 'paid' && order.status === 'Confirmed';
   const canCreateShipment = order.paymentStatus === 'paid' && order.status === 'Packed' && ['not_created', 'failed'].includes(order.shippingStatus);
-  const canCancelOrder = !['Shipped', 'Delivered', 'Cancelled'].includes(order.status);
+  const hasShipment = Boolean(order.awbCode || order.shiprocketOrderId || order.shipmentId);
+  const canCancelOrder = !hasShipment && !['Shipped', 'Delivered', 'Cancelled'].includes(order.status);
+  const hasShipmentCancellationRequested = order.shippingStatus === 'cancelled' || order.currentShippingStatus.toLowerCase().includes('cancel');
+  const canCancelShipment = Boolean(
+    (order.awbCode || order.shiprocketOrderId) &&
+      !hasShipmentCancellationRequested &&
+      !['in_transit', 'delivered'].includes(order.shippingStatus),
+  );
 
-  return (
-    <div className="fixed inset-0 bg-[#0c0c0c]/85 backdrop-blur-sm z-[200] flex items-center justify-end">
-      <div className="admin-scrollbar bg-[#fcfbf9] w-full max-w-3xl h-full p-8 shadow-2xl flex flex-col justify-between overflow-y-auto relative border-l border-stone-200">
+  const content = (
+    <>
+      {variant === 'drawer' && (
         <button
           onClick={onClose}
           className="absolute top-6 right-6 p-2 bg-stone-100 hover:bg-stone-200 rounded-full transition-colors cursor-pointer"
         >
           <X size={16} />
         </button>
+      )}
 
-        <div className="space-y-8 font-sans text-xs">
-          <div className="border-b border-[#1a1a1a]/15 pb-6">
-            <div className="flex items-center gap-3 mb-1.5">
-              <span className="text-[10px] font-bold tracking-widest uppercase text-stone-400">Order Receipt Invoice</span>
-            </div>
-            <h3 className="font-serif text-3xl font-medium tracking-tight mb-2">Simvorae</h3>
-            <div className="flex justify-between items-center text-stone-500 font-mono text-[10px]">
-              <span>Order: <strong className="text-black font-semibold">{order.id}</strong></span>
-              <span>Date: {new Date(order.createdAt).toLocaleDateString()}</span>
-            </div>
+      {variant === 'page' && (
+        <div className="mb-6 flex flex-col gap-4 border-b border-stone-200 pb-5 md:flex-row md:items-center md:justify-between">
+          <div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="mb-3 flex cursor-pointer items-center gap-2 text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400 transition-colors hover:text-[#111]"
+            >
+              <ArrowLeft size={12} />
+              Back to Orders
+            </button>
+            <p className="text-[9px] font-bold uppercase tracking-[0.28em] text-stone-400">Order Detail</p>
+            <h2 className="mt-1 font-serif text-[2.4rem] leading-none tracking-tight text-[#111]">{order.id}</h2>
           </div>
-
-          <div className="bg-stone-50 border border-[#1a1a1a]/5 p-5 rounded-[1rem] flex justify-between items-center">
-            <div>
-              <span className="text-[8px] tracking-widest uppercase font-bold text-stone-400 block mb-1">Fulfillment Status</span>
-              <p className="font-sans font-medium text-black">
-                {isShiprocketControlledStatus ? 'Managed by Shiprocket' : 'Update internal order stage'}
-              </p>
-            </div>
-            <div className="flex flex-wrap justify-end gap-2">
-              <span className={`rounded-xl px-4 py-2 text-[10px] font-bold uppercase tracking-wider ${getStatusClasses(order.status)}`}>
-                {order.status}
-              </span>
-              {canMarkPacked && (
-                <button
-                  type="button"
-                  disabled={isUpdating}
-                  onClick={onMarkPacked}
-                  className="cursor-pointer rounded-xl bg-[#1a1a1a] px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-[#fcfbf9] hover:bg-black disabled:cursor-not-allowed disabled:bg-stone-400"
-                >
-                  {isUpdating ? 'Updating' : 'Mark Packed'}
-                </button>
-              )}
-              {canCreateShipment && (
-                <button
-                  type="button"
-                  disabled={isCreatingShipment}
-                  onClick={onCreateShipment}
-                  className="cursor-pointer rounded-xl bg-[#1a1a1a] px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-[#fcfbf9] hover:bg-black disabled:cursor-not-allowed disabled:bg-stone-400"
-                >
-                  {isCreatingShipment ? 'Creating' : 'Create Shipment'}
-                </button>
-              )}
-              {canCancelOrder && (
-                <button
-                  type="button"
-                  disabled={isUpdating}
-                  onClick={onCancelOrder}
-                  className="cursor-pointer rounded-xl border border-stone-200 bg-white px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-stone-500 hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              )}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            <span className={`rounded-xl px-4 py-2 text-[10px] font-bold uppercase tracking-wider ${getPaymentStatusClasses(order.paymentStatus)}`}>
+              {formatStatusLabel(order.paymentStatus)}
+            </span>
+            <span className={`rounded-xl px-4 py-2 text-[10px] font-bold uppercase tracking-wider ${getShippingStatusClasses(order.shippingStatus)}`}>
+              {formatStatusLabel(order.shippingStatus)}
+            </span>
+            <span className={`rounded-xl px-4 py-2 text-[10px] font-bold uppercase tracking-wider ${getStatusClasses(order.status)}`}>
+              {order.status}
+            </span>
           </div>
+        </div>
+      )}
 
-          <div className="space-y-4">
-            <h4 className="font-bold uppercase tracking-widest text-stone-400 text-[9px]">Ordered Products</h4>
-            <div className="space-y-3.5">
-              {order.items.map((item) => (
-                <div key={item.id} className="flex gap-4 items-center">
-                  <div className="w-12 aspect-[4/5] bg-stone-100 rounded-lg overflow-hidden border border-[#1a1a1a]/5 flex-shrink-0">
-                    <img src={item.image} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" />
+      <div className="space-y-8 font-sans text-xs">
+        <div className="border-b border-[#1a1a1a]/15 pb-6">
+          <div className="flex items-center gap-3 mb-1.5">
+            <span className="text-[10px] font-bold tracking-widest uppercase text-stone-400">Order Receipt Invoice</span>
+          </div>
+          <h3 className="font-serif text-3xl font-medium tracking-tight mb-2">Simvorae</h3>
+          <div className="flex justify-between items-center text-stone-500 font-mono text-[10px]">
+            <span>Order: <strong className="text-black font-semibold">{order.id}</strong></span>
+            <span>Date: {new Date(order.createdAt).toLocaleDateString()}</span>
+          </div>
+        </div>
+
+        <div className="bg-stone-50 border border-[#1a1a1a]/5 p-5 rounded-[1rem] flex justify-between items-center">
+          <div>
+            <span className="text-[8px] tracking-widest uppercase font-bold text-stone-400 block mb-1">Fulfillment Status</span>
+            <p className="font-sans font-medium text-black">
+              {isShiprocketControlledStatus ? 'Managed by Shiprocket' : 'Update internal order stage'}
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <span className={`rounded-xl px-4 py-2 text-[10px] font-bold uppercase tracking-wider ${getStatusClasses(order.status)}`}>
+              {order.status}
+            </span>
+            {canMarkPacked && (
+              <button
+                type="button"
+                disabled={isUpdating}
+                onClick={onMarkPacked}
+                className="cursor-pointer rounded-xl bg-[#1a1a1a] px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-[#fcfbf9] hover:bg-black disabled:cursor-not-allowed disabled:bg-stone-400"
+              >
+                {isUpdating ? 'Updating' : 'Mark Packed'}
+              </button>
+            )}
+            {canCreateShipment && (
+              <button
+                type="button"
+                disabled={isCreatingShipment}
+                onClick={onCreateShipment}
+                className="cursor-pointer rounded-xl bg-[#1a1a1a] px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-[#fcfbf9] hover:bg-black disabled:cursor-not-allowed disabled:bg-stone-400"
+              >
+                {isCreatingShipment ? 'Creating' : 'Create Shipment'}
+              </button>
+            )}
+            {canCancelOrder && (
+              <button
+                type="button"
+                disabled={isUpdating}
+                onClick={onCancelOrder}
+                className="cursor-pointer rounded-xl border border-stone-200 bg-white px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-stone-500 hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className={variant === 'page' ? 'grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]' : 'space-y-8'}>
+          <div className="space-y-8">
+            <div className="space-y-4">
+              <h4 className="font-bold uppercase tracking-widest text-stone-400 text-[9px]">Ordered Products</h4>
+              <div className="space-y-3.5">
+                {order.items.map((item) => (
+                  <div key={item.id} className="flex gap-4 items-center">
+                    <div className="w-12 aspect-[4/5] bg-stone-100 rounded-lg overflow-hidden border border-[#1a1a1a]/5 flex-shrink-0">
+                      <img src={item.image} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-[13px] truncate">{item.name}</h4>
+                      <p className="text-[10px] text-stone-400 tracking-wide font-mono mt-0.5">
+                        {formatCurrency(item.price)} x {item.quantity}
+                      </p>
+                    </div>
+                    <span className="font-mono font-bold text-[13px]">{formatCurrency(item.price * item.quantity)}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-[13px] truncate">{item.name}</h4>
-                    <p className="text-[10px] text-stone-400 tracking-wide font-mono mt-0.5">
-                      {formatCurrency(item.price)} x {item.quantity}
-                    </p>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-[#1a1a1a]/10 pt-4 space-y-2.5 font-light text-stone-600">
+              <div className="flex justify-between">
+                <span>Subtotal</span>
+                <span className="font-medium text-black font-mono">{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Shipping & Handling</span>
+                <span className="font-medium text-emerald-700 uppercase font-mono">Free via Shiprocket</span>
+              </div>
+              <div className="flex justify-between border-t border-[#1a1a1a]/15 pt-4 text-base font-medium text-black">
+                <span className="font-serif text-lg tracking-tight">Invoice Total</span>
+                <span className="font-mono text-lg font-bold">{formatCurrency(order.total)}</span>
+              </div>
+            </div>
+          </div>
+
+          {order.shipmentAttempts.length > 0 && (
+            <div className="space-y-3 border-t border-[#1a1a1a]/10 pt-6">
+              <h4 className="font-bold uppercase tracking-widest text-stone-400 text-[9px]">Previous Shipment Attempts</h4>
+
+              <div className="space-y-2">
+                {order.shipmentAttempts.map((attempt, index) => (
+                  <div key={`${attempt.shipmentId || attempt.shiprocketOrderId || index}-${index}`} className="rounded-xl border border-stone-200 bg-white p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-stone-400">Attempt {index + 1}</span>
+                      <span className="rounded-full bg-red-50 px-2.5 py-1 text-[8px] font-bold uppercase tracking-widest text-red-700">
+                        {formatStatusLabel(attempt.status)}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 gap-2 text-[10px] sm:grid-cols-2">
+                      <DetailRow label="Shiprocket Order" value={attempt.shiprocketOrderId} />
+                      <DetailRow label="Shipment ID" value={attempt.shipmentId} />
+                      <DetailRow label="AWB" value={attempt.awbCode} />
+                      <DetailRow label="Courier" value={attempt.courierName} copyable={false} />
+                    </div>
+                    {attempt.cancelledAt && (
+                      <p className="mt-2 font-mono text-[9px] text-stone-400">
+                        Cancelled: {formatDate(attempt.cancelledAt)}
+                      </p>
+                    )}
                   </div>
-                  <span className="font-mono font-bold text-[13px]">{formatCurrency(item.price * item.quantity)}</span>
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-8">
+            <div className="space-y-3 border-t border-[#1a1a1a]/10 pt-6 xl:border-t-0 xl:pt-0">
+              <h4 className="font-bold uppercase tracking-widest text-stone-400 text-[9px]">Payment & Shipment</h4>
+
+              <div className="overflow-hidden rounded-[1rem] border border-stone-200 bg-white px-4">
+                <DetailRow label="Payment Status" value={formatStatusLabel(order.paymentStatus)} copyable={false} />
+                <DetailRow label="Razorpay Order ID" value={order.razorpayOrderId} />
+                <DetailRow label="Razorpay Payment ID" value={order.razorpayPaymentId} />
+                <DetailRow label="Shipping Status" value={formatStatusLabel(order.shippingStatus)} copyable={false} />
+                <DetailRow label="Current Courier Status" value={order.currentShippingStatus} copyable={false} />
+                <DetailRow label="Courier" value={order.courierName} copyable={false} />
+                <DetailRow label="Shiprocket Order ID" value={order.shiprocketOrderId} />
+                <DetailRow label="Shipment ID" value={order.shipmentId} />
+                <DetailRow label="AWB Code" value={order.awbCode} />
+                <DetailRow label="Pickup Status" value={order.pickupStatus} copyable={false} />
+                <DetailRow label="Tracking URL" value={order.trackingUrl} />
+              </div>
+            </div>
+
+            <div className="space-y-3 border-t border-[#1a1a1a]/10 pt-6">
+              <h4 className="font-bold uppercase tracking-widest text-stone-400 text-[9px]">Operational Actions</h4>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => printPackingSlip(order)}
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.18em] text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900"
+                >
+                  <FileText size={12} />
+                  Print Packing Slip
+                </button>
+                <DrawerCopyAction value={order.customer.address} label="Copy Address" />
+                <button
+                  type="button"
+                  disabled={(!order.shipmentId && !order.awbCode) || isSyncingShipment}
+                  onClick={onSyncShipment}
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3.5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <RotateCcw size={13} />
+                  {isSyncingShipment ? 'Syncing' : 'Sync Shipment'}
+                </button>
+                {canCancelShipment && (
+                  <button
+                    type="button"
+                    disabled={isCancellingShipment}
+                    onClick={onCancelShipment}
+                    className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-red-700 transition-colors hover:border-red-300 hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <X size={13} />
+                    {isCancellingShipment ? 'Cancelling' : 'Cancel Shipment'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={!order.trackingUrl}
+                  onClick={() => window.open(order.trackingUrl, '_blank', 'noopener,noreferrer')}
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.18em] text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ExternalLink size={12} />
+                  Open Tracking
+                </button>
+                <DrawerCopyAction value={order.awbCode} label="Copy AWB" />
+              </div>
             </div>
           </div>
+        </div>
 
-          <div className="border-t border-[#1a1a1a]/10 pt-4 space-y-2.5 font-light text-stone-600">
-            <div className="flex justify-between">
-              <span>Subtotal</span>
-              <span className="font-medium text-black font-mono">{formatCurrency(subtotal)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Shipping & Handling</span>
-              <span className="font-medium text-emerald-700 uppercase font-mono">Free via Shiprocket</span>
-            </div>
-            <div className="flex justify-between border-t border-[#1a1a1a]/15 pt-4 text-base font-medium text-black">
-              <span className="font-serif text-lg tracking-tight">Invoice Total</span>
-              <span className="font-mono text-lg font-bold">{formatCurrency(order.total)}</span>
-            </div>
-          </div>
+        <div className="space-y-3 border-t border-[#1a1a1a]/10 pt-6">
+          <h4 className="font-bold uppercase tracking-widest text-stone-400 text-[9px]">Shipping & Customer Details</h4>
 
-          <div className="space-y-3 border-t border-[#1a1a1a]/10 pt-6">
-            <h4 className="font-bold uppercase tracking-widest text-stone-400 text-[9px]">Payment & Shipment</h4>
-
-            <div className="overflow-hidden rounded-[1rem] border border-stone-200 bg-white px-4">
-              <DetailRow label="Payment Status" value={formatStatusLabel(order.paymentStatus)} copyable={false} />
-              <DetailRow label="Razorpay Order ID" value={order.razorpayOrderId} />
-              <DetailRow label="Razorpay Payment ID" value={order.razorpayPaymentId} />
-              <DetailRow label="Shipping Status" value={formatStatusLabel(order.shippingStatus)} copyable={false} />
-              <DetailRow label="Current Courier Status" value={order.currentShippingStatus} copyable={false} />
-              <DetailRow label="Courier" value={order.courierName} copyable={false} />
-              <DetailRow label="Shiprocket Order ID" value={order.shiprocketOrderId} />
-              <DetailRow label="Shipment ID" value={order.shipmentId} />
-              <DetailRow label="AWB Code" value={order.awbCode} />
-              <DetailRow label="Pickup Status" value={order.pickupStatus} copyable={false} />
-              <DetailRow label="Tracking URL" value={order.trackingUrl} />
-            </div>
-          </div>
-
-          <div className="space-y-3 border-t border-[#1a1a1a]/10 pt-6">
-            <h4 className="font-bold uppercase tracking-widest text-stone-400 text-[9px]">Operational Actions</h4>
-
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => printPackingSlip(order)}
-                className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.18em] text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900"
-              >
-                <FileText size={12} />
-                Print Packing Slip
-              </button>
-              <DrawerCopyAction value={order.customer.address} label="Copy Address" />
-              <button
-                type="button"
-                disabled={(!order.shipmentId && !order.awbCode) || isSyncingShipment}
-                onClick={onSyncShipment}
-                className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3.5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <RotateCcw size={13} />
-                {isSyncingShipment ? 'Syncing' : 'Sync Shipment'}
-              </button>
-              <button
-                type="button"
-                disabled={!order.trackingUrl}
-                onClick={() => window.open(order.trackingUrl, '_blank', 'noopener,noreferrer')}
-                className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.18em] text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <ExternalLink size={12} />
-                Open Tracking
-              </button>
-              <DrawerCopyAction value={order.awbCode} label="Copy AWB" />
-            </div>
-          </div>
-
-          <div className="space-y-3 border-t border-[#1a1a1a]/10 pt-6">
-            <h4 className="font-bold uppercase tracking-widest text-stone-400 text-[9px]">Shipping & Customer Details</h4>
-
-            <div className="space-y-3 font-light text-stone-600">
-              <p className="flex items-start gap-2">
-                <User size={13} className="mt-0.5 text-stone-400" />
-                <span className="text-black font-medium">{order.customer.name}</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <Mail size={13} className="mt-0.5 text-stone-400" />
-                <span>{order.customer.email}</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <Phone size={13} className="mt-0.5 text-stone-400" />
-                <span>{order.customer.phone}</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <MapPin size={13} className="mt-0.5 text-stone-400" />
-                <span>{order.customer.address}</span>
-              </p>
-            </div>
-
-            <div className="overflow-hidden rounded-[1rem] border border-stone-200 bg-white px-4">
-              <DetailRow label="Customer Email" value={order.customer.email} />
-              <DetailRow label="Customer Phone" value={order.customer.phone} />
-              <DetailRow label="Full Address" value={order.customer.address} />
-            </div>
+          <div className="space-y-3 font-light text-stone-600">
+            <p className="flex items-start gap-2">
+              <User size={13} className="mt-0.5 text-stone-400" />
+              <span className="text-black font-medium">{order.customer.name}</span>
+            </p>
+            <p className="flex items-start gap-2">
+              <Mail size={13} className="mt-0.5 text-stone-400" />
+              <span>{order.customer.email}</span>
+            </p>
+            <p className="flex items-start gap-2">
+              <Phone size={13} className="mt-0.5 text-stone-400" />
+              <span>{order.customer.phone}</span>
+            </p>
+            <p className="flex items-start gap-2">
+              <MapPin size={13} className="mt-0.5 text-stone-400" />
+              <span>{order.customer.address}</span>
+            </p>
           </div>
         </div>
 
@@ -1251,12 +1351,29 @@ function OrderDrawer({
           </button>
         </div>
       </div>
+    </>
+  );
+
+  if (variant === 'page') {
+    return (
+      <div className="rounded-[1.5rem] border border-stone-200 bg-white/90 p-5 shadow-sm md:p-7">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-[#0c0c0c]/85 backdrop-blur-sm z-[200] flex items-center justify-end">
+      <div className="admin-scrollbar bg-[#fcfbf9] w-full max-w-3xl h-full p-8 shadow-2xl flex flex-col justify-between overflow-y-auto relative border-l border-stone-200">
+        {content}
+      </div>
     </div>
   );
 }
 
 export default function Admin() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     products,
     isLoading: isProductsLoading,
@@ -1268,15 +1385,17 @@ export default function Admin() {
     updateProduct,
     deleteProduct,
   } = useProductStore();
-  const { orders, isLoading, error, fetchOrders, markPacked, cancelOrder, createShipment, syncShipment } = useOrderStore();
+  const { orders, isLoading, error, fetchOrders, markPacked, cancelOrder, createShipment, syncShipment, cancelShipment } = useOrderStore();
 
-  const [activeTab, setActiveTab] = useState<AdminTab>('OVERVIEW');
+  const activeTab = adminPathToTab(location.pathname);
+  const setActiveTab = (tab: AdminTab) => navigate(adminTabRoutes[tab]);
   const [productSearch, setProductSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [productForm, setProductForm] = useState<ProductFormState>(createEmptyForm());
   const [editingProduct, setEditingProduct] = useState<ProductStoreItem | null>(null);
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [cancelCandidate, setCancelCandidate] = useState<Order | null>(null);
+  const [cancelShipmentCandidate, setCancelShipmentCandidate] = useState<Order | null>(null);
   const [deleteProductCandidate, setDeleteProductCandidate] = useState<ProductStoreItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [dashboardRange, setDashboardRange] = useState<DashboardRange>('week');
@@ -1293,6 +1412,7 @@ export default function Admin() {
   const [orderPage, setOrderPage] = useState(1);
   const [creatingShipmentFor, setCreatingShipmentFor] = useState('');
   const [syncingShipmentFor, setSyncingShipmentFor] = useState('');
+  const [cancellingShipmentFor, setCancellingShipmentFor] = useState('');
   const [updatingOrderFor, setUpdatingOrderFor] = useState('');
   const [deletingProductFor, setDeletingProductFor] = useState<number | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -1301,6 +1421,14 @@ export default function Admin() {
     void fetchOrders();
     void fetchProducts();
   }, [fetchOrders, fetchProducts]);
+
+  useEffect(() => {
+    const validAdminPaths = new Set(Object.values(adminTabRoutes));
+
+    if (!validAdminPaths.has(location.pathname)) {
+      navigate('/admin/overview', { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   useEffect(() => {
     if (!toast) {
@@ -1312,7 +1440,7 @@ export default function Admin() {
   }, [toast]);
 
   useEffect(() => {
-    const hasOpenOverlay = Boolean(isModalOpen || viewingOrder || cancelCandidate || deleteProductCandidate);
+    const hasOpenOverlay = Boolean(isModalOpen || viewingOrder || cancelCandidate || cancelShipmentCandidate || deleteProductCandidate);
     const previousOverflow = document.body.style.overflow;
 
     if (hasOpenOverlay) {
@@ -1322,7 +1450,7 @@ export default function Admin() {
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [cancelCandidate, deleteProductCandidate, isModalOpen, viewingOrder]);
+  }, [cancelCandidate, cancelShipmentCandidate, deleteProductCandidate, isModalOpen, viewingOrder]);
 
   const rangeLabel = useMemo(
     () => getDateRangeLabel(dashboardRange, customStartDate, customEndDate),
@@ -1809,7 +1937,11 @@ export default function Admin() {
     (order.shippingStatus === 'not_created' || order.shippingStatus === 'failed');
 
   const canMarkPacked = (order: Order) => order.paymentStatus === 'paid' && order.status === 'Confirmed';
-  const canCancelOrder = (order: Order) => !['Shipped', 'Delivered', 'Cancelled'].includes(order.status);
+  const canCancelOrder = (order: Order) => {
+    const hasShipment = Boolean(order.awbCode || order.shiprocketOrderId || order.shipmentId);
+
+    return !hasShipment && !['Shipped', 'Delivered', 'Cancelled'].includes(order.status);
+  };
 
   const handleMarkPacked = async (order: Order) => {
     setUpdatingOrderFor(order.id);
@@ -1869,6 +2001,24 @@ export default function Admin() {
       setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to sync shipment.' });
     } finally {
       setSyncingShipmentFor('');
+    }
+  };
+
+  const confirmCancelShipment = async () => {
+    if (!cancelShipmentCandidate) {
+      return;
+    }
+
+    try {
+      setCancellingShipmentFor(cancelShipmentCandidate.id);
+      const updatedOrder = await cancelShipment(cancelShipmentCandidate.id);
+      setViewingOrder(updatedOrder);
+      setCancelShipmentCandidate(null);
+      setToast({ type: 'success', message: `Shiprocket cancellation requested for ${cancelShipmentCandidate.id}.` });
+    } catch (error) {
+      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to cancel shipment.' });
+    } finally {
+      setCancellingShipmentFor('');
     }
   };
 
@@ -1966,10 +2116,6 @@ export default function Admin() {
             </div>
 
             <div className="flex flex-wrap gap-2.5">
-              <div className="flex h-11 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3.5 text-xs shadow-[0_1px_0_rgba(0,0,0,0.02)]">
-                <Clock size={12} className="text-stone-400" />
-                <span>{new Date().toLocaleTimeString('en-IN')}</span>
-              </div>
               <button
                 onClick={() => void fetchOrders()}
                 className="flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-[9px] font-bold uppercase tracking-[0.22em] shadow-[0_1px_0_rgba(0,0,0,0.02)] transition-colors hover:border-stone-900"
@@ -2711,6 +2857,63 @@ export default function Admin() {
         </div>
       )}
 
+      {cancelShipmentCandidate && (
+        <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#0c0c0c]/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-hidden rounded-[1.25rem] border border-stone-200 bg-[#fcfbf9] shadow-2xl">
+            <div className="flex items-start justify-between gap-5 border-b border-stone-200 bg-white/60 px-6 py-5">
+              <div>
+                <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.28em] text-stone-400">Shiprocket Action</p>
+                <h3 className="font-serif text-[2rem] font-medium leading-none tracking-tight text-[#111]">Cancel shipment</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCancelShipmentCandidate(null)}
+                className="cursor-pointer rounded-xl border border-stone-200 bg-white px-3.5 py-2 text-[9px] font-bold uppercase tracking-widest text-stone-500 transition-colors hover:border-stone-400 hover:text-stone-900"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="px-6 py-5">
+              <p className="mb-5 text-xs font-light leading-6 text-stone-500">
+                This will request cancellation in Shiprocket for <span className="font-mono font-bold text-[#111]">{cancelShipmentCandidate.id}</span>. Shipment cancellation works only before pickup or in-transit movement begins.
+              </p>
+
+              <div className="grid grid-cols-1 overflow-hidden rounded-[1rem] border border-stone-200 bg-white sm:grid-cols-2">
+                <div className="border-b border-stone-200 p-4 sm:border-b-0 sm:border-r">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">AWB</p>
+                  <p className="mt-2 font-mono text-sm font-bold text-[#111]">{cancelShipmentCandidate.awbCode || 'Not assigned'}</p>
+                  <p className="mt-1 text-xs text-stone-400">{cancelShipmentCandidate.courierName || 'Courier not assigned'}</p>
+                </div>
+                <div className="p-4 text-right">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">Shiprocket Order</p>
+                  <p className="mt-2 font-mono text-sm font-bold text-[#111]">{cancelShipmentCandidate.shiprocketOrderId || 'Not available'}</p>
+                  <p className="mt-1 text-xs text-stone-400">{formatStatusLabel(cancelShipmentCandidate.shippingStatus)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-stone-200 bg-white/70 px-6 py-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setCancelShipmentCandidate(null)}
+                className="cursor-pointer rounded-xl border border-stone-200 bg-[#fcfbf9] px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-600 transition-colors hover:border-stone-400 hover:text-stone-900"
+              >
+                Keep Shipment
+              </button>
+              <button
+                type="button"
+                disabled={cancellingShipmentFor === cancelShipmentCandidate.id}
+                onClick={() => void confirmCancelShipment()}
+                className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-red-700 transition-colors hover:border-red-300 hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-200 disabled:text-stone-500"
+              >
+                {cancellingShipmentFor === cancelShipmentCandidate.id ? 'Cancelling' : 'Cancel Shipment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {deleteProductCandidate && (
         <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#0c0c0c]/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-lg overflow-hidden rounded-[1.25rem] border border-stone-200 bg-[#fcfbf9] shadow-2xl">
@@ -2788,12 +2991,16 @@ export default function Admin() {
           onSyncShipment={() => {
             void handleSyncShipment(viewingOrder);
           }}
+          onCancelShipment={() => {
+            setCancelShipmentCandidate(viewingOrder);
+          }}
           onCancelOrder={() => {
             setCancelCandidate(viewingOrder);
           }}
           isUpdating={updatingOrderFor === viewingOrder.id}
           isCreatingShipment={creatingShipmentFor === viewingOrder.id}
           isSyncingShipment={syncingShipmentFor === viewingOrder.id}
+          isCancellingShipment={cancellingShipmentFor === viewingOrder.id}
         />
       )}
     </div>

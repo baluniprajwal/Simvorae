@@ -35,8 +35,9 @@ function AppContent() {
         <Route path="/contact" element={<Contact />} />
         <Route path="/product/:id" element={<Product />} />
         <Route path="/checkout" element={<Checkout />} />
+        <Route path="/admin" element={<Navigate to="/admin/overview" replace />} />
         <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin" element={<ProtectedAdminRoute />} />
+        <Route path="/admin/*" element={<ProtectedAdminRoute />} />
       </Routes>
     </>
   );
