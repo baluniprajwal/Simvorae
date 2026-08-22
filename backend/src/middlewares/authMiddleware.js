@@ -18,6 +18,10 @@ export async function protect(req, _res, next) {
       return next(createHttpError(401, 'User account is not available.'));
     }
 
+    if (user.role === 'customer' && !user.emailVerifiedAt) {
+      return next(createHttpError(403, 'Please verify your email before continuing.'));
+    }
+
     req.user = user;
     return next();
   } catch (error) {

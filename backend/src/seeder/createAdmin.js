@@ -30,6 +30,7 @@ async function createAdmin() {
       role: 'admin',
       source: 'admin',
       isPortalEnabled: true,
+      emailVerifiedAt: new Date(),
     },
     {
       new: true,

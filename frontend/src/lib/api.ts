@@ -11,9 +11,14 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const adminToken = window.localStorage.getItem('simvorae_admin_token');
+  const customerToken = window.localStorage.getItem('simvorae_customer_token');
+  const isAdminPage = window.location.pathname.startsWith('/admin');
+  const token = isAdminPage ? adminToken : customerToken;
 
-  if (adminToken) {
-    config.headers.Authorization = `Bearer ${adminToken}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    delete config.headers.Authorization;
   }
 
   return config;

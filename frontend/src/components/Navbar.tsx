@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Search, X, ShoppingBag, Menu } from 'lucide-react';
+import { Search, X, ShoppingBag, Menu, User } from 'lucide-react';
+import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toggleCart, getCartCount } = useCartStore();
+  const { user, logout } = useAuthStore();
   
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -103,6 +105,24 @@ export default function Navbar() {
             <span className="font-bold">({getCartCount()})</span>
           </button>
 
+          {user ? (
+            <Link
+              to="/account"
+              className="nav-item hidden md:flex cursor-pointer hover:opacity-60 transition-all duration-300 items-center gap-2 text-[9px] uppercase tracking-[0.2em] font-bold whitespace-nowrap"
+            >
+              <User size={15} />
+              Account
+            </Link>
+          ) : (
+            <Link
+              to="/login"
+              className="nav-item hidden md:flex cursor-pointer hover:opacity-60 transition-all duration-300 items-center gap-2 text-[9px] uppercase tracking-[0.2em] font-bold whitespace-nowrap"
+            >
+              <User size={15} />
+              Login
+            </Link>
+          )}
+
           {/* Mobile Menu Toggle */}
           <button 
             onClick={() => setIsMobileMenuOpen(true)}
@@ -132,12 +152,20 @@ export default function Navbar() {
           <Link to="/shop" className="font-serif text-4xl hover:italic transition-all">Shop</Link>
           <Link to="/about" className="font-serif text-4xl hover:italic transition-all">About</Link>
           <Link to="/contact" className="font-serif text-4xl hover:italic transition-all">Contact</Link>
+          <Link to={user ? '/account' : '/login'} className="font-serif text-4xl hover:italic transition-all">
+            {user ? 'Account' : 'Login'}
+          </Link>
         </nav>
         
         <div className="pb-8 flex flex-col items-center border-t border-stone-200 pt-8 gap-6 text-[#1a1a1a]">
            <button onClick={() => { setIsMobileMenuOpen(false); toggleCart(); }} className="text-[10px] uppercase tracking-widest font-bold">
              Shopping Bag ({getCartCount()})
            </button>
+           {user && (
+             <button onClick={() => { setIsMobileMenuOpen(false); logout(); }} className="text-[10px] uppercase tracking-widest font-bold">
+               Logout
+             </button>
+           )}
            <div className="flex gap-8 text-[10px] uppercase tracking-widest text-stone-500">
              <a href="#">Instagram</a>
              <a href="#">Contact</a>

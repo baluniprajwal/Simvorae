@@ -109,6 +109,46 @@ function buildShipmentEmailHtml(order) {
   `;
 }
 
+function buildEmailVerificationHtml({ name, verificationUrl }) {
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;">
+      <p style="font-size:12px;letter-spacing:0.24em;text-transform:uppercase;color:#999;margin-bottom:20px;">Simvorae Account</p>
+      <h1 style="font-family:Georgia,serif;font-weight:400;font-size:34px;line-height:1.1;margin:0 0 18px;">Verify your email</h1>
+      <p style="color:#555;line-height:1.7;margin:0 0 24px;">
+        Hi ${escapeHtml(name || 'there')}, confirm your email address to activate your Simvorae account and continue checkout.
+      </p>
+      <p style="margin:0 0 28px;">
+        <a href="${escapeHtml(verificationUrl)}" style="background:#1a1a1a;color:#fcfbf9;text-decoration:none;padding:14px 22px;display:inline-block;border-radius:999px;font-size:12px;letter-spacing:0.18em;text-transform:uppercase;font-weight:700;">
+          Verify Email
+        </a>
+      </p>
+      <p style="color:#777;line-height:1.6;font-size:13px;margin:0;">
+        This link expires in 24 hours. If you did not create this account, you can ignore this email.
+      </p>
+    </div>
+  `;
+}
+
+function buildPasswordResetHtml({ name, resetUrl }) {
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;">
+      <p style="font-size:12px;letter-spacing:0.24em;text-transform:uppercase;color:#999;margin-bottom:20px;">Simvorae Account</p>
+      <h1 style="font-family:Georgia,serif;font-weight:400;font-size:34px;line-height:1.1;margin:0 0 18px;">Reset your password</h1>
+      <p style="color:#555;line-height:1.7;margin:0 0 24px;">
+        Hi ${escapeHtml(name || 'there')}, use the button below to set a new password for your Simvorae account.
+      </p>
+      <p style="margin:0 0 28px;">
+        <a href="${escapeHtml(resetUrl)}" style="background:#1a1a1a;color:#fcfbf9;text-decoration:none;padding:14px 22px;display:inline-block;border-radius:999px;font-size:12px;letter-spacing:0.18em;text-transform:uppercase;font-weight:700;">
+          Reset Password
+        </a>
+      </p>
+      <p style="color:#777;line-height:1.6;font-size:13px;margin:0;">
+        This link expires in 30 minutes. If you did not request this, ignore this email.
+      </p>
+    </div>
+  `;
+}
+
 async function sendEmail({ to, subject, html }) {
   const resend = getEmailClient();
 
@@ -166,5 +206,21 @@ export async function sendShipmentTrackingEmail(order) {
     to: order.customer.email,
     subject: `Your Simvorae order ${order.orderNumber} has shipped`,
     html: buildShipmentEmailHtml(order),
+  });
+}
+
+export async function sendEmailVerification({ to, name, verificationUrl }) {
+  return sendEmail({
+    to,
+    subject: 'Verify your Simvorae email',
+    html: buildEmailVerificationHtml({ name, verificationUrl }),
+  });
+}
+
+export async function sendPasswordResetEmail({ to, name, resetUrl }) {
+  return sendEmail({
+    to,
+    subject: 'Reset your Simvorae password',
+    html: buildPasswordResetHtml({ name, resetUrl }),
   });
 }

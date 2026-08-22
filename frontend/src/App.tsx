@@ -7,8 +7,17 @@ import Shop from './Shop';
 import Product from './Product';
 import Cart from './Cart';
 import Checkout from './Checkout';
+import CheckoutLogin from './CheckoutLogin';
+import OrderSuccess from './OrderSuccess';
+import Account from './Account';
+import ForgotPassword from './ForgotPassword';
+import Login from './Login';
+import Register from './Register';
+import ResetPassword from './ResetPassword';
+import VerifyEmail from './VerifyEmail';
 import About from './About';
 import Contact from './Contact';
+import { useAuthStore } from './store/authStore';
 
 function ScrollToTop() {
   const { pathname, search } = useLocation();
@@ -34,13 +43,43 @@ function AppContent() {
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/product/:id" element={<Product />} />
-        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/checkout" element={<ProtectedCheckoutRoute />} />
+        <Route path="/checkout/login" element={<CheckoutLogin />} />
+        <Route path="/order-success" element={<OrderSuccess />} />
+        <Route path="/account" element={<ProtectedAccountRoute />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/admin" element={<Navigate to="/admin/overview" replace />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin/*" element={<ProtectedAdminRoute />} />
       </Routes>
     </>
   );
+}
+
+function ProtectedCheckoutRoute() {
+  const token = useAuthStore((state) => state.token);
+  const location = useLocation();
+
+  if (!token) {
+    return <Navigate to="/checkout/login" replace state={{ from: location }} />;
+  }
+
+  return <Checkout />;
+}
+
+function ProtectedAccountRoute() {
+  const token = useAuthStore((state) => state.token);
+  const location = useLocation();
+
+  if (!token) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  return <Account />;
 }
 
 function ProtectedAdminRoute() {

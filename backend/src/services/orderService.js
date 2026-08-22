@@ -200,6 +200,25 @@ function validateCheckoutPhone(phone) {
   return normalizedPhone;
 }
 
+function saveCheckoutAddressToUser({ user, customerName, checkoutPhone, shippingAddress }) {
+  const nextAddress = {
+    label: 'Default',
+    fullName: customerName.trim(),
+    phone: checkoutPhone,
+    addressLine1: shippingAddress.addressLine1.trim(),
+    city: shippingAddress.city.trim(),
+    state: shippingAddress.state.trim(),
+    postalCode: shippingAddress.postalCode.trim(),
+    country: shippingAddress.country?.trim() || 'India',
+    isDefault: true,
+  };
+
+  user.addresses = [
+    nextAddress,
+    ...(user.addresses || []).filter((address) => !address.isDefault),
+  ];
+}
+
 export async function createPendingOrder({ payload, user }) {
   const { customer, shippingAddress, items, notes = '' } = payload;
 
@@ -251,6 +270,12 @@ export async function createPendingOrder({ payload, user }) {
   if (user) {
     user.phone = checkoutPhone;
     user.lastOrderAt = new Date();
+    saveCheckoutAddressToUser({
+      user,
+      customerName: customer.name,
+      checkoutPhone,
+      shippingAddress,
+    });
     await user.save();
   }
 

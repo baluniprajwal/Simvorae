@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
-import { CheckCircle, ChevronLeft, CreditCard, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, CreditCard, ShieldCheck, UserCheck } from 'lucide-react';
 import api from './lib/api';
+import { useAuthStore } from './store/authStore';
 import { useCartStore } from './store/cartStore';
 
-type CheckoutStep = 'ADDRESS' | 'PAYMENT' | 'SUCCESS';
+type CheckoutStep = 'ADDRESS' | 'PAYMENT';
 
 type RazorpayCheckoutResponse = {
   razorpay_payment_id: string;
@@ -56,18 +57,36 @@ function loadRazorpayScript() {
   });
 }
 
+function FieldError({
+  children,
+  error,
+  className = '',
+}: {
+  children: React.ReactNode;
+  error?: string;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      {children}
+      {error && <p className="mt-1.5 text-[11px] font-medium text-red-600">{error}</p>}
+    </div>
+  );
+}
+
 export default function Checkout() {
   const { items, getCartTotal, clearCart } = useCartStore();
+  const user = useAuthStore((state) => state.user);
+  const refreshMe = useAuthStore((state) => state.refreshMe);
   const navigate = useNavigate();
+  const hasPrefilledRef = useRef(false);
 
   const [step, setStep] = useState<CheckoutStep>('ADDRESS');
   const [phone, setPhone] = useState('');
   const [isPaying, setIsPaying] = useState(false);
   const [error, setError] = useState('');
-  const [confirmedOrderNumber, setConfirmedOrderNumber] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
     address: '',
     city: '',
     state: '',
@@ -77,14 +96,85 @@ export default function Checkout() {
   const subtotal = getCartTotal();
   const total = subtotal;
 
+  useEffect(() => {
+    refreshMe();
+  }, [refreshMe]);
+
+  useEffect(() => {
+    if (!user || hasPrefilledRef.current) {
+      return;
+    }
+
+    const defaultAddress = user.addresses?.find((address) => address.isDefault) || user.addresses?.[0];
+
+    if (user.phone) {
+      setPhone(user.phone.replace(/\D/g, '').slice(0, 10));
+    }
+
+    if (defaultAddress) {
+      setFormData({
+        address: defaultAddress.addressLine1 || '',
+        city: defaultAddress.city || '',
+        state: defaultAddress.state || '',
+        pincode: defaultAddress.postalCode || '',
+      });
+    }
+
+    hasPrefilledRef.current = true;
+  }, [user]);
+
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setFieldErrors((current) => ({ ...current, [event.target.name]: '' }));
     setFormData({ ...formData, [event.target.name]: event.target.value });
+  };
+
+  const validateCheckoutForm = () => {
+    const nextErrors: Record<string, string> = {};
+    const trimmed = {
+      address: formData.address.trim(),
+      city: formData.city.trim(),
+      state: formData.state.trim(),
+      pincode: formData.pincode.trim(),
+      phone: phone.trim(),
+    };
+
+    if (!user?.name || !user.email) {
+      nextErrors.account = 'Please sign in again before checkout.';
+    }
+
+    if (!/^[6-9]\d{9}$/.test(trimmed.phone)) {
+      nextErrors.phone = 'Enter a valid 10-digit Indian mobile number.';
+    }
+
+    if (trimmed.address.length < 8) {
+      nextErrors.address = 'Enter the complete delivery address.';
+    }
+
+    if (!trimmed.city) {
+      nextErrors.city = 'Enter the delivery city.';
+    }
+
+    if (!trimmed.state) {
+      nextErrors.state = 'Enter the delivery state.';
+    }
+
+    if (!/^\d{6}$/.test(trimmed.pincode)) {
+      nextErrors.pincode = 'Enter a valid 6-digit PIN code.';
+    }
+
+    setFieldErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const handleAddressSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
-    setConfirmedOrderNumber('');
+
+    if (!validateCheckoutForm()) {
+      setError('Please fix the highlighted checkout details.');
+      return;
+    }
+
     setStep('PAYMENT');
   };
 
@@ -116,8 +206,8 @@ export default function Checkout() {
 
       const checkoutResponse = await api.post('/api/checkout', {
         customer: {
-          name: formData.name,
-          email: formData.email,
+          name: user?.name,
+          email: user?.email,
           phone,
         },
         shippingAddress: {
@@ -140,8 +230,8 @@ export default function Checkout() {
         description: `Order ${orderNumber}`,
         order_id: checkout.payment.razorpayOrderId,
         prefill: {
-          name: formData.name,
-          email: formData.email,
+          name: user?.name,
+          email: user?.email,
           contact: phone,
         },
         notes: {
@@ -158,13 +248,17 @@ export default function Checkout() {
               razorpaySignature: response.razorpay_signature,
             });
 
-            setConfirmedOrderNumber(orderNumber);
+            window.sessionStorage.setItem('simvorae_last_order', JSON.stringify({
+              orderNumber,
+              total,
+              email: user?.email || '',
+            }));
             clearCart();
-            setStep('SUCCESS');
+            navigate(`/order-success?order=${encodeURIComponent(orderNumber)}`, { replace: true });
           } catch (verifyError) {
             const message = axios.isAxiosError(verifyError)
               ? verifyError.response?.data?.message || verifyError.message
-              : 'Payment completed, but verification failed. Contact support with your payment id.';
+              : 'Payment completed, but verification failed. Contact support with your payment ID.';
 
             setError(message);
           } finally {
@@ -173,15 +267,16 @@ export default function Checkout() {
         },
         modal: {
           ondismiss: () => {
-            setError('Payment was not completed. Your cart is still saved.');
+            setError('Payment window was closed before completion. Your cart is still saved and no payment was confirmed.');
             setIsPaying(false);
           },
         },
       });
 
       razorpay.on('payment.failed', (response: RazorpayFailureResponse) => {
-        const message = response.error?.description || response.error?.reason || 'Payment failed. Please try another payment method.';
-        setError(message);
+        const paymentId = response.error?.metadata?.payment_id;
+        const reason = response.error?.description || response.error?.reason || 'Payment failed. Please try another payment method.';
+        setError(paymentId ? `${reason} Payment ID: ${paymentId}` : reason);
         setIsPaying(false);
       });
 
@@ -198,7 +293,7 @@ export default function Checkout() {
     }
   };
 
-  if (items.length === 0 && step !== 'SUCCESS') {
+  if (items.length === 0) {
     return (
       <div className="min-h-screen bg-[#fcfbf9] text-[#1a1a1a] flex flex-col items-center justify-center p-6">
         <h2 className="font-serif text-3xl mb-4">Your bag is empty</h2>
@@ -208,25 +303,6 @@ export default function Checkout() {
         >
           Continue Shopping
         </button>
-      </div>
-    );
-  }
-
-  if (step === 'SUCCESS') {
-    return (
-      <div className="min-h-screen bg-[#fcfbf9] text-[#1a1a1a] flex flex-col items-center justify-center p-6 text-center">
-        <CheckCircle className="w-16 h-16 mb-6 text-[#1a1a1a]" />
-        <h2 className="font-serif text-4xl mb-4">Order Placed Successfully!</h2>
-        <p className="text-stone-500 font-light mb-2">Your payment is confirmed and order details have been sent by email.</p>
-        {confirmedOrderNumber && <p className="text-xs font-mono text-stone-500 mb-8">Order {confirmedOrderNumber}</p>}
-        <div className="flex gap-4">
-          <button onClick={() => navigate('/shop')} className="px-8 py-4 bg-[#1a1a1a] text-[#fcfbf9] text-[10px] tracking-widest uppercase font-bold hover:bg-black transition-colors">
-            Continue Shopping
-          </button>
-          <button disabled className="cursor-not-allowed px-8 py-4 border border-stone-200 text-stone-400 text-[10px] tracking-widest uppercase font-bold">
-            My Orders Coming Soon
-          </button>
-        </div>
       </div>
     );
   }
@@ -253,14 +329,44 @@ export default function Checkout() {
             <form onSubmit={handleAddressSubmit} className="space-y-4 max-w-lg">
               <p className="text-stone-500 font-light text-sm mb-4 md:mb-6">Share your contact and delivery details.</p>
 
+              {error && (
+                <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>{error}</p>
+                </div>
+              )}
+
+              <div className="rounded-[1rem] border border-[#1a1a1a]/10 bg-stone-100/40 p-4">
+                <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-stone-400">
+                  <UserCheck className="h-4 w-4 text-stone-500" />
+                  Signed in as
+                </div>
+                <p className="font-medium text-[#1a1a1a]">{user?.name}</p>
+                <p className="mt-1 text-sm font-light text-stone-600">{user?.email}</p>
+                {fieldErrors.account && <p className="mt-2 text-[11px] font-medium text-red-600">{fieldErrors.account}</p>}
+              </div>
+              {(phone || formData.address) && (
+                <p className="text-[11px] leading-5 text-stone-500">
+                  Saved delivery details are filled in automatically. You can edit them for this order.
+                </p>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
-                <input type="text" name="name" required value={formData.name} placeholder="Full Name" onChange={handleInputChange} className="col-span-2 w-full px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />
-                <input type="email" name="email" required value={formData.email} placeholder="Email Address" onChange={handleInputChange} className="col-span-2 w-full px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />
-                <input type="tel" required value={phone} placeholder="10-digit Mobile Number" pattern="[6-9][0-9]{9}" onChange={(event) => setPhone(event.target.value)} className="col-span-2 w-full px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />
-                <input type="text" name="address" required value={formData.address} placeholder="Complete Delivery Address" onChange={handleInputChange} className="col-span-2 w-full px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />
-                <input type="text" name="city" required value={formData.city} placeholder="City" onChange={handleInputChange} className="w-full col-span-2 sm:col-span-1 px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />
-                <input type="text" name="state" required value={formData.state} placeholder="State" onChange={handleInputChange} className="w-full col-span-2 sm:col-span-1 px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />
-                <input type="text" name="pincode" required value={formData.pincode} placeholder="PIN Code" pattern="[0-9]{6}" onChange={handleInputChange} className="w-full col-span-2 px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />
+                <FieldError className="col-span-2" error={fieldErrors.phone}>
+                  <input type="tel" value={phone} placeholder="10-digit Mobile Number" onChange={(event) => { setFieldErrors((current) => ({ ...current, phone: '' })); setPhone(event.target.value.replace(/\D/g, '').slice(0, 10)); }} className="w-full px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />
+                </FieldError>
+                <FieldError className="col-span-2" error={fieldErrors.address}>
+                  <input type="text" name="address" value={formData.address} placeholder="Complete Delivery Address" onChange={handleInputChange} className="w-full px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />
+                </FieldError>
+                <FieldError className="col-span-2 sm:col-span-1" error={fieldErrors.city}>
+                  <input type="text" name="city" value={formData.city} placeholder="City" onChange={handleInputChange} className="w-full px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />
+                </FieldError>
+                <FieldError className="col-span-2 sm:col-span-1" error={fieldErrors.state}>
+                  <input type="text" name="state" value={formData.state} placeholder="State" onChange={handleInputChange} className="w-full px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />
+                </FieldError>
+                <FieldError className="col-span-2" error={fieldErrors.pincode}>
+                  <input type="text" name="pincode" value={formData.pincode} placeholder="PIN Code" onChange={(event) => { setFieldErrors((current) => ({ ...current, pincode: '' })); setFormData({ ...formData, pincode: event.target.value.replace(/\D/g, '').slice(0, 6) }); }} className="w-full px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />
+                </FieldError>
               </div>
 
               <div className="pt-4 md:pt-6">
@@ -278,7 +384,7 @@ export default function Checkout() {
                   <span className="text-[10px] uppercase tracking-widest font-semibold text-stone-400">Deliver to</span>
                   <button onClick={() => setStep('ADDRESS')} className="text-[10px] uppercase tracking-[0.2em] font-medium text-[#1a1a1a] hover:text-stone-500 border-b border-[#1a1a1a] pb-0.5">Edit</button>
                 </div>
-                <p className="mb-2"><strong className="font-medium text-[#1a1a1a] text-base">{formData.name}</strong></p>
+                <p className="mb-2"><strong className="font-medium text-[#1a1a1a] text-base">{user?.name}</strong></p>
                 <p className="mb-1">{formData.address}</p>
                 <p className="mb-4 md:mb-5">{formData.city}, {formData.state} - {formData.pincode}</p>
                 <div className="w-full h-px bg-[#1a1a1a]/10 my-4 md:my-5" />
@@ -287,7 +393,7 @@ export default function Checkout() {
                   <button onClick={() => setStep('ADDRESS')} className="text-[10px] uppercase tracking-[0.2em] font-medium text-[#1a1a1a] hover:text-stone-500 border-b border-[#1a1a1a] pb-0.5">Edit</button>
                 </div>
                 <p className="mb-1">+91 {phone}</p>
-                <p>{formData.email}</p>
+                <p>{user?.email}</p>
               </div>
 
               <div className="pt-6 md:pt-8 border-t border-[#1a1a1a]/10">

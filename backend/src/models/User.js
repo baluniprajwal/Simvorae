@@ -80,6 +80,21 @@ const userSchema = new mongoose.Schema(
       index: true,
       sparse: true,
     },
+    emailVerifiedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    passwordResetTokenHash: {
+      type: String,
+      select: false,
+      default: '',
+    },
+    passwordResetExpiresAt: {
+      type: Date,
+      select: false,
+      default: null,
+    },
     source: {
       type: String,
       enum: ['direct', 'admin'],
