@@ -513,7 +513,7 @@ export default function Shop() {
           <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-y-16 gap-x-8 md:gap-y-24 md:gap-x-12">
             {products.map((product) => (
               <Link
-                to={`/product/${product.legacyId ?? product.slug}`}
+                to={`/product/${product.slug}`}
                 key={product._id}
                 className="product-card group cursor-pointer relative flex flex-col block border-none outline-none"
               >

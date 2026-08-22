@@ -13,7 +13,7 @@ export interface CustomerQuery {
 }
 
 export interface OrderItem {
-  id: number;
+  id: string;
   name: string;
   quantity: number;
   price: number;
@@ -80,8 +80,8 @@ type BackendOrder = {
     country: string;
   };
   items: Array<{
+    product?: string;
     productSnapshot: {
-      legacyId: number;
       name: string;
       image: string;
       unitPrice: number;
@@ -172,7 +172,7 @@ const mapBackendOrder = (order: BackendOrder): Order => ({
   createdAt: order.createdAt,
   paymentMethod: 'Prepaid',
   items: order.items.map((item) => ({
-    id: item.productSnapshot.legacyId,
+    id: item.product ?? item.productSnapshot.name,
     name: item.productSnapshot.name,
     quantity: item.quantity,
     price: item.productSnapshot.unitPrice,

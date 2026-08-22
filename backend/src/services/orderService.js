@@ -47,14 +47,12 @@ async function buildOrderItems(inputItems) {
 
   const productIdentifiers = inputItems.map((item) => String(item.productId));
   const objectIds = productIdentifiers.filter((id) => mongoose.Types.ObjectId.isValid(id));
-  const legacyIds = productIdentifiers
-    .filter((id) => /^\d+$/.test(id))
-    .map((id) => Number(id));
+  const slugs = productIdentifiers.filter((id) => !mongoose.Types.ObjectId.isValid(id));
 
   const products = await Product.find({
     $or: [
       ...(objectIds.length > 0 ? [{ _id: { $in: objectIds } }] : []),
-      ...(legacyIds.length > 0 ? [{ legacyId: { $in: legacyIds } }] : []),
+      ...(slugs.length > 0 ? [{ slug: { $in: slugs } }] : []),
     ],
     isActive: true,
   });
@@ -62,7 +60,7 @@ async function buildOrderItems(inputItems) {
 
   for (const product of products) {
     productsById.set(product._id.toString(), product);
-    productsById.set(String(product.legacyId), product);
+    productsById.set(product.slug, product);
   }
 
   const orderItems = inputItems.map((item) => {
@@ -84,7 +82,6 @@ async function buildOrderItems(inputItems) {
     return {
       product: product._id,
       productSnapshot: {
-        legacyId: product.legacyId,
         slug: product.slug,
         name: product.name,
         category: product.category,

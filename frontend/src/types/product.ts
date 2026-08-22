@@ -14,7 +14,6 @@ export interface PackageDetails {
 
 export interface Product {
   _id: string;
-  legacyId: number;
   name: string;
   slug: string;
   price: number;

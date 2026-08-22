@@ -76,10 +76,6 @@ const orderItemSchema = new mongoose.Schema(
       index: true,
     },
     productSnapshot: {
-      legacyId: {
-        type: Number,
-        required: true,
-      },
       slug: {
         type: String,
         required: true,

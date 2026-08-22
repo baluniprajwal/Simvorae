@@ -24,7 +24,7 @@ export type ProductInput = {
 };
 
 export interface ProductStoreItem {
-  id: number;
+  id: string;
   mongoId: string;
   name: string;
   price: number;
@@ -66,13 +66,13 @@ interface ProductStore {
   fetchProducts: () => Promise<void>;
   uploadProductImage: (file: File) => Promise<string>;
   addProduct: (product: ProductInput) => Promise<void>;
-  updateProduct: (id: number, product: ProductInput) => Promise<void>;
-  deleteProduct: (id: number) => Promise<void>;
+  updateProduct: (id: string, product: ProductInput) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
   resetProducts: () => void;
 }
 
 const mapBackendProduct = (product: BackendProduct): ProductStoreItem => ({
-  id: product.legacyId,
+  id: product._id,
   mongoId: product._id,
   name: product.name,
   price: product.price,

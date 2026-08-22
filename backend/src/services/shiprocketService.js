@@ -96,7 +96,7 @@ async function shiprocketRequest(path, options = {}) {
 function buildOrderItems(order) {
   return order.items.map((item) => ({
     name: item.productSnapshot.name,
-    sku: item.productSnapshot.slug || String(item.productSnapshot.legacyId),
+    sku: item.productSnapshot.slug || item.product.toString(),
     units: item.quantity,
     selling_price: item.productSnapshot.unitPrice,
   }));

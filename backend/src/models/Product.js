@@ -57,12 +57,6 @@ const packageDetailsSchema = new mongoose.Schema(
 
 const productSchema = new mongoose.Schema(
   {
-    legacyId: {
-      type: Number,
-      required: true,
-      unique: true,
-      index: true,
-    },
     name: {
       type: String,
       required: true,

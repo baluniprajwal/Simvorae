@@ -183,7 +183,7 @@ export default function Product() {
     if (!product) return;
 
     addItem({
-      id: String(product.legacyId ?? product._id),
+      id: product._id,
       name: product.name,
       price: product.price,
       image: product.image,
@@ -278,7 +278,7 @@ export default function Product() {
           <div className="w-full lg:w-[42%] xl:max-w-[560px] flex flex-col pt-6 lg:pt-0 h-fit">
             <div className="reveal-text flex flex-col items-start mb-10">
               <p className="text-[10px] tracking-[0.25em] uppercase text-stone-500 mb-6 font-semibold">
-                {String(product.legacyId).padStart(2, '0')} &mdash; {product.category}
+                {product.category}
               </p>
               <h1 className="font-serif text-[clamp(3.25rem,11vw,4.5rem)] leading-[0.9] tracking-tighter mb-6 max-w-lg">
                 {product.name}
@@ -386,7 +386,7 @@ export default function Product() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
             {similarProducts.map((simProd) => (
               <Link
-                to={`/product/${simProd.legacyId ?? simProd.slug}`}
+                to={`/product/${simProd.slug}`}
                 key={simProd._id}
                 className="product-card group cursor-pointer relative flex flex-col block border-none outline-none"
               >

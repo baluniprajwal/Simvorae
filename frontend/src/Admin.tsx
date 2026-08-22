@@ -1414,7 +1414,7 @@ export default function Admin() {
   const [syncingShipmentFor, setSyncingShipmentFor] = useState('');
   const [cancellingShipmentFor, setCancellingShipmentFor] = useState('');
   const [updatingOrderFor, setUpdatingOrderFor] = useState('');
-  const [deletingProductFor, setDeletingProductFor] = useState<number | null>(null);
+  const [deletingProductFor, setDeletingProductFor] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
@@ -2444,7 +2444,7 @@ export default function Admin() {
 
                         return (
                           <tr key={product.id} className="group hover:bg-stone-50/40 transition-colors">
-                            <td className="py-4 px-6 font-mono text-stone-500">#{product.id}</td>
+                            <td className="py-4 px-6 font-mono text-stone-500">{product.id.slice(-6).toUpperCase()}</td>
                             <td className="py-4 px-6">
                               <div className="w-12 aspect-[3/4] bg-stone-100 rounded-lg overflow-hidden border border-[#1a1a1a]/5">
                                 <img src={product.image} className="w-full h-full object-cover mix-blend-multiply" alt={product.name} />
@@ -2949,7 +2949,7 @@ export default function Admin() {
                     <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">Product</p>
                     <h4 className="mt-2 truncate font-serif text-xl font-medium text-[#111]">{deleteProductCandidate.name}</h4>
                     <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-stone-400">
-                      #{deleteProductCandidate.id} · {deleteProductCandidate.category}
+                      {deleteProductCandidate.id.slice(-6).toUpperCase()} · {deleteProductCandidate.category}
                     </p>
                     <p className="mt-3 font-mono text-xs font-bold text-[#111]">{formatCurrency(deleteProductCandidate.price)}</p>
                   </div>

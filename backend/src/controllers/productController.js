@@ -81,7 +81,7 @@ function buildProductPayload(body) {
 }
 
 function getProductIdentityQuery(id) {
-  const or = [{ legacyId: Number(id) || -1 }];
+  const or = [{ slug: id }];
 
   if (/^[a-f\d]{24}$/i.test(id)) {
     or.push({ _id: id });
@@ -202,12 +202,7 @@ export async function getAdminProducts(_req, res, next) {
 export async function createProduct(req, res, next) {
   try {
     const payload = buildProductPayload(req.body);
-    const lastProduct = await Product.findOne({}).sort({ legacyId: -1 }).select('legacyId');
-
-    const product = await Product.create({
-      ...payload,
-      legacyId: (lastProduct?.legacyId || 0) + 1,
-    });
+    const product = await Product.create(payload);
 
     return res.status(201).json({
       success: true,
@@ -216,7 +211,7 @@ export async function createProduct(req, res, next) {
     });
   } catch (error) {
     if (error.code === 11000) {
-      return next(createHttpError(409, 'Product slug or legacy ID already exists.'));
+      return next(createHttpError(409, 'Product slug already exists.'));
     }
 
     return next(error);
@@ -284,7 +279,7 @@ export async function getProductById(req, res, next) {
     const { id } = req.params;
 
     const product = await Product.findOne({
-      $or: [{ legacyId: Number(id) || -1 }, { slug: id }],
+      ...getProductIdentityQuery(id),
       isActive: true,
     });
 
