@@ -32,6 +32,13 @@ export interface ShipmentAttempt {
 export interface Order {
   id: string;
   customer: CustomerQuery;
+  shippingAddress: {
+    addressLine1: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+  };
   status: OrderStatus;
   paymentStatus: 'pending' | 'authorized' | 'paid' | 'failed' | 'refunded';
   shippingStatus: 'not_created' | 'created' | 'in_transit' | 'delivered' | 'cancelled' | 'failed';
@@ -44,6 +51,8 @@ export interface Order {
   trackingUrl: string;
   pickupStatus: string;
   currentShippingStatus: string;
+  subtotal: number;
+  shipping: number;
   total: number;
   createdAt: string;
   paymentMethod: 'Prepaid' | 'COD';
@@ -56,6 +65,8 @@ interface OrderStore {
   isLoading: boolean;
   error: string;
   fetchOrders: () => Promise<void>;
+  fetchMyOrders: () => Promise<void>;
+  fetchMyOrder: (id: string) => Promise<Order>;
   markPacked: (id: string) => Promise<Order>;
   cancelOrder: (id: string) => Promise<Order>;
   createShipment: (id: string) => Promise<Order>;
@@ -89,6 +100,8 @@ type BackendOrder = {
     quantity: number;
   }>;
   totals: {
+    subtotal?: number;
+    shipping?: number;
     total: number;
   };
   orderStatus: BackendOrderStatus;
@@ -157,6 +170,13 @@ const mapBackendOrder = (order: BackendOrder): Order => ({
       .join(', '),
   },
   status: toAdminStatus(order.orderStatus),
+  shippingAddress: {
+    addressLine1: order.shippingAddress.addressLine1,
+    city: order.shippingAddress.city,
+    state: order.shippingAddress.state,
+    postalCode: order.shippingAddress.postalCode,
+    country: order.shippingAddress.country,
+  },
   paymentStatus: order.payment?.status ?? 'pending',
   shippingStatus: order.shipping?.status ?? 'not_created',
   razorpayOrderId: order.payment?.razorpayOrderId ?? '',
@@ -168,6 +188,8 @@ const mapBackendOrder = (order: BackendOrder): Order => ({
   trackingUrl: order.shipping?.trackingUrl ?? '',
   pickupStatus: order.shipping?.pickupStatus ?? '',
   currentShippingStatus: order.shipping?.currentStatus ?? '',
+  subtotal: order.totals.subtotal ?? order.totals.total,
+  shipping: order.totals.shipping ?? 0,
   total: order.totals.total,
   createdAt: order.createdAt,
   paymentMethod: 'Prepaid',
@@ -202,6 +224,39 @@ export const useOrderStore = create<OrderStore>((set) => ({
         ? error.response?.data?.message || error.message
         : 'Failed to load orders.';
       set({ error: message, isLoading: false });
+    }
+  },
+  fetchMyOrders: async () => {
+    try {
+      set({ isLoading: true, error: '' });
+      const response = await api.get<OrdersResponse>('/api/orders/my-orders');
+      set({ orders: response.data.orders.map(mapBackendOrder), isLoading: false });
+    } catch (error) {
+      const message = axios.isAxiosError(error)
+        ? error.response?.data?.message || error.message
+        : 'Failed to load your orders.';
+      set({ error: message, isLoading: false });
+    }
+  },
+  fetchMyOrder: async (id) => {
+    try {
+      set({ isLoading: true, error: '' });
+      const response = await api.get<OrderResponse>(`/api/orders/my-orders/${id}`);
+      const order = mapBackendOrder(response.data.order);
+      set((state) => ({
+        orders: [
+          order,
+          ...state.orders.filter((existingOrder) => existingOrder.id !== order.id),
+        ],
+        isLoading: false,
+      }));
+      return order;
+    } catch (error) {
+      const message = axios.isAxiosError(error)
+        ? error.response?.data?.message || error.message
+        : 'Failed to load order.';
+      set({ error: message, isLoading: false });
+      throw new Error(message);
     }
   },
   markPacked: async (id) => {

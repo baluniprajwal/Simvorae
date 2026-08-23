@@ -8,6 +8,7 @@ import Product from './Product';
 import Cart from './Cart';
 import Checkout from './Checkout';
 import CheckoutLogin from './CheckoutLogin';
+import OrderDetail from './OrderDetail';
 import OrderSuccess from './OrderSuccess';
 import Account from './Account';
 import ForgotPassword from './ForgotPassword';
@@ -47,6 +48,7 @@ function AppContent() {
         <Route path="/checkout/login" element={<CheckoutLogin />} />
         <Route path="/order-success" element={<OrderSuccess />} />
         <Route path="/account" element={<ProtectedAccountRoute />} />
+        <Route path="/account/orders/:orderNumber" element={<ProtectedOrderDetailRoute />} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/register" element={<Register />} />
@@ -80,6 +82,17 @@ function ProtectedAccountRoute() {
   }
 
   return <Account />;
+}
+
+function ProtectedOrderDetailRoute() {
+  const token = useAuthStore((state) => state.token);
+  const location = useLocation();
+
+  if (!token) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  return <OrderDetail />;
 }
 
 function ProtectedAdminRoute() {
