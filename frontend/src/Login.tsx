@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, Mail } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useAuthStore } from './store/authStore';
 
 function getErrorMessage(error: unknown) {
@@ -10,6 +11,42 @@ function getErrorMessage(error: unknown) {
   }
 
   return error instanceof Error ? error.message : 'Request failed.';
+}
+
+function UnderlineField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  rightSlot,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  type?: string;
+  rightSlot?: React.ReactNode;
+}) {
+  return (
+    <div className="group relative flex flex-col gap-2 border-b border-stone-200 pb-2">
+      <div className="flex items-end justify-between gap-4">
+        <label className="font-sans text-[9px] font-semibold uppercase tracking-widest text-stone-500 transition-colors group-focus-within:text-[#1a1a1a]">
+          {label}
+        </label>
+        {rightSlot}
+      </div>
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        required
+        className="w-full bg-transparent px-0 py-2 text-sm text-[#1a1a1a] transition-colors placeholder:text-stone-300 focus:outline-none md:text-base"
+        placeholder={placeholder}
+      />
+      <span className="absolute bottom-0 left-0 h-[1px] w-0 bg-[#1a1a1a] transition-all duration-500 group-focus-within:w-full" />
+    </div>
+  );
 }
 
 export default function Login() {
@@ -32,33 +69,67 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fcfbf9] px-5 py-8 text-[#1a1a1a] font-sans">
-      <main className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-5xl gap-10 lg:grid-cols-[0.9fr_1fr] lg:items-center">
-        <section>
-          <Link to="/" className="mb-12 inline-flex h-11 w-11 items-center justify-center rounded-full border border-stone-200 bg-white shadow-sm transition-colors hover:border-stone-900">
-            <ArrowLeft size={17} />
-          </Link>
-          <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.34em] text-stone-400">Simvorae Account</p>
-          <h1 className="max-w-xl font-serif text-[clamp(3.3rem,7vw,6rem)] leading-[0.9] tracking-tight">
-            Sign in to your account.
-          </h1>
-          <p className="mt-7 max-w-md text-[15px] font-light leading-7 text-stone-600">
-            Access your Simvorae account with your verified email. Checkout and order history will stay connected here.
-          </p>
-        </section>
+    <div className="relative flex min-h-screen flex-col bg-[#fcfbf9] font-sans text-[#1a1a1a] md:flex-row">
+      <div
+        className="pointer-events-none fixed inset-0 z-40 h-full w-full opacity-[0.035]"
+        style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/stardust.png")' }}
+      />
 
-        <section className="rounded-[1.6rem] border border-stone-200 bg-white p-6 shadow-[0_16px_50px_rgba(0,0,0,0.06)] md:p-8">
-          <div className="mb-8 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-stone-100 text-stone-600">
-              <Mail size={18} />
-            </div>
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">Customer Login</p>
-              <h2 className="font-serif text-2xl">Welcome back</h2>
-            </div>
+      <div className="relative order-1 h-[45vh] w-full overflow-hidden md:h-screen md:w-1/2">
+        <Link to="/" className="absolute left-6 top-6 z-50 font-serif text-2xl uppercase tracking-widest text-[#fcfbf9] transition-opacity hover:opacity-80 md:left-12 md:top-10 md:text-3xl">
+          Simvorae
+        </Link>
+        <motion.img
+          initial={{ scale: 1.1, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 1.5, ease: [0.2, 1, 0.2, 1] }}
+          src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1200&auto=format&fit=crop"
+          alt="Fashion editorial"
+          className="absolute inset-0 h-full w-full object-cover object-center"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80 md:opacity-60" />
+        <div className="absolute bottom-8 left-6 z-10 text-[#fcfbf9] md:bottom-16 md:left-12">
+          <motion.h2
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 1, delay: 0.5, ease: [0.2, 1, 0.2, 1] }}
+            className="mb-2 font-serif text-3xl leading-tight md:text-5xl"
+          >
+            Simvorae <br /> Society
+          </motion.h2>
+          <motion.p
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 1, delay: 0.7, ease: [0.2, 1, 0.2, 1] }}
+            className="font-sans text-[10px] uppercase tracking-[0.2em] md:text-[11px]"
+          >
+            Exclusive access to the latest collections.
+          </motion.p>
+        </div>
+      </div>
+
+      <div className="relative z-20 order-2 flex min-h-screen w-full items-center justify-center bg-[#fcfbf9] px-6 py-24 md:w-1/2 md:px-16 lg:px-24">
+        <div className="absolute right-6 top-6 z-50 hidden md:block md:right-12 md:top-10">
+          <Link to="/" className="border-b border-transparent pb-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-stone-400 transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a]">
+            Back to Shop
+          </Link>
+        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, delay: 0.3, ease: [0.2, 1, 0.2, 1] }}
+          className="w-full max-w-sm"
+        >
+          <div className="mb-12">
+            <h1 className="mb-4 font-serif text-4xl leading-[0.9] tracking-tighter text-[#1a1a1a] md:text-5xl">
+              Welcome Back
+            </h1>
+            <p className="font-sans text-[11px] uppercase leading-loose tracking-[0.2em] text-stone-500">
+              Sign in to your account
+            </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-8">
             {error && (
               <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -66,42 +137,46 @@ export default function Login() {
               </div>
             )}
 
-            <input
-              type="email"
+            <UnderlineField
+              label="Email Address"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="Email address"
-              className="w-full rounded-xl border border-stone-200 bg-[#fcfbf9] px-4 py-4 text-sm outline-none transition-colors focus:border-stone-900"
+              onChange={setEmail}
+              placeholder="Enter your email"
+              type="email"
             />
-            <input
-              type="password"
+
+            <UnderlineField
+              label="Password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Password"
-              className="w-full rounded-xl border border-stone-200 bg-[#fcfbf9] px-4 py-4 text-sm outline-none transition-colors focus:border-stone-900"
+              onChange={setPassword}
+              placeholder="Enter your password"
+              type="password"
+              rightSlot={(
+                <Link to="/forgot-password" className="pb-1 font-sans text-[9px] uppercase tracking-widest text-stone-400 transition-colors hover:text-[#1a1a1a]">
+                  Forgot?
+                </Link>
+              )}
             />
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full rounded-full bg-[#1a1a1a] px-7 py-4 text-[10px] font-bold uppercase tracking-[0.22em] text-[#fcfbf9] transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-2 w-full rounded-full bg-[#1a1a1a] py-5 font-sans text-[11px] font-semibold uppercase tracking-widest text-[#fcfbf9] transition-transform duration-300 hover:scale-[1.02] hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isLoading ? 'Signing In...' : 'Sign In'}
             </button>
           </form>
 
-          <div className="mt-7 border-t border-stone-100 pt-6 text-center text-xs text-stone-500">
-            New to Simvorae?{' '}
-            <Link to="/register" className="font-bold uppercase tracking-[0.18em] text-[#111] hover:text-stone-500">
-              Create Account
-            </Link>
-            <span className="mx-2 text-stone-300">/</span>
-            <Link to="/forgot-password" className="font-bold uppercase tracking-[0.18em] text-[#111] hover:text-stone-500">
-              Forgot Password
-            </Link>
+          <div className="mt-12 text-center md:text-left">
+            <p className="font-sans text-[10px] uppercase tracking-widest text-stone-500">
+              New to Simvorae?
+              <Link to="/register" className="ml-2 border-b border-[#1a1a1a] pb-[2px] font-bold text-[#1a1a1a] transition-colors hover:border-stone-600 hover:text-stone-600">
+                Create Account
+              </Link>
+            </p>
           </div>
-        </section>
-      </main>
+        </motion.div>
+      </div>
     </div>
   );
 }
