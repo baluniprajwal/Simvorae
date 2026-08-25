@@ -645,14 +645,14 @@ function ProductModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-[#0c0c0c]/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-      <div className="bg-[#fcfbf9] border border-stone-200/90 w-full max-w-2xl rounded-[1.75rem] overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
-        <div className="p-6 md:p-8 border-b border-stone-100 flex justify-between items-center bg-stone-50/50">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#1a1a1a]/40 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden border border-stone-200 bg-[#fcfbf9] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6 md:p-8">
           <div>
             <span className="text-[9px] text-stone-400 font-mono tracking-widest uppercase block mb-1">PRODUCT PORTAL</span>
             <h3 className="font-serif text-2xl font-medium">{mode === 'add' ? 'Add New Product' : 'Edit Product'}</h3>
           </div>
-          <button onClick={onClose} className="p-2 bg-stone-100 hover:bg-stone-200 rounded-full transition-colors cursor-pointer">
+          <button onClick={onClose} className="cursor-pointer border border-stone-200 bg-white p-2 transition-colors hover:bg-stone-100">
             <X size={16} />
           </button>
         </div>
@@ -2801,9 +2801,9 @@ export default function Admin() {
       )}
 
       {cancelCandidate && (
-        <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#0c0c0c]/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden rounded-[1.25rem] border border-stone-200 bg-[#fcfbf9] shadow-2xl">
-            <div className="flex items-start justify-between gap-5 border-b border-stone-200 bg-white/60 px-6 py-5">
+        <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#1a1a1a]/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-hidden border border-stone-200 bg-[#fcfbf9] text-center shadow-2xl">
+            <div className="border-b border-stone-200 px-8 py-7">
               <div>
                 <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.28em] text-stone-400">Order Action</p>
                 <h3 className="font-serif text-[2rem] font-medium leading-none tracking-tight text-[#111]">Cancel order</h3>
@@ -2811,24 +2811,24 @@ export default function Admin() {
               <button
                 type="button"
                 onClick={() => setCancelCandidate(null)}
-                className="cursor-pointer rounded-xl border border-stone-200 bg-white px-3.5 py-2 text-[9px] font-bold uppercase tracking-widest text-stone-500 transition-colors hover:border-stone-400 hover:text-stone-900"
+                className="sr-only"
               >
                 Close
               </button>
             </div>
 
-            <div className="px-6 py-5">
+            <div className="px-8 py-6">
               <p className="mb-5 text-xs font-light leading-6 text-stone-500">
                 This will cancel <span className="font-mono font-bold text-[#111]">{cancelCandidate.id}</span>. Use this only for stock issues, customer requests, fraud checks, or invalid order details.
               </p>
 
-              <div className="grid grid-cols-1 overflow-hidden rounded-[1rem] border border-stone-200 bg-white sm:grid-cols-2">
+              <div className="grid grid-cols-1 overflow-hidden border border-stone-200 bg-white text-left sm:grid-cols-2">
                 <div className="border-b border-stone-200 p-4 sm:border-b-0 sm:border-r">
                   <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">Customer</p>
                   <p className="mt-2 text-sm font-semibold text-[#111]">{cancelCandidate.customer.name}</p>
                   <p className="mt-1 text-xs text-stone-400">{cancelCandidate.customer.phone}</p>
                 </div>
-                <div className="p-4 text-right">
+                <div className="p-4 text-left sm:text-right">
                   <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">Order Total</p>
                   <p className="mt-2 font-mono text-sm font-bold text-[#111]">{formatCurrency(cancelCandidate.total)}</p>
                   <p className="mt-1 text-xs text-stone-400">{cancelCandidate.status}</p>
@@ -2836,11 +2836,11 @@ export default function Admin() {
               </div>
             </div>
 
-            <div className="flex flex-col-reverse gap-3 border-t border-stone-200 bg-white/70 px-6 py-4 sm:flex-row sm:justify-end">
+            <div className="flex flex-col-reverse gap-3 border-t border-stone-200 px-8 py-6">
               <button
                 type="button"
                 onClick={() => setCancelCandidate(null)}
-                className="cursor-pointer rounded-xl border border-stone-200 bg-[#fcfbf9] px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-600 transition-colors hover:border-stone-400 hover:text-stone-900"
+                className="w-full cursor-pointer border border-stone-200 bg-transparent px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#1a1a1a] transition-colors hover:bg-stone-50"
               >
                 Keep Order
               </button>
@@ -2848,7 +2848,7 @@ export default function Admin() {
                 type="button"
                 disabled={updatingOrderFor === cancelCandidate.id}
                 onClick={() => void confirmCancelOrder()}
-                className="cursor-pointer rounded-xl border border-[#1a1a1a] bg-[#1a1a1a] px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-[#fcfbf9] transition-colors hover:bg-black disabled:cursor-not-allowed disabled:border-stone-400 disabled:bg-stone-400"
+                className="w-full cursor-pointer border border-[#1a1a1a] bg-[#1a1a1a] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#fcfbf9] transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:border-stone-400 disabled:bg-stone-400"
               >
                 {updatingOrderFor === cancelCandidate.id ? 'Cancelling' : 'Cancel Order'}
               </button>
@@ -2858,9 +2858,9 @@ export default function Admin() {
       )}
 
       {cancelShipmentCandidate && (
-        <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#0c0c0c]/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden rounded-[1.25rem] border border-stone-200 bg-[#fcfbf9] shadow-2xl">
-            <div className="flex items-start justify-between gap-5 border-b border-stone-200 bg-white/60 px-6 py-5">
+        <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#1a1a1a]/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-hidden border border-stone-200 bg-[#fcfbf9] text-center shadow-2xl">
+            <div className="border-b border-stone-200 px-8 py-7">
               <div>
                 <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.28em] text-stone-400">Shiprocket Action</p>
                 <h3 className="font-serif text-[2rem] font-medium leading-none tracking-tight text-[#111]">Cancel shipment</h3>
@@ -2868,24 +2868,24 @@ export default function Admin() {
               <button
                 type="button"
                 onClick={() => setCancelShipmentCandidate(null)}
-                className="cursor-pointer rounded-xl border border-stone-200 bg-white px-3.5 py-2 text-[9px] font-bold uppercase tracking-widest text-stone-500 transition-colors hover:border-stone-400 hover:text-stone-900"
+                className="sr-only"
               >
                 Close
               </button>
             </div>
 
-            <div className="px-6 py-5">
+            <div className="px-8 py-6">
               <p className="mb-5 text-xs font-light leading-6 text-stone-500">
                 This will request cancellation in Shiprocket for <span className="font-mono font-bold text-[#111]">{cancelShipmentCandidate.id}</span>. Shipment cancellation works only before pickup or in-transit movement begins.
               </p>
 
-              <div className="grid grid-cols-1 overflow-hidden rounded-[1rem] border border-stone-200 bg-white sm:grid-cols-2">
+              <div className="grid grid-cols-1 overflow-hidden border border-stone-200 bg-white text-left sm:grid-cols-2">
                 <div className="border-b border-stone-200 p-4 sm:border-b-0 sm:border-r">
                   <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">AWB</p>
                   <p className="mt-2 font-mono text-sm font-bold text-[#111]">{cancelShipmentCandidate.awbCode || 'Not assigned'}</p>
                   <p className="mt-1 text-xs text-stone-400">{cancelShipmentCandidate.courierName || 'Courier not assigned'}</p>
                 </div>
-                <div className="p-4 text-right">
+                <div className="p-4 text-left sm:text-right">
                   <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">Shiprocket Order</p>
                   <p className="mt-2 font-mono text-sm font-bold text-[#111]">{cancelShipmentCandidate.shiprocketOrderId || 'Not available'}</p>
                   <p className="mt-1 text-xs text-stone-400">{formatStatusLabel(cancelShipmentCandidate.shippingStatus)}</p>
@@ -2893,11 +2893,11 @@ export default function Admin() {
               </div>
             </div>
 
-            <div className="flex flex-col-reverse gap-3 border-t border-stone-200 bg-white/70 px-6 py-4 sm:flex-row sm:justify-end">
+            <div className="flex flex-col-reverse gap-3 border-t border-stone-200 px-8 py-6">
               <button
                 type="button"
                 onClick={() => setCancelShipmentCandidate(null)}
-                className="cursor-pointer rounded-xl border border-stone-200 bg-[#fcfbf9] px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-600 transition-colors hover:border-stone-400 hover:text-stone-900"
+                className="w-full cursor-pointer border border-stone-200 bg-transparent px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#1a1a1a] transition-colors hover:bg-stone-50"
               >
                 Keep Shipment
               </button>
@@ -2905,7 +2905,7 @@ export default function Admin() {
                 type="button"
                 disabled={cancellingShipmentFor === cancelShipmentCandidate.id}
                 onClick={() => void confirmCancelShipment()}
-                className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-red-700 transition-colors hover:border-red-300 hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-200 disabled:text-stone-500"
+                className="w-full cursor-pointer border border-[#1a1a1a] bg-[#1a1a1a] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#fcfbf9] transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-300 disabled:text-stone-500"
               >
                 {cancellingShipmentFor === cancelShipmentCandidate.id ? 'Cancelling' : 'Cancel Shipment'}
               </button>
@@ -2915,9 +2915,9 @@ export default function Admin() {
       )}
 
       {deleteProductCandidate && (
-        <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#0c0c0c]/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden rounded-[1.25rem] border border-stone-200 bg-[#fcfbf9] shadow-2xl">
-            <div className="flex items-start justify-between gap-5 border-b border-stone-200 bg-white/60 px-6 py-5">
+        <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#1a1a1a]/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-hidden border border-stone-200 bg-[#fcfbf9] text-center shadow-2xl">
+            <div className="border-b border-stone-200 px-8 py-7">
               <div>
                 <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.28em] text-stone-400">Catalog Action</p>
                 <h3 className="font-serif text-[2rem] font-medium leading-none tracking-tight text-[#111]">Delete product</h3>
@@ -2925,20 +2925,20 @@ export default function Admin() {
               <button
                 type="button"
                 onClick={() => setDeleteProductCandidate(null)}
-                className="cursor-pointer rounded-xl border border-stone-200 bg-white px-3.5 py-2 text-[9px] font-bold uppercase tracking-widest text-stone-500 transition-colors hover:border-stone-400 hover:text-stone-900"
+                className="sr-only"
               >
                 Close
               </button>
             </div>
 
-            <div className="px-6 py-5">
+            <div className="px-8 py-6">
               <p className="mb-5 text-xs font-light leading-6 text-stone-500">
                 This will remove <span className="font-semibold text-[#111]">{deleteProductCandidate.name}</span> from the catalog and delete its uploaded product images from storage.
               </p>
 
-              <div className="overflow-hidden rounded-[1rem] border border-stone-200 bg-white">
+              <div className="overflow-hidden border border-stone-200 bg-white text-left">
                 <div className="flex gap-4 p-4">
-                  <div className="h-24 w-18 shrink-0 overflow-hidden rounded-xl border border-stone-200 bg-stone-100">
+                  <div className="h-24 w-18 shrink-0 overflow-hidden border border-stone-200 bg-stone-100">
                     <img
                       src={deleteProductCandidate.image}
                       alt={deleteProductCandidate.name}
@@ -2957,11 +2957,11 @@ export default function Admin() {
               </div>
             </div>
 
-            <div className="flex flex-col-reverse gap-3 border-t border-stone-200 bg-white/70 px-6 py-4 sm:flex-row sm:justify-end">
+            <div className="flex flex-col-reverse gap-3 border-t border-stone-200 px-8 py-6">
               <button
                 type="button"
                 onClick={() => setDeleteProductCandidate(null)}
-                className="cursor-pointer rounded-xl border border-stone-200 bg-[#fcfbf9] px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-stone-600 transition-colors hover:border-stone-400 hover:text-stone-900"
+                className="w-full cursor-pointer border border-stone-200 bg-transparent px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#1a1a1a] transition-colors hover:bg-stone-50"
               >
                 Keep Product
               </button>
@@ -2969,7 +2969,7 @@ export default function Admin() {
                 type="button"
                 disabled={deletingProductFor === deleteProductCandidate.id}
                 onClick={() => void confirmDeleteProduct()}
-                className="cursor-pointer rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-[10px] font-bold uppercase tracking-widest text-red-700 transition-colors hover:border-red-300 hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-200 disabled:text-stone-500"
+                className="w-full cursor-pointer border border-[#1a1a1a] bg-[#1a1a1a] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#fcfbf9] transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-300 disabled:text-stone-500"
               >
                 {deletingProductFor === deleteProductCandidate.id ? 'Deleting' : 'Delete Product'}
               </button>

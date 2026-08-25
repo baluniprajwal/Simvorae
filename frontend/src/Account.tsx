@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import Navbar from './components/Navbar';
@@ -475,42 +475,50 @@ export default function Account() {
         </div>
       </main>
 
-      {isLogoutModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#111]/45 px-5 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.35, ease: [0.2, 1, 0.2, 1] }}
-            className="w-full max-w-md rounded-[1.5rem] border border-stone-200 bg-[#fcfbf9] p-7 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
-          >
-            <p className="mb-3 font-sans text-[9px] font-semibold uppercase tracking-[0.28em] text-stone-400">
-              End Session
-            </p>
-            <h3 className="mb-4 font-serif text-3xl leading-none text-[#1a1a1a]">
-              Sign out?
-            </h3>
-            <p className="mb-8 text-sm leading-7 text-stone-600">
-              You will be signed out on this device. Your orders and saved address will remain linked to your account.
-            </p>
-            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={() => setIsLogoutModalOpen(false)}
-                className="cursor-pointer rounded-full border border-stone-200 bg-white px-7 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#1a1a1a] transition-colors hover:border-stone-900"
-              >
-                Stay Signed In
-              </button>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="cursor-pointer rounded-full bg-[#1a1a1a] px-7 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#fcfbf9] transition-colors hover:bg-black"
-              >
-                Logout
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+      <AnimatePresence>
+        {isLogoutModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+              className="absolute inset-0 bg-[#1a1a1a]/40 backdrop-blur-sm"
+              onClick={() => setIsLogoutModalOpen(false)}
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.4, ease: [0.2, 1, 0.2, 1] }}
+              className="relative w-full max-w-sm border border-stone-200 bg-[#fcfbf9] p-8 text-center shadow-2xl md:p-10"
+            >
+              <h3 className="mb-4 font-serif text-2xl text-[#1a1a1a] md:text-3xl">Sign Out</h3>
+              <p className="mb-8 font-sans text-[11px] leading-relaxed text-stone-500">
+                Are you sure you want to end your session? You will need to log in again to access your orders and saved details.
+              </p>
+
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full cursor-pointer bg-[#1a1a1a] py-3 text-[10px] uppercase tracking-[0.2em] text-[#fcfbf9] transition-colors hover:bg-stone-800"
+                >
+                  Confirm Logout
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsLogoutModalOpen(false)}
+                  className="w-full cursor-pointer border border-stone-200 bg-transparent py-3 text-[10px] uppercase tracking-[0.2em] text-[#1a1a1a] transition-colors hover:bg-stone-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <Footer />
     </div>
