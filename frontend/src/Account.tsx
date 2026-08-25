@@ -67,6 +67,7 @@ export default function Account() {
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     addressLine1: '',
     city: '',
@@ -203,7 +204,7 @@ export default function Account() {
 
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={() => setIsLogoutModalOpen(true)}
               className="mt-8 cursor-pointer text-left font-sans text-[10px] uppercase tracking-[0.2em] text-red-700/70 transition-colors hover:text-red-700"
             >
               Logout
@@ -473,6 +474,43 @@ export default function Account() {
           </section>
         </div>
       </main>
+
+      {isLogoutModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#111]/45 px-5 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.35, ease: [0.2, 1, 0.2, 1] }}
+            className="w-full max-w-md rounded-[1.5rem] border border-stone-200 bg-[#fcfbf9] p-7 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
+          >
+            <p className="mb-3 font-sans text-[9px] font-semibold uppercase tracking-[0.28em] text-stone-400">
+              End Session
+            </p>
+            <h3 className="mb-4 font-serif text-3xl leading-none text-[#1a1a1a]">
+              Sign out?
+            </h3>
+            <p className="mb-8 text-sm leading-7 text-stone-600">
+              You will be signed out on this device. Your orders and saved address will remain linked to your account.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setIsLogoutModalOpen(false)}
+                className="cursor-pointer rounded-full border border-stone-200 bg-white px-7 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#1a1a1a] transition-colors hover:border-stone-900"
+              >
+                Stay Signed In
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="cursor-pointer rounded-full bg-[#1a1a1a] px-7 py-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[#fcfbf9] transition-colors hover:bg-black"
+              >
+                Logout
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       <Footer />
     </div>
