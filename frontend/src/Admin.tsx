@@ -1,5 +1,5 @@
 import { type ChangeEvent, type DragEvent, type FormEvent, useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   AlertTriangle,
@@ -58,6 +58,7 @@ type ProductFormState = {
 };
 
 const categoryOptions = ['Classic Tote', 'Hobo Shoulder Bag', 'Top Handle Bag', 'Crossbody Bag', 'Chain Clutch'];
+const categoryChartColors = ['#1a1a1a', '#57534e', '#a8a29e', '#d6d3d1', '#e7e5e4'];
 const colorOptions = ['Black', 'Brown', 'Tan', 'White', 'Silver', 'Gold', 'Beige'];
 const materialOptions = ['Calfskin', 'Full Grain Leather', 'Vegan Leather', 'Suede', 'Exotic Leather', 'Silk/Leather'];
 const orderStatuses: OrderStatus[] = ['Pending', 'Confirmed', 'Packed', 'Shipped', 'Delivered', 'Cancelled'];
@@ -1376,6 +1377,8 @@ export default function Admin() {
   const location = useLocation();
   const {
     products,
+    categoryStats,
+    categoryStatsTotal,
     isLoading: isProductsLoading,
     isUploading: isProductImageUploading,
     error: productError,
@@ -1416,6 +1419,7 @@ export default function Admin() {
   const [updatingOrderFor, setUpdatingOrderFor] = useState('');
   const [deletingProductFor, setDeletingProductFor] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     void fetchOrders();
@@ -1429,6 +1433,10 @@ export default function Admin() {
       navigate('/admin/overview', { replace: true });
     }
   }, [location.pathname, navigate]);
+
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [activeTab]);
 
   useEffect(() => {
     if (!toast) {
@@ -1591,6 +1599,45 @@ export default function Admin() {
       count: category === 'All' ? products.length : counts[category] ?? 0,
     }));
   }, [products]);
+
+  const categoryChartData = useMemo(() => {
+    const stats = categoryStats.length > 0
+      ? categoryStats
+      : categoryOptions.map((category) => {
+        const count = products.filter((product) => product.category === category).length;
+        const total = products.length;
+
+        return {
+          category,
+          count,
+          activeCount: products.filter((product) => product.category === category && product.isActive).length,
+          ratio: total > 0 ? Math.round((count / total) * 100) : 0,
+        };
+      });
+
+    const total = categoryStatsTotal || products.length;
+    let currentDegree = 0;
+
+    return stats
+      .filter((item) => item.count > 0)
+      .map((item, index) => {
+        const degrees = total > 0 ? (item.count / total) * 360 : 0;
+        const segment = {
+          ...item,
+          color: categoryChartColors[index % categoryChartColors.length],
+          startDegree: currentDegree,
+          endDegree: currentDegree + degrees,
+        };
+        currentDegree += degrees;
+        return segment;
+      });
+  }, [categoryStats, categoryStatsTotal, products]);
+
+  const categoryConicGradient = categoryChartData.length > 0
+    ? `conic-gradient(${categoryChartData
+      .map((item) => `${item.color} ${item.startDegree}deg ${item.endDegree}deg`)
+      .join(', ')})`
+    : 'conic-gradient(#f5f5f4 0deg 360deg)';
 
   const filteredCatalog = useMemo(
     () =>
@@ -2053,89 +2100,106 @@ export default function Admin() {
         </div>
       )}
 
-      <div className="relative z-10 flex min-h-screen flex-col md:flex-row">
-        <aside className="w-full border-b border-stone-800/10 bg-[#141414] p-6 text-[#fcfbf9] md:sticky md:top-0 md:h-screen md:w-72 md:border-b-0 md:border-r">
-          <div className="flex h-full flex-col justify-between gap-10">
-            <div>
-              <div className="mb-12 flex items-center justify-between">
-                <div>
-                  <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.3em] text-stone-500">Admin Portal</p>
-                  <button onClick={() => navigate('/')} className="cursor-pointer font-serif text-3xl tracking-tight transition-all hover:italic">
-                    SIMVORAE
-                  </button>
-                </div>
-                <button onClick={() => navigate('/')} className="flex cursor-pointer items-center gap-2 rounded-full border border-stone-700 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-stone-400 hover:border-white hover:text-white">
-                  <ArrowLeft size={12} />
-                  Exit
-                </button>
-              </div>
+      <div className="fixed left-0 right-0 top-0 z-40 flex h-16 items-center justify-between border-b border-stone-200 bg-[#fcfbf9] px-6 lg:hidden">
+        <Link to="/" className="font-serif text-xl uppercase tracking-widest text-[#1a1a1a]">
+          Simvorae
+        </Link>
+        <button
+          type="button"
+          onClick={() => setIsSidebarOpen((current) => !current)}
+          className="cursor-pointer p-2 -mr-2 text-[#1a1a1a]"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter">
+            {isSidebarOpen ? (
+              <>
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </>
+            ) : (
+              <>
+                <line x1="4" y1="12" x2="20" y2="12" />
+                <line x1="4" y1="6" x2="20" y2="6" />
+                <line x1="4" y1="18" x2="20" y2="18" />
+              </>
+            )}
+          </svg>
+        </button>
+      </div>
 
-              <nav className="space-y-2">
-                {[
-                  { id: 'OVERVIEW' as const, label: 'Overview', icon: LayoutDashboard },
-                  { id: 'CATALOG' as const, label: `Catalog (${products.length})`, icon: ShoppingBag },
-                  { id: 'ORDERS' as const, label: `Orders (${orders.length})`, icon: FileText },
-                ].map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => setActiveTab(item.id)}
-                      className={`flex w-full cursor-pointer items-center gap-3.5 rounded-xl px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isActive ? 'bg-[#fcfbf9] text-[#111111] shadow-md' : 'text-stone-400 hover:bg-stone-900/40 hover:text-white'}`}
-                    >
-                      <Icon size={15} />
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
-              </nav>
-            </div>
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-[#1a1a1a]/20 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
 
-            <div className="border-t border-stone-800 pt-6">
-              <button onClick={() => navigate('/shop')} className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-800 py-3 text-[10px] font-semibold uppercase tracking-widest text-stone-400 hover:border-white hover:text-white">
-                <span>Preview Shop</span>
-                <ExternalLink size={11} />
+      <aside className={`fixed left-0 top-0 z-50 flex h-[100dvh] w-64 flex-col border-r border-stone-200 bg-[#fcfbf9] p-8 transition-transform duration-300 lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="mb-16">
+          <Link to="/" className="font-serif text-2xl uppercase tracking-widest text-[#1a1a1a] transition-opacity hover:opacity-70">
+            Simvorae
+            <span className="mt-2 block font-sans text-[8px] font-bold tracking-[0.3em] text-stone-400">ADMIN PORTAL</span>
+          </Link>
+        </div>
+
+        <nav className="flex flex-grow flex-col gap-6">
+          {[
+            { id: 'OVERVIEW' as const, label: 'Dashboard', icon: LayoutDashboard },
+            { id: 'ORDERS' as const, label: `Orders (${orders.length})`, icon: FileText },
+            { id: 'CATALOG' as const, label: `Products (${products.length})`, icon: ShoppingBag },
+          ].map((item) => {
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.id)}
+                className={`cursor-pointer text-left font-sans text-[10px] uppercase tracking-[0.2em] transition-colors ${
+                  isActive ? 'font-bold text-[#1a1a1a]' : 'text-stone-400 hover:text-[#1a1a1a]'
+                }`}
+              >
+                {item.label}
               </button>
+            );
+          })}
+        </nav>
+
+        <div className="mt-auto border-t border-stone-200 pt-8">
+          <button
+            type="button"
+            onClick={() => navigate('/shop')}
+            className="mb-6 flex w-full cursor-pointer items-center justify-center gap-2 border border-stone-200 py-3 text-[10px] font-semibold uppercase tracking-widest text-stone-500 transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a]"
+          >
+            <span>Preview Shop</span>
+            <ExternalLink size={11} />
+          </button>
+
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1a1a1a] font-serif text-sm text-white">
+                A
+              </div>
+              <div className="min-w-0">
+                <div className="truncate font-sans text-[10px] font-semibold uppercase tracking-widest">Admin User</div>
+                <div className="mt-0.5 truncate font-sans text-[9px] text-stone-400">admin@simvorae.com</div>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                window.localStorage.removeItem('simvorae_admin_token');
+                navigate('/admin/login', { replace: true });
+              }}
+              className="cursor-pointer p-2 text-stone-400 transition-colors hover:text-[#1a1a1a]"
+              title="Logout"
+            >
+              <LockKeyhole size={14} />
+            </button>
           </div>
-        </aside>
+        </div>
+      </aside>
 
-        <main className="w-full flex-1 p-6 md:p-8 lg:px-10 lg:py-8">
-          <header className="mb-8 flex flex-col gap-5 border-b border-stone-200 pb-6 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="mb-1.5 flex items-center gap-2.5">
-                <span className="text-[9px] font-bold uppercase tracking-[0.25em] text-stone-400">Simvorae Dashboard</span>
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              </div>
-              <h1 className="font-serif text-[2.55rem] leading-none tracking-tight text-stone-900">
-                {activeTab === 'OVERVIEW' && 'Overview'}
-                {activeTab === 'CATALOG' && 'Product Catalog'}
-                {activeTab === 'ORDERS' && 'Order Management'}
-              </h1>
-            </div>
-
-            <div className="flex flex-wrap gap-2.5">
-              <button
-                onClick={() => void fetchOrders()}
-                className="flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-[9px] font-bold uppercase tracking-[0.22em] shadow-[0_1px_0_rgba(0,0,0,0.02)] transition-colors hover:border-stone-900"
-              >
-                <RotateCcw size={12} />
-                Refresh Orders
-              </button>
-              <button
-                onClick={() => {
-                  window.localStorage.removeItem('simvorae_admin_token');
-                  navigate('/admin/login', { replace: true });
-                }}
-                className="flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 text-[9px] font-bold uppercase tracking-[0.22em] shadow-[0_1px_0_rgba(0,0,0,0.02)] transition-colors hover:border-stone-900"
-              >
-                <LockKeyhole size={12} />
-                Logout
-              </button>
-            </div>
-          </header>
-
+      <div className="min-h-[100dvh] overflow-x-hidden pt-24 lg:ml-64 lg:pt-0">
+        <main className="mx-auto w-full max-w-7xl p-4 md:p-8 lg:p-12">
           {(error || productError) && (
             <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-xs font-medium text-red-700">
               {error || productError}
@@ -2143,61 +2207,63 @@ export default function Admin() {
           )}
 
           {activeTab === 'OVERVIEW' && (
-            <div className="space-y-8">
-              <div className="flex flex-col gap-3 rounded-[1.1rem] border border-stone-200 bg-white px-4 py-3 shadow-[0_1px_8px_rgba(0,0,0,0.04)] md:flex-row md:items-center md:justify-between">
-                <div className="flex items-baseline gap-3">
-                  <p className="text-[8.5px] font-bold uppercase tracking-[0.24em] text-stone-400">Period</p>
-                  <h2 className="font-serif text-[1.35rem] font-medium leading-none tracking-tight text-stone-900">{rangeLabel}</h2>
-                </div>
+            <div>
+              <div className="mb-12 flex flex-col justify-between gap-6 md:flex-row md:items-end">
+                <h1 className="font-serif text-3xl md:text-4xl">Overview</h1>
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <select
-                    value={dashboardRange}
-                    onChange={(event) => setDashboardRange(event.target.value as DashboardRange)}
-                    className="h-10 cursor-pointer rounded-xl border border-stone-200 bg-stone-50 px-3.5 text-[9px] font-bold uppercase tracking-[0.22em] text-stone-700 outline-none transition-colors hover:border-stone-400 focus:border-stone-500"
-                  >
+                <div className="flex flex-col items-end gap-4 md:flex-row md:items-center">
+                  <div className="admin-scrollbar flex max-w-full items-center gap-1 overflow-x-auto rounded-sm border border-stone-200 bg-white p-1">
                     {dashboardRangeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setDashboardRange(option.value)}
+                        className={`shrink-0 cursor-pointer rounded-sm px-4 py-2 font-sans text-[9px] uppercase tracking-widest transition-colors ${
+                          dashboardRange === option.value
+                            ? 'bg-[#1a1a1a] font-semibold text-[#fcfbf9]'
+                            : 'text-stone-500 hover:text-[#1a1a1a]'
+                        }`}
+                      >
                         {option.label}
-                      </option>
+                      </button>
                     ))}
-                  </select>
+                  </div>
 
                   {dashboardRange === 'custom' && (
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div className="flex items-center gap-2 rounded-sm border border-stone-200 bg-white p-1">
                       <input
                         type="date"
                         value={customStartDate}
                         onChange={(event) => setCustomStartDate(event.target.value)}
-                        className="h-10 cursor-pointer rounded-xl border border-stone-200 bg-stone-50 px-3 text-[9px] font-bold uppercase tracking-[0.18em] text-stone-700 outline-none transition-colors hover:border-stone-400 focus:border-stone-500"
+                        className="cursor-pointer border-none bg-transparent px-3 py-1.5 text-[10px] uppercase tracking-widest text-[#1a1a1a] outline-none"
                       />
-                      <span className="hidden text-[9px] font-bold uppercase tracking-widest text-stone-400 sm:inline">to</span>
+                      <span className="px-2 text-[10px] font-semibold uppercase tracking-widest text-stone-400">To</span>
                       <input
                         type="date"
                         value={customEndDate}
                         onChange={(event) => setCustomEndDate(event.target.value)}
-                        className="h-10 cursor-pointer rounded-xl border border-stone-200 bg-stone-50 px-3 text-[9px] font-bold uppercase tracking-[0.18em] text-stone-700 outline-none transition-colors hover:border-stone-400 focus:border-stone-500"
+                        className="cursor-pointer border-none bg-transparent px-3 py-1.5 text-[10px] uppercase tracking-widest text-[#1a1a1a] outline-none"
                       />
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {statCards.map((card) => {
+              <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-4">
+                {statCards.slice(0, 4).map((card) => {
                   const Icon = card.icon;
                   const content = (
                     <>
-                      <div className="mb-5 flex items-start justify-between gap-4">
-                        <span className="text-[9px] tracking-[0.22em] uppercase text-stone-500 font-semibold">{card.label}</span>
-                        <div className={`rounded-lg bg-stone-100 p-2 ${card.tone}`}>
+                      <div className="mb-4 flex items-start justify-between gap-4">
+                        <span className="block font-sans text-[9px] uppercase tracking-widest text-stone-500">{card.label}</span>
+                        <div className={`bg-stone-100 p-2 ${card.tone}`}>
                           <Icon size={14} />
                         </div>
                       </div>
-                      <p className="mb-2 font-serif text-[2rem] font-medium leading-none text-[#111]">
+                      <p className="font-serif text-3xl leading-none text-[#1a1a1a] md:text-4xl">
                         {card.value}
                       </p>
-                      <div className={`flex items-center gap-1.5 font-mono text-[10px] font-medium leading-5 ${card.tone}`}>
+                      <div className={`mt-3 flex items-center gap-1.5 font-mono text-[10px] font-medium leading-5 ${card.tone}`}>
                         <span className="truncate">{card.note}</span>
                         {card.onClick && <ChevronRight size={11} />}
                       </div>
@@ -2210,7 +2276,7 @@ export default function Admin() {
                         key={card.label}
                         type="button"
                         onClick={card.onClick}
-                        className="relative cursor-pointer overflow-hidden rounded-[1.15rem] border border-stone-200 bg-white p-5 text-left shadow-sm transition-all duration-500 hover:border-[#1a1a1a]"
+                        className="cursor-pointer border border-stone-200 bg-white p-6 text-left transition-colors hover:border-[#1a1a1a] md:p-8"
                       >
                         {content}
                       </button>
@@ -2218,24 +2284,64 @@ export default function Admin() {
                   }
 
                   return (
-                    <div key={card.label} className="relative overflow-hidden rounded-[1.15rem] border border-stone-200 bg-white p-5 shadow-sm transition-all duration-500 hover:border-[#1a1a1a]">
+                    <div key={card.label} className="border border-stone-200 bg-white p-6 transition-colors hover:border-[#1a1a1a] md:p-8">
                       {content}
                     </div>
                   );
                 })}
               </div>
 
-              <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
-                <div className="rounded-[1.25rem] border border-stone-200 bg-white p-5 shadow-sm md:p-6 lg:col-span-8">
-                  <div className="mb-7 flex items-center justify-between gap-4">
-                    <div>
-                      <h3 className="mb-1 font-serif text-[1.65rem] font-medium tracking-tight">Sales Revenue Trend</h3>
-                      <p className="text-xs text-stone-400 font-light font-sans">Paid revenue trend for {rangeLabel} in Indian Rupees (INR)</p>
+              <div className="mb-12 grid grid-cols-1 gap-6 md:grid-cols-4">
+                {statCards.slice(4).map((card) => {
+                  const Icon = card.icon;
+                  const content = (
+                    <>
+                      <div className="mb-4 flex items-start justify-between gap-4">
+                        <span className="block font-sans text-[9px] uppercase tracking-widest text-stone-500">{card.label}</span>
+                        <div className={`bg-stone-100 p-2 ${card.tone}`}>
+                          <Icon size={14} />
+                        </div>
+                      </div>
+                      <p className={`font-serif text-2xl leading-none md:text-3xl ${card.tone}`}>
+                        {card.value}
+                      </p>
+                      <div className={`mt-3 flex items-center gap-1.5 font-mono text-[10px] font-medium leading-5 ${card.tone}`}>
+                        <span className="truncate">{card.note}</span>
+                        {card.onClick && <ChevronRight size={11} />}
+                      </div>
+                    </>
+                  );
+
+                  if (card.onClick) {
+                    return (
+                      <button
+                        key={card.label}
+                        type="button"
+                        onClick={card.onClick}
+                        className="cursor-pointer border border-stone-200 bg-stone-50 p-6 text-left transition-colors hover:border-[#1a1a1a] md:p-8"
+                      >
+                        {content}
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <div key={card.label} className="border border-stone-200 bg-stone-50 p-6 transition-colors hover:border-[#1a1a1a] md:p-8">
+                      {content}
                     </div>
-                    <span className="text-[10px] bg-stone-100/80 text-[#1a1a1a] font-mono tracking-widest uppercase px-3 py-1 rounded-full border border-stone-200">{rangeLabel}</span>
+                  );
+                })}
+              </div>
+
+              <div className="mb-12 grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <div className="flex flex-col border border-stone-200 bg-white p-6 md:p-8 lg:col-span-2">
+                  <div className="mb-8 flex shrink-0 items-center justify-between gap-4">
+                    <div>
+                      <h2 className="font-serif text-2xl">Sales Revenue Trend</h2>
+                    </div>
                   </div>
 
-                  <div className="relative mt-2 aspect-[21/9] min-h-[190px] max-h-[280px] w-full">
+                  <div className="relative min-h-[300px] flex-1">
                     <svg viewBox="0 0 700 240" className="w-full h-full overflow-visible">
                       <line x1="40" y1="30" x2="680" y2="30" stroke="#f1f0ee" strokeWidth="1" strokeDasharray="3,3" />
                       <line x1="40" y1="90" x2="680" y2="90" stroke="#f1f0ee" strokeWidth="1" strokeDasharray="3,3" />
@@ -2286,85 +2392,94 @@ export default function Admin() {
                   </div>
                 </div>
 
-                <div className="rounded-[1.25rem] border border-stone-200 bg-white p-5 shadow-sm md:p-6 lg:col-span-4">
-                  <h3 className="mb-1 font-serif text-[1.65rem] font-medium tracking-tight">Category Ratios</h3>
-                  <p className="mb-6 text-xs font-light font-sans text-stone-400">Product distribution across categories</p>
-
-                  <div className="space-y-4">
-                    {categoryOptions.map((catName) => {
-                      const matchedProds = products.filter((product) => product.category === catName);
-                      const count = matchedProds.length;
-                      const ratio = products.length > 0 ? Math.round((count / products.length) * 100) : 0;
-                      return (
-                        <div key={catName} className="space-y-1.5 font-sans">
-                          <div className="flex justify-between items-center text-xs font-medium">
-                            <span className="text-stone-700">{catName}</span>
-                            <span className="text-[#1a1a1a] font-bold font-mono">{count} ({ratio}%)</span>
-                          </div>
-                          <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                            <div className="bg-stone-800 h-full rounded-full transition-all duration-[1s]" style={{ width: `${ratio}%` }} />
-                          </div>
-                        </div>
-                      );
-                    })}
+                <div className="flex flex-col border border-stone-200 bg-white p-6 md:p-8">
+                  <div className="mb-8 flex shrink-0 items-center justify-between">
+                    <h2 className="font-serif text-2xl">Sales by Category</h2>
                   </div>
 
-                  <div className="mt-6 border-t border-stone-100 pt-5">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-stone-400 font-light">Catalog Value Spanned:</span>
-                      <span className="font-mono font-medium text-stone-700 text-[10px] uppercase font-bold">Standard Mix</span>
+                  <div className="relative mx-auto flex min-h-[300px] w-full flex-1 items-center justify-center">
+                    <div
+                      className="absolute h-[180px] w-[180px] rounded-full"
+                      style={{ background: categoryConicGradient }}
+                    />
+                    <div className="absolute h-[120px] w-[120px] rounded-full border border-stone-200 bg-white" />
+                    <div className="relative text-center">
+                      <span className="block font-sans text-[10px] uppercase tracking-widest text-stone-400">Total</span>
+                      <span className="mt-1 block font-serif text-xl leading-none text-[#1a1a1a]">
+                        {categoryStatsTotal || products.length}
+                      </span>
+                      <span className="mt-1 block font-sans text-[9px] uppercase tracking-widest text-stone-400">SKUs</span>
                     </div>
+                  </div>
+
+                  <div className="admin-scrollbar mt-6 grid max-h-[92px] grid-cols-2 gap-4 overflow-y-auto pr-2">
+                    {categoryChartData.length > 0 ? (
+                      categoryChartData.map((item) => (
+                        <div key={item.category} className="flex min-w-0 items-center gap-2">
+                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                            <span className="truncate font-sans text-[11px] text-stone-500">{item.category}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-center font-sans text-[10px] uppercase tracking-widest text-stone-400">
+                        No category data
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-[1.25rem] border border-stone-200 bg-white p-5 shadow-sm md:p-6">
-                <div className="mb-5 flex items-center justify-between">
-                  <h3 className="font-serif text-[1.65rem] font-medium tracking-tight">Recent Orders</h3>
-                  <button onClick={() => setActiveTab('ORDERS')} className="text-xs font-bold border-b border-[#1a1a1a] pb-0.5 uppercase tracking-widest text-[#1a1a1a] hover:text-stone-500 transition-colors cursor-pointer">
-                    View All Orders
+              <div className="flex h-[400px] flex-col border border-stone-200 bg-white p-6 md:p-8">
+                <div className="mb-8 flex shrink-0 items-center justify-between">
+                  <h2 className="font-serif text-2xl">Recent Orders</h2>
+                  <button onClick={() => setActiveTab('ORDERS')} className="cursor-pointer border-b border-transparent pb-1 text-[9px] uppercase tracking-widest text-stone-400 transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a]">
+                    View All
                   </button>
                 </div>
 
-                <div className="admin-scrollbar max-h-[620px] overflow-auto">
-                  <table className="w-full text-left font-sans text-xs border-collapse">
-                    <thead className="sticky top-0 z-10 bg-white">
-                      <tr className="border-b border-stone-100 text-stone-400 uppercase tracking-widest text-[9px] font-bold">
-                        <th className="pb-3.5 font-semibold">ID</th>
-                        <th className="pb-3.5 font-semibold">Customer</th>
-                        <th className="pb-3.5 font-semibold">City</th>
-                        <th className="pb-3.5 font-semibold">Ordered Items</th>
-                        <th className="pb-3.5 font-semibold">Total Price</th>
-                        <th className="pb-3.5 font-semibold text-right">Fulfillment</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-50">
-                      {recentOrders.slice(0, 4).map((order) => (
-                        <tr key={order.id} className="group hover:bg-stone-50/40 transition-colors">
-                          <td className="py-4 font-mono font-bold text-stone-900">{order.id}</td>
-                          <td className="py-4 font-medium text-[#111]">{order.customer.name}</td>
-                          <td className="py-4 text-stone-500">{order.customer.city}</td>
-                          <td className="py-4 text-stone-600 max-w-sm truncate" title={order.items.map((item) => item.name).join(', ')}>
-                            {order.items.map((item) => `${item.quantity}x ${item.name}`).join(', ')}
-                          </td>
-                          <td className="py-4 font-mono font-bold text-[#111]">{formatCurrency(order.total)}</td>
-                          <td className="py-4 text-right">
-                            <span className={`inline-block text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full ${
-                              order.status === 'Delivered'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : order.status === 'Shipped'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : order.status === 'Confirmed' || order.status === 'Packed'
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : 'bg-stone-100 text-stone-700'
-                            }`}>
-                              {order.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="admin-scrollbar flex min-h-0 flex-1 flex-col overflow-x-auto">
+                  <div className="flex min-w-[500px] flex-1 flex-col">
+                    <div className="w-full shrink-0">
+                      <div className="mb-2 grid grid-cols-5 gap-4 border-b border-[#1a1a1a] pb-4 text-[9px] font-semibold uppercase tracking-widest text-stone-400">
+                        <div className="col-span-1">Order</div>
+                        <div className="col-span-1">Date</div>
+                        <div className="col-span-1 text-center">Status</div>
+                        <div className="col-span-1 text-right">Total</div>
+                        <div className="col-span-1 text-right">Action</div>
+                      </div>
+                    </div>
+
+                    <div className="admin-scrollbar -mr-4 flex-1 overflow-y-auto pr-4">
+                      <div className="flex flex-col">
+                        {recentOrders.slice(0, 8).map((order) => (
+                          <div key={order.id} className="-mx-2 grid grid-cols-5 items-center gap-4 border-b border-stone-100 px-2 py-4 transition-colors hover:bg-stone-50">
+                            <div className="font-sans text-[11px] font-medium">{order.id}</div>
+                            <div className="font-sans text-[11px] text-stone-500">{formatDate(order.createdAt)}</div>
+                            <div className="text-center font-sans text-[9px] uppercase tracking-widest">
+                              <span className={`inline-block rounded-full px-3 py-1 ${
+                                order.status === 'Delivered' ? 'bg-stone-50 text-stone-500' : 'bg-stone-100 text-[#1a1a1a]'
+                              }`}>
+                                {order.status}
+                              </span>
+                            </div>
+                            <div className="text-right font-serif text-lg">{formatCurrency(order.total)}</div>
+                            <div className="text-right">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveTab('ORDERS');
+                                  setViewingOrder(order);
+                                }}
+                                className="cursor-pointer border-b border-transparent pb-1 text-[9px] uppercase tracking-widest text-stone-400 transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a]"
+                              >
+                                View
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2537,251 +2652,282 @@ export default function Admin() {
           )}
 
           {activeTab === 'ORDERS' && (
-            <div className="space-y-6">
-              <div className="rounded-[1.15rem] border border-stone-200 bg-white/85 px-3 py-2.5 shadow-sm">
-                <div className="admin-scrollbar flex gap-1.5 overflow-x-auto">
-                  {orderQueueOptions.map((queue) => {
-                    const isActive = activeOrderQueue === queue.value;
-
-                    return (
-                      <button
-                        key={queue.value}
-                        type="button"
-                        onClick={() => setActiveOrderQueue(queue.value)}
-                        className={`min-w-[124px] cursor-pointer rounded-[0.9rem] border px-3.5 py-2.5 text-left transition-all ${
-                          isActive
-                            ? 'border-[#1a1a1a] bg-[#1a1a1a] text-[#fcfbf9] shadow-sm'
-                            : 'border-transparent bg-transparent text-stone-500 hover:border-stone-200 hover:bg-[#fcfbf9]'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[9px] font-bold uppercase tracking-[0.2em]">{queue.label}</span>
-                          <span className={`min-w-5 rounded-full px-1.5 py-0.5 text-center font-mono text-[9px] font-bold ${
-                            isActive ? 'bg-white/15 text-white' : 'bg-stone-100 text-stone-500'
-                          }`}>
-                            {orderQueueCounts[queue.value] ?? 0}
-                          </span>
-                        </div>
-                        <p className={`mt-1 text-[8px] font-light ${isActive ? 'text-stone-300' : 'text-stone-400'}`}>
-                          {queue.description}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="rounded-[1.15rem] border border-stone-200 bg-white/85 px-4 py-3 shadow-sm">
-                <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-12">
-                  <div className="relative lg:col-span-4">
-                    <Search size={12} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-                    <input
-                      type="text"
-                      value={orderSearch}
-                      onChange={(event) => setOrderSearch(event.target.value)}
-                      placeholder="Search order, customer, phone, email..."
-                      className="h-10 w-full rounded-[0.85rem] border border-stone-200 bg-[#fcfbf9] pl-9 pr-3 text-[11px] font-light tracking-wide outline-none transition-colors hover:border-stone-300 focus:border-stone-500"
-                    />
-                  </div>
-
-                  <select
-                    value={orderStatusFilter}
-                    onChange={(event) => setOrderStatusFilter(event.target.value as 'All' | OrderStatus)}
-                    className="h-10 cursor-pointer rounded-[0.85rem] border border-stone-200 bg-[#fcfbf9] px-3 text-[9px] font-bold uppercase tracking-[0.18em] text-stone-600 outline-none transition-colors hover:border-stone-300 focus:border-stone-500 lg:col-span-2"
-                  >
-                    <option value="All">All Fulfillment</option>
-                    {orderStatuses.map((status) => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={paymentStatusFilter}
-                    onChange={(event) => setPaymentStatusFilter(event.target.value as 'All' | Order['paymentStatus'])}
-                    className="h-10 cursor-pointer rounded-[0.85rem] border border-stone-200 bg-[#fcfbf9] px-3 text-[9px] font-bold uppercase tracking-[0.18em] text-stone-600 outline-none transition-colors hover:border-stone-300 focus:border-stone-500 lg:col-span-2"
-                  >
-                    <option value="All">All Payments</option>
-                    <option value="pending">Pending</option>
-                    <option value="authorized">Authorized</option>
-                    <option value="paid">Paid</option>
-                    <option value="failed">Failed</option>
-                    <option value="refunded">Refunded</option>
-                  </select>
-
-                  <select
-                    value={shippingStatusFilter}
-                    onChange={(event) => setShippingStatusFilter(event.target.value as 'All' | Order['shippingStatus'])}
-                    className="h-10 cursor-pointer rounded-[0.85rem] border border-stone-200 bg-[#fcfbf9] px-3 text-[9px] font-bold uppercase tracking-[0.18em] text-stone-600 outline-none transition-colors hover:border-stone-300 focus:border-stone-500 lg:col-span-2"
-                  >
-                    <option value="All">All Shipping</option>
-                    <option value="not_created">Not Created</option>
-                    <option value="created">Created</option>
-                    <option value="in_transit">In Transit</option>
-                    <option value="delivered">Delivered</option>
-                    <option value="cancelled">Cancelled</option>
-                    <option value="failed">Failed</option>
-                  </select>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOrderSearch('');
-                      setOrderStatusFilter('All');
-                      setPaymentStatusFilter('All');
-                      setShippingStatusFilter('All');
-                      setActiveOrderQueue('all');
-                      setOrderStartDate('');
-                      setOrderEndDate('');
-                    }}
-                    className="h-10 cursor-pointer rounded-[0.85rem] border border-stone-200 bg-white px-3 text-[9px] font-bold uppercase tracking-[0.18em] text-stone-500 transition-colors hover:border-stone-900 hover:text-stone-900 lg:col-span-2"
-                  >
-                    Clear Filters
-                  </button>
-                </div>
-
-                <div className="mt-3 flex flex-col gap-3 border-t border-stone-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <span className="text-[8px] font-bold uppercase tracking-[0.24em] text-stone-400">Order Date</span>
-                    <input
-                      type="date"
-                      value={orderStartDate}
-                      onChange={(event) => setOrderStartDate(event.target.value)}
-                      className="h-9 cursor-pointer rounded-[0.8rem] border border-stone-200 bg-[#fcfbf9] px-3 text-[8px] font-bold uppercase tracking-[0.18em] text-stone-600 outline-none transition-colors hover:border-stone-300 focus:border-stone-500"
-                    />
-                    <span className="hidden text-[8px] font-bold uppercase tracking-widest text-stone-400 sm:inline">to</span>
-                    <input
-                      type="date"
-                      value={orderEndDate}
-                      onChange={(event) => setOrderEndDate(event.target.value)}
-                      className="h-9 cursor-pointer rounded-[0.8rem] border border-stone-200 bg-[#fcfbf9] px-3 text-[8px] font-bold uppercase tracking-[0.18em] text-stone-600 outline-none transition-colors hover:border-stone-300 focus:border-stone-500"
-                    />
-                  </div>
-
-                  <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">
-                    Showing {filteredOrders.length} of {orders.length} orders
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-white border border-stone-200 rounded-[1.5rem] shadow-sm overflow-hidden">
-                <div className="admin-scrollbar max-h-[650px] overflow-auto">
-                  <table className="w-full text-left font-sans text-xs border-collapse">
-                    <thead className="sticky top-0 z-10 bg-white">
-                      <tr className="border-b border-stone-100 text-stone-400 uppercase tracking-widest text-[9px] font-bold bg-stone-50/50">
-                        <th className="py-4 px-6 font-semibold">Order ID</th>
-                        <th className="py-4 px-6 font-semibold">Date Placed</th>
-                        <th className="py-4 px-6 font-semibold">Customer Name</th>
-                        <th className="py-4 px-6 font-semibold">Total Price</th>
-                        <th className="py-4 px-6 font-semibold">Items Count</th>
-                        <th className="py-4 px-6 font-semibold">Payment</th>
-                        <th className="py-4 px-6 font-semibold">Shipping</th>
-                        <th className="py-4 px-6 font-semibold">Fulfillment Status</th>
-                        <th className="py-4 px-6 font-semibold text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-50">
-                      {paginatedOrders.map((order) => (
-                        <tr key={order.id} className="group hover:bg-stone-50/40 transition-colors">
-                          <td className="py-4 px-6 font-mono font-bold text-stone-900">{order.id}</td>
-                          <td className="py-4 px-6 text-stone-500 font-mono">
-                            {new Date(order.createdAt).toLocaleDateString('en-US', {
-                              day: 'numeric',
-                              month: 'short',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </td>
-                          <td className="py-4 px-6">
-                            <h4 className="font-semibold text-[#111] mb-0.5">{order.customer.name}</h4>
-                            <p className="text-[10px] text-stone-400 tracking-wide">{order.customer.phone}</p>
-                          </td>
-                          <td className="py-4 px-6 font-mono font-bold text-[#111]">{formatCurrency(order.total)}</td>
-                          <td className="py-4 px-6 font-mono text-stone-500 font-medium">
-                            {order.items.reduce((acc, current) => acc + current.quantity, 0)} items
-                          </td>
-                          <td className="py-4 px-6">
-                            <span className={`inline-block rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${getPaymentStatusClasses(order.paymentStatus)}`}>
-                              {formatStatusLabel(order.paymentStatus)}
-                            </span>
-                          </td>
-                          <td className="py-4 px-6">
-                            <span className={`inline-block rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${getShippingStatusClasses(order.shippingStatus)}`}>
-                              {formatStatusLabel(order.shippingStatus)}
-                            </span>
-                          </td>
-                          <td className="py-4 px-6">
-                            <span className={`inline-block rounded-full px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider ${getStatusClasses(order.status)}`}>
-                              {order.status}
-                            </span>
-                          </td>
-                          <td className="py-4 px-6 text-right">
-                            <div className="flex min-w-[132px] flex-col items-end gap-2">
-                              {(canMarkPacked(order) || canCreateShipment(order)) && (
-                                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[8px] font-bold uppercase tracking-widest text-amber-700">
-                                  Action Needed
-                                </span>
-                              )}
-                              <button
-                                onClick={() => setViewingOrder(order)}
-                                className="cursor-pointer rounded-full border border-[#1a1a1a] px-4 py-2 text-[9px] font-bold uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-[#1a1a1a] hover:text-[#fcfbf9]"
-                              >
-                                View Details
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {!isLoading && filteredOrders.length === 0 && (
-                  <div className="p-16 text-center text-stone-400 flex flex-col items-center justify-center">
-                    <p className="text-[10px] tracking-[0.25em] uppercase font-bold mb-3">
-                      {orders.length === 0 ? 'No orders yet' : 'No matching orders'}
-                    </p>
-                    <p className="text-xs font-light text-stone-500 mb-6">
-                      {orders.length === 0 ? 'Paid checkout orders will appear here after they are created.' : 'Change or clear filters to view more orders.'}
-                    </p>
+            <div className="flex h-full flex-col">
+              {viewingOrder ? (
+                <OrderDrawer
+                  order={viewingOrder}
+                  onClose={() => setViewingOrder(null)}
+                  onMarkPacked={() => {
+                    void handleMarkPacked(viewingOrder);
+                  }}
+                  onCreateShipment={() => {
+                    void handleCreateShipment(viewingOrder);
+                  }}
+                  onSyncShipment={() => {
+                    void handleSyncShipment(viewingOrder);
+                  }}
+                  onCancelShipment={() => {
+                    setCancelShipmentCandidate(viewingOrder);
+                  }}
+                  onCancelOrder={() => {
+                    setCancelCandidate(viewingOrder);
+                  }}
+                  isUpdating={updatingOrderFor === viewingOrder.id}
+                  isCreatingShipment={creatingShipmentFor === viewingOrder.id}
+                  isSyncingShipment={syncingShipmentFor === viewingOrder.id}
+                  isCancellingShipment={cancellingShipmentFor === viewingOrder.id}
+                  variant="page"
+                />
+              ) : (
+                <>
+                  <div className="mb-8 flex shrink-0 flex-col items-start justify-between gap-6 md:flex-row md:items-end">
+                    <h1 className="font-serif text-3xl md:text-4xl">Orders</h1>
                     <button
-                      onClick={() => {
-                        if (orders.length === 0) {
-                          void fetchOrders();
-                          return;
-                        }
-
-                        setOrderSearch('');
-                        setOrderStatusFilter('All');
-                        setPaymentStatusFilter('All');
-                        setShippingStatusFilter('All');
-                        setActiveOrderQueue('all');
-                        setOrderStartDate('');
-                        setOrderEndDate('');
-                      }}
-                      className="cursor-pointer border-b border-[#1a1a1a] pb-0.5 text-[10px] font-bold uppercase tracking-widest text-[#1a1a1a]"
+                      type="button"
+                      onClick={() => void fetchOrders()}
+                      className="shrink-0 cursor-pointer bg-[#1a1a1a] px-6 py-3 text-[9px] uppercase tracking-widest text-[#fcfbf9] transition-colors hover:bg-stone-800"
                     >
-                      {orders.length === 0 ? 'Refresh Orders' : 'Clear Filters'}
+                      <RotateCcw size={13} />
+                      Refresh Orders
                     </button>
                   </div>
-                )}
 
-                {isLoading && (
-                  <div className="p-16 text-center text-xs font-bold uppercase tracking-[0.25em] text-stone-400">
-                    Loading orders
+                  <div className="mb-6 shrink-0">
+                    <div className="admin-scrollbar flex flex-wrap gap-2 overflow-x-auto">
+                      {orderQueueOptions.map((queue) => {
+                        const isActive = activeOrderQueue === queue.value;
+
+                        return (
+                          <button
+                            key={queue.value}
+                            type="button"
+                            onClick={() => setActiveOrderQueue(queue.value)}
+                            className={`cursor-pointer rounded-full border px-4 py-2 text-[9px] uppercase tracking-widest transition-colors ${
+                              isActive
+                                ? 'border-[#1a1a1a] bg-[#1a1a1a] text-white'
+                                : 'border-stone-200 bg-white text-stone-500 hover:border-stone-400'
+                            }`}
+                          >
+                            {queue.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                )}
 
-                {!isLoading && filteredOrders.length > 0 && (
-                  <PaginationControls
-                    page={orderPage}
-                    pageCount={orderPageCount}
-                    totalCount={filteredOrders.length}
-                    pageSize={orderPageSize}
-                    label="orders"
-                    onPageChange={setOrderPage}
-                  />
-                )}
-              </div>
+                  <div className="mb-6 flex w-full shrink-0 flex-col items-start gap-4 border border-stone-200 bg-white p-4 xl:flex-row xl:items-center">
+                    <div className="flex w-full flex-1 items-center gap-3 border border-stone-200 px-3 py-2 xl:w-auto">
+                      <Search size={14} className="shrink-0 text-stone-400" />
+                      <input
+                        type="text"
+                        value={orderSearch}
+                        onChange={(event) => setOrderSearch(event.target.value)}
+                        placeholder="Search by order, customer, email, phone..."
+                        className="w-full border-none bg-transparent text-[11px] outline-none placeholder:text-stone-400"
+                      />
+                    </div>
+
+                    <div className="flex w-full flex-wrap gap-3 xl:w-auto">
+                      <select
+                        value={paymentStatusFilter}
+                        onChange={(event) => setPaymentStatusFilter(event.target.value as 'All' | Order['paymentStatus'])}
+                        className="cursor-pointer appearance-none border border-stone-200 bg-white px-3 py-2 text-[10px] uppercase tracking-widest outline-none"
+                      >
+                        <option value="All">Payment: All</option>
+                        <option value="pending">Pending</option>
+                        <option value="authorized">Authorized</option>
+                        <option value="paid">Paid</option>
+                        <option value="failed">Failed</option>
+                        <option value="refunded">Refunded</option>
+                      </select>
+
+                      <select
+                        value={orderStatusFilter}
+                        onChange={(event) => setOrderStatusFilter(event.target.value as 'All' | OrderStatus)}
+                        className="cursor-pointer appearance-none border border-stone-200 bg-white px-3 py-2 text-[10px] uppercase tracking-widest outline-none"
+                      >
+                        <option value="All">Fulfillment: All</option>
+                        {orderStatuses.map((status) => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={shippingStatusFilter}
+                        onChange={(event) => setShippingStatusFilter(event.target.value as 'All' | Order['shippingStatus'])}
+                        className="cursor-pointer appearance-none border border-stone-200 bg-white px-3 py-2 text-[10px] uppercase tracking-widest outline-none"
+                      >
+                        <option value="All">Shipping: All</option>
+                        <option value="not_created">Not Created</option>
+                        <option value="created">Created</option>
+                        <option value="in_transit">In Transit</option>
+                        <option value="delivered">Delivered</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="failed">Failed</option>
+                      </select>
+
+                      <div className="flex items-center gap-2 border border-stone-200 bg-white p-1">
+                        <input
+                          type="date"
+                          value={orderStartDate}
+                          onChange={(event) => setOrderStartDate(event.target.value)}
+                          className="h-full cursor-pointer border-none bg-transparent px-2 py-0.5 text-[10px] uppercase tracking-widest text-[#1a1a1a] outline-none"
+                        />
+                        <span className="text-[10px] font-semibold uppercase tracking-widest text-stone-400">To</span>
+                        <input
+                          type="date"
+                          value={orderEndDate}
+                          onChange={(event) => setOrderEndDate(event.target.value)}
+                          className="h-full cursor-pointer border-none bg-transparent px-2 py-0.5 text-[10px] uppercase tracking-widest text-[#1a1a1a] outline-none"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOrderSearch('');
+                          setOrderStatusFilter('All');
+                          setPaymentStatusFilter('All');
+                          setShippingStatusFilter('All');
+                          setActiveOrderQueue('all');
+                          setOrderStartDate('');
+                          setOrderEndDate('');
+                        }}
+                        className="cursor-pointer px-2 text-[10px] uppercase tracking-widest text-stone-500 underline underline-offset-4 transition-colors hover:text-[#1a1a1a]"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex min-h-[400px] w-full flex-1 flex-col overflow-hidden border border-stone-200 bg-white">
+                    <div className="admin-scrollbar overflow-auto">
+                      <div className="min-w-[800px]">
+                        <div className="grid grid-cols-12 gap-4 border-b border-[#1a1a1a] bg-stone-50 p-4 text-[9px] font-semibold uppercase tracking-widest text-stone-400">
+                          <div className="col-span-2">Order</div>
+                          <div className="col-span-3">Customer</div>
+                          <div className="col-span-1 text-center">Payment</div>
+                          <div className="col-span-2 text-center">Fulfillment</div>
+                          <div className="col-span-2 text-center">Shipping</div>
+                          <div className="col-span-1 text-right">Total</div>
+                          <div className="col-span-1 text-right">Action</div>
+                        </div>
+
+                        <div className="divide-y divide-stone-100">
+                          {paginatedOrders.map((order) => {
+                            const itemCount = order.items.reduce((acc, current) => acc + current.quantity, 0);
+                            const needsAction = canMarkPacked(order) || canCreateShipment(order);
+
+                            return (
+                              <button
+                                key={order.id}
+                                type="button"
+                                onClick={() => setViewingOrder(order)}
+                                className="group grid w-full cursor-pointer grid-cols-12 items-center gap-4 p-4 text-left transition-colors hover:bg-stone-50"
+                              >
+                                <div className="col-span-2 flex flex-col gap-1">
+                                  <span className="font-sans text-[12px] font-medium text-[#1a1a1a]">{order.id}</span>
+                                  <span className="font-sans text-[10px] text-stone-500">{formatDate(order.createdAt)}</span>
+                                </div>
+                                <div className="col-span-3 flex min-w-0 flex-col">
+                                  <span className="truncate font-sans text-[11px] font-medium text-[#1a1a1a]">{order.customer.name}</span>
+                                  <span className="truncate font-sans text-[10px] text-stone-500">{order.customer.email || order.customer.phone}</span>
+                                  <span className="mt-1 text-[9px] uppercase tracking-widest text-stone-400">{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
+                                </div>
+                                <div className="col-span-1 flex items-center justify-center text-center">
+                                  <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${getPaymentStatusClasses(order.paymentStatus)}`}>
+                                    {formatStatusLabel(order.paymentStatus)}
+                                  </span>
+                                </div>
+                                <div className="col-span-2 flex items-center justify-center text-center">
+                                  <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${getStatusClasses(order.status)}`}>
+                                    {order.status}
+                                  </span>
+                                </div>
+                                <div className="col-span-2 flex flex-col items-center justify-center text-center">
+                                  <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${getShippingStatusClasses(order.shippingStatus)}`}>
+                                    {formatStatusLabel(order.shippingStatus)}
+                                  </span>
+                                  {needsAction && <span className="mt-1 text-[8px] uppercase tracking-widest text-amber-700">Action needed</span>}
+                                </div>
+                                <div className="col-span-1 text-right font-serif text-lg text-[#1a1a1a]">
+                                  {formatCurrency(order.total)}
+                                </div>
+                                <div className="col-span-1 flex justify-end text-right">
+                                  <span className="border-b border-transparent pb-0.5 text-[9px] uppercase tracking-widest text-stone-400 transition-colors group-hover:border-[#1a1a1a] group-hover:text-[#1a1a1a]">
+                                    Details
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {!isLoading && filteredOrders.length === 0 && (
+                      <div className="flex flex-col items-center justify-center px-8 py-20 text-center text-stone-400">
+                        <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em]">
+                          {orders.length === 0 ? 'No orders yet' : 'No matching orders'}
+                        </p>
+                        <p className="mb-6 text-xs font-light text-stone-500">
+                          {orders.length === 0 ? 'Paid checkout orders will appear here after they are created.' : 'Change or clear filters to view more orders.'}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (orders.length === 0) {
+                              void fetchOrders();
+                              return;
+                            }
+
+                            setOrderSearch('');
+                            setOrderStatusFilter('All');
+                            setPaymentStatusFilter('All');
+                            setShippingStatusFilter('All');
+                            setActiveOrderQueue('all');
+                            setOrderStartDate('');
+                            setOrderEndDate('');
+                          }}
+                          className="cursor-pointer border-b border-[#1a1a1a] pb-1 text-[10px] font-bold uppercase tracking-[0.22em] text-[#1a1a1a]"
+                        >
+                          {orders.length === 0 ? 'Refresh Orders' : 'Clear Filters'}
+                        </button>
+                      </div>
+                    )}
+
+                    {isLoading && (
+                      <div className="px-8 py-20 text-center text-xs font-bold uppercase tracking-[0.3em] text-stone-400">
+                        Loading orders
+                      </div>
+                    )}
+
+                    {!isLoading && filteredOrders.length > 0 && (
+                      <div className="mt-6 flex shrink-0 items-center justify-between border-t border-stone-200 pt-6">
+                        <button
+                          type="button"
+                          disabled={orderPage <= 1}
+                          onClick={() => setOrderPage((page) => Math.max(1, page - 1))}
+                          className="cursor-pointer border border-stone-200 px-4 py-2 text-[9px] uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          Previous
+                        </button>
+                        <span className="font-sans text-[11px] text-stone-500">
+                          Page {orderPage} of {orderPageCount}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={orderPage >= orderPageCount}
+                          onClick={() => setOrderPage((page) => Math.min(orderPageCount, page + 1))}
+                          className="cursor-pointer border border-stone-200 px-4 py-2 text-[9px] uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </main>
@@ -2978,7 +3124,7 @@ export default function Admin() {
         </div>
       )}
 
-      {viewingOrder && (
+      {viewingOrder && activeTab !== 'ORDERS' && (
         <OrderDrawer
           order={viewingOrder}
           onClose={() => setViewingOrder(null)}

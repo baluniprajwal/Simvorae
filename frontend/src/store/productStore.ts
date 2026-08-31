@@ -58,8 +58,23 @@ type ProductResponse = {
   product: BackendProduct;
 };
 
+export type ProductCategoryStat = {
+  category: string;
+  count: number;
+  activeCount: number;
+  ratio: number;
+};
+
+type ProductCategoryStatsResponse = {
+  success: boolean;
+  total: number;
+  categories: ProductCategoryStat[];
+};
+
 interface ProductStore {
   products: ProductStoreItem[];
+  categoryStats: ProductCategoryStat[];
+  categoryStatsTotal: number;
   isLoading: boolean;
   isUploading: boolean;
   error: string;
@@ -123,17 +138,29 @@ const getErrorMessage = (error: unknown, fallback: string) => (
     : fallback
 );
 
+const fetchCategoryStats = async () => {
+  const response = await api.get<ProductCategoryStatsResponse>('/api/products/admin/category-stats');
+  return response.data;
+};
+
 export const useProductStore = create<ProductStore>((set) => ({
   products: [],
+  categoryStats: [],
+  categoryStatsTotal: 0,
   isLoading: false,
   isUploading: false,
   error: '',
   fetchProducts: async () => {
     try {
       set({ isLoading: true, error: '' });
-      const response = await api.get<ProductsResponse>('/api/products/admin');
+      const [productsResponse, statsResponse] = await Promise.all([
+        api.get<ProductsResponse>('/api/products/admin'),
+        fetchCategoryStats(),
+      ]);
       set({
-        products: response.data.products.map(mapBackendProduct),
+        products: productsResponse.data.products.map(mapBackendProduct),
+        categoryStats: statsResponse.categories,
+        categoryStatsTotal: statsResponse.total,
         isLoading: false,
       });
     } catch (error) {
@@ -181,8 +208,11 @@ export const useProductStore = create<ProductStore>((set) => ({
       set({ error: '' });
       const response = await api.post<ProductResponse>('/api/products/admin', toProductPayload(product));
       const createdProduct = mapBackendProduct(response.data.product);
+      const stats = await fetchCategoryStats();
       set((state) => ({
         products: [createdProduct, ...state.products],
+        categoryStats: stats.categories,
+        categoryStatsTotal: stats.total,
       }));
     } catch (error) {
       const message = getErrorMessage(error, 'Failed to create product.');
@@ -195,8 +225,11 @@ export const useProductStore = create<ProductStore>((set) => ({
       set({ error: '' });
       const response = await api.patch<ProductResponse>(`/api/products/admin/${id}`, toProductPayload(product));
       const updatedProduct = mapBackendProduct(response.data.product);
+      const stats = await fetchCategoryStats();
       set((state) => ({
         products: state.products.map((item) => (item.id === id ? updatedProduct : item)),
+        categoryStats: stats.categories,
+        categoryStatsTotal: stats.total,
       }));
     } catch (error) {
       const message = getErrorMessage(error, 'Failed to update product.');
@@ -208,8 +241,11 @@ export const useProductStore = create<ProductStore>((set) => ({
     try {
       set({ error: '' });
       await api.delete(`/api/products/admin/${id}`);
+      const stats = await fetchCategoryStats();
       set((state) => ({
         products: state.products.filter((item) => item.id !== id),
+        categoryStats: stats.categories,
+        categoryStatsTotal: stats.total,
       }));
     } catch (error) {
       const message = getErrorMessage(error, 'Failed to delete product.');
@@ -217,5 +253,5 @@ export const useProductStore = create<ProductStore>((set) => ({
       throw new Error(message);
     }
   },
-  resetProducts: () => set({ products: [] }),
+  resetProducts: () => set({ products: [], categoryStats: [], categoryStatsTotal: 0 }),
 }));

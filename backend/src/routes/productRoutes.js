@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   createProduct,
   deleteProduct,
+  getAdminProductCategoryStats,
   getAdminProducts,
   getProductById,
   getProductFilters,
@@ -19,6 +20,7 @@ import {
 const router = Router();
 
 router.get('/', validateProductQuery, getProducts);
+router.get('/admin/category-stats', protect, requireAdmin, getAdminProductCategoryStats);
 router.get('/admin', protect, requireAdmin, getAdminProducts);
 router.post('/admin', protect, requireAdmin, validateAdminProductBody, createProduct);
 router.patch('/admin/:id', protect, requireAdmin, validateAdminProductBody, updateProduct);

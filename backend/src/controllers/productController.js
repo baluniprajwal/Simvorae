@@ -199,6 +199,46 @@ export async function getAdminProducts(_req, res, next) {
   }
 }
 
+export async function getAdminProductCategoryStats(_req, res, next) {
+  try {
+    const categories = await Product.aggregate([
+      {
+        $group: {
+          _id: '$category',
+          count: { $sum: 1 },
+          activeCount: {
+            $sum: {
+              $cond: ['$isActive', 1, 0],
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          category: '$_id',
+          count: 1,
+          activeCount: 1,
+        },
+      },
+      { $sort: { count: -1, category: 1 } },
+    ]);
+
+    const total = categories.reduce((sum, item) => sum + item.count, 0);
+
+    return res.status(200).json({
+      success: true,
+      total,
+      categories: categories.map((item) => ({
+        ...item,
+        ratio: total > 0 ? Math.round((item.count / total) * 100) : 0,
+      })),
+    });
+  } catch (error) {
+    return next(createHttpError(500, 'Failed to fetch product category stats.'));
+  }
+}
+
 export async function createProduct(req, res, next) {
   try {
     const payload = buildProductPayload(req.body);
