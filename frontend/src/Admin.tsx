@@ -182,11 +182,12 @@ const createEmptyForm = (): ProductFormState => ({
 const getStatusClasses = (status: OrderStatus) => {
   switch (status) {
     case 'Delivered':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      return 'bg-green-50 text-green-700 border-green-100';
     case 'Shipped':
-      return 'bg-sky-50 text-sky-700 border-sky-200';
+    case 'Packed':
+      return 'bg-amber-50 text-amber-700 border-amber-100';
     case 'Cancelled':
-      return 'bg-rose-50 text-rose-700 border-rose-200';
+      return 'bg-red-50 text-red-600 border-red-100';
     default:
       return 'bg-stone-100 text-stone-700 border-stone-200';
   }
@@ -201,28 +202,28 @@ const formatStatusLabel = (status: string) =>
 const getPaymentStatusClasses = (status: Order['paymentStatus']) => {
   switch (status) {
     case 'paid':
-      return 'bg-emerald-100 text-emerald-800';
+      return 'bg-green-50 text-green-700 border-green-100';
     case 'failed':
-      return 'bg-red-100 text-red-800';
+      return 'bg-red-50 text-red-600 border-red-100';
     case 'refunded':
-      return 'bg-purple-100 text-purple-800';
+      return 'bg-stone-100 text-[#1a1a1a] border-stone-200';
     default:
-      return 'bg-stone-100 text-stone-700';
+      return 'bg-amber-50 text-amber-700 border-amber-100';
   }
 };
 
 const getShippingStatusClasses = (status: Order['shippingStatus']) => {
   switch (status) {
     case 'delivered':
-      return 'bg-emerald-100 text-emerald-800';
+      return 'bg-green-50 text-green-700 border-green-100';
     case 'created':
     case 'in_transit':
-      return 'bg-blue-100 text-blue-800';
+      return 'bg-amber-50 text-amber-700 border-amber-100';
     case 'failed':
     case 'cancelled':
-      return 'bg-red-100 text-red-800';
+      return 'bg-red-50 text-red-600 border-red-100';
     default:
-      return 'bg-stone-100 text-stone-700';
+      return 'bg-stone-100 text-[#1a1a1a] border-stone-200';
   }
 };
 
@@ -564,9 +565,13 @@ function PaginationControls({
   const endItem = Math.min(page * pageSize, totalCount);
   const safePageCount = Math.max(pageCount, 1);
 
+  if (safePageCount <= 1) {
+    return null;
+  }
+
   return (
     <div className="flex flex-col gap-3 border-t border-stone-100 bg-white/80 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400">
+      <p className="text-[9px] font-semibold uppercase tracking-widest text-stone-400">
         Showing {startItem}-{endItem} of {totalCount} {label}
       </p>
 
@@ -575,13 +580,13 @@ function PaginationControls({
           type="button"
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
-          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-stone-200 bg-[#fcfbf9] px-3 text-[9px] font-bold uppercase tracking-widest text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:border-stone-100 disabled:text-stone-300"
+          className="inline-flex h-9 cursor-pointer items-center gap-2 border border-stone-200 bg-[#fcfbf9] px-3 text-[9px] font-semibold uppercase tracking-widest text-stone-500 transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a] disabled:cursor-not-allowed disabled:border-stone-100 disabled:text-stone-300"
         >
           <ChevronLeft size={12} />
           Prev
         </button>
 
-        <span className="rounded-full border border-stone-200 bg-white px-3 py-2 font-mono text-[10px] font-bold text-stone-500">
+        <span className="border border-stone-200 bg-white px-3 py-2 font-sans text-[10px] font-semibold text-stone-500">
           {page} / {safePageCount}
         </span>
 
@@ -589,7 +594,7 @@ function PaginationControls({
           type="button"
           disabled={page >= safePageCount}
           onClick={() => onPageChange(page + 1)}
-          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-stone-200 bg-[#fcfbf9] px-3 text-[9px] font-bold uppercase tracking-widest text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:border-stone-100 disabled:text-stone-300"
+          className="inline-flex h-9 cursor-pointer items-center gap-2 border border-stone-200 bg-[#fcfbf9] px-3 text-[9px] font-semibold uppercase tracking-widest text-stone-500 transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a] disabled:cursor-not-allowed disabled:border-stone-100 disabled:text-stone-300"
         >
           Next
           <ChevronRight size={12} />
@@ -645,340 +650,191 @@ function ProductModal({
     }
   };
 
+  const setCoverImage = (index: number) => {
+    const nextImages = [...form.images];
+    const [selectedImage] = nextImages.splice(index, 1);
+    if (selectedImage) {
+      onChange('images', [selectedImage, ...nextImages]);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#1a1a1a]/40 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden border border-stone-200 bg-[#fcfbf9] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6 md:p-8">
-          <div>
-            <span className="text-[9px] text-stone-400 font-mono tracking-widest uppercase block mb-1">PRODUCT PORTAL</span>
-            <h3 className="font-serif text-2xl font-medium">{mode === 'add' ? 'Add New Product' : 'Edit Product'}</h3>
-          </div>
-          <button onClick={onClose} className="cursor-pointer border border-stone-200 bg-white p-2 transition-colors hover:bg-stone-100">
-            <X size={16} />
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#1a1a1a]/60 p-4 backdrop-blur-sm md:p-8">
+      <div className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden border border-stone-200 bg-[#fcfbf9]">
+        <div className="flex shrink-0 items-center justify-between border-b border-stone-200 bg-white p-6">
+          <h3 className="font-serif text-2xl text-[#1a1a1a]">{mode === 'add' ? 'Add New Product' : 'Edit Product'}</h3>
+          <button type="button" onClick={onClose} className="cursor-pointer rounded-full p-2 transition-colors hover:bg-stone-100">
+            <X size={20} strokeWidth={1.5} />
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="admin-scrollbar p-6 md:p-8 space-y-6 overflow-y-auto flex-1 font-sans text-xs">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Product Name</label>
-              <input
-                type="text"
-                required
-                value={form.name}
-                onChange={(event) => onChange('name', event.target.value)}
-                placeholder="e.g., Brutalist Suede Pouch"
-                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-light"
-              />
-            </div>
+        <div className="admin-scrollbar flex-1 overflow-y-auto p-6 md:p-8">
+          <form id="productForm" onSubmit={onSubmit} className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+            <div className="space-y-8 lg:col-span-2">
+              <section className="space-y-4 border border-stone-200 bg-white p-6">
+                <h4 className="mb-4 border-b border-stone-100 pb-2 font-sans text-[10px] font-semibold uppercase tracking-widest text-stone-400">Basic Information</h4>
 
-            <div className="space-y-1.5">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Retail Price (INR)</label>
-              <input
-                type="number"
-                required
-                min="0"
-                value={form.price}
-                onChange={(event) => onChange('price', Number(event.target.value))}
-                placeholder="Rs. value"
-                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-mono font-bold"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Collection Category</label>
-              <select
-                value={form.category}
-                onChange={(event) => onChange('category', event.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-medium text-stone-600 cursor-pointer"
-              >
-                {categoryOptions.map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Material Grade</label>
-              <select
-                value={form.material}
-                onChange={(event) => onChange('material', event.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-medium text-stone-600 cursor-pointer"
-              >
-                {materialOptions.map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Surface Color</label>
-              <select
-                value={form.color}
-                onChange={(event) => onChange('color', event.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-medium text-stone-600 cursor-pointer"
-              >
-                {colorOptions.map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Stock Quantity</label>
-              <input
-                type="number"
-                required
-                min="0"
-                value={form.stockQuantity}
-                onChange={(event) => onChange('stockQuantity', Number(event.target.value))}
-                placeholder="Available units"
-                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-mono font-bold"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Low Stock Alert</label>
-              <input
-                type="number"
-                required
-                min="0"
-                value={form.lowStockThreshold}
-                onChange={(event) => onChange('lowStockThreshold', Number(event.target.value))}
-                placeholder="Alert threshold"
-                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-mono font-bold"
-              />
-            </div>
-
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Product Visibility</label>
-              <select
-                value={form.isActive ? 'active' : 'hidden'}
-                onChange={(event) => onChange('isActive', event.target.value === 'active')}
-                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-medium text-stone-600 cursor-pointer"
-              >
-                <option value="active">Active in storefront</option>
-                <option value="hidden">Hidden from storefront</option>
-              </select>
-            </div>
-
-            <div className="space-y-3 md:col-span-2 rounded-[1.1rem] border border-stone-200 bg-white/70 p-4">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-stone-500">Shiprocket Package Details</p>
-                <p className="mt-1 text-[10px] font-light text-stone-400">Required for shipment pricing, AWB creation, and courier allocation.</p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                <div className="space-y-1.5">
-                  <label className="block text-[9px] tracking-widest uppercase text-stone-500 font-semibold">Length (cm)</label>
-                  <input
-                    type="number"
-                    required
-                    min="0.1"
-                    step="0.1"
-                    value={form.packageLengthCm}
-                    onChange={(event) => onChange('packageLengthCm', Number(event.target.value))}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-mono font-bold"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[9px] tracking-widest uppercase text-stone-500 font-semibold">Breadth (cm)</label>
-                  <input
-                    type="number"
-                    required
-                    min="0.1"
-                    step="0.1"
-                    value={form.packageBreadthCm}
-                    onChange={(event) => onChange('packageBreadthCm', Number(event.target.value))}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-mono font-bold"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[9px] tracking-widest uppercase text-stone-500 font-semibold">Height (cm)</label>
-                  <input
-                    type="number"
-                    required
-                    min="0.1"
-                    step="0.1"
-                    value={form.packageHeightCm}
-                    onChange={(event) => onChange('packageHeightCm', Number(event.target.value))}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-mono font-bold"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[9px] tracking-widest uppercase text-stone-500 font-semibold">Weight (kg)</label>
-                  <input
-                    type="number"
-                    required
-                    min="0.01"
-                    step="0.01"
-                    value={form.packageWeightKg}
-                    onChange={(event) => onChange('packageWeightKg', Number(event.target.value))}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-mono font-bold"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3.5 md:col-span-2">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-bold">Product Images (Multiple Direct Photo Uploads)</label>
-
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => document.getElementById('add-product-photos-input')?.click()}
-                className={`border-2 border-dashed rounded-[1.25rem] p-8 text-center transition-all duration-300 cursor-pointer flex flex-col items-center justify-center gap-3 group relative ${
-                  isDragging
-                    ? 'border-stone-800 bg-stone-100'
-                    : 'border-stone-200 hover:border-stone-400 bg-stone-50/50 hover:bg-stone-50'
-                }`}
-              >
-                <input
-                  id="add-product-photos-input"
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleImageFileChange}
-                  className="hidden"
-                />
-
-                <div className="p-4 bg-white rounded-full shadow-sm text-stone-500 group-hover:scale-105 transition-transform duration-300">
-                  <UploadCloud size={20} className="text-stone-700" />
+                <div className="space-y-1">
+                  <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Product Name</label>
+                  <input required type="text" value={form.name} onChange={(event) => onChange('name', event.target.value)} className="w-full border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" placeholder="e.g. The Drape Tote" />
                 </div>
 
                 <div className="space-y-1">
-                      <p className="font-medium text-xs text-stone-800">
-                        {isUploading ? 'Uploading product photographs...' : 'Drag & drop product photographs here, or '}
-                        {!isUploading && <span className="underline font-bold text-black">browse files</span>}
-                      </p>
-                  <p className="text-[10px] text-stone-400 font-light font-sans">
-                    Supports JPEG, PNG, or WebP. Try uploading multiple angles of your design.
-                  </p>
+                  <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Description</label>
+                  <textarea rows={4} value={form.description} onChange={(event) => onChange('description', event.target.value)} className="w-full resize-none border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" placeholder="Product details..." />
                 </div>
-              </div>
 
-              {form.images.length > 0 && (
-                <div className="space-y-2 pt-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[9px] tracking-wider uppercase font-extrabold text-stone-400">Uploaded Gallery ({form.images.length})</span>
-                    <span className="text-[9px] text-stone-400 font-light font-sans italic">First photo is set as the hero cover view</span>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Collection Category</label>
+                    <input required type="text" value={form.category} onChange={(event) => onChange('category', event.target.value)} className="w-full border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" placeholder="e.g. Classic Tote" />
                   </div>
+                  <div className="space-y-1">
+                    <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Material Grade</label>
+                    <input type="text" value={form.material} onChange={(event) => onChange('material', event.target.value)} className="w-full border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" placeholder="e.g. Full-grain Calfskin" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Surface Color</label>
+                    <input type="text" value={form.color} onChange={(event) => onChange('color', event.target.value)} className="w-full border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" placeholder="e.g. Obsidian Black" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Retail Price (INR)</label>
+                    <input required type="number" min="0" value={form.price} onChange={(event) => onChange('price', Number(event.target.value))} className="w-full border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" placeholder="e.g. 25000" />
+                  </div>
+                </div>
+              </section>
 
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3.5 pt-1.5">
+              <section className="space-y-4 border border-stone-200 bg-white p-6">
+                <h4 className="mb-4 border-b border-stone-100 pb-2 font-sans text-[10px] font-semibold uppercase tracking-widest text-stone-400">Shiprocket Package Details</h4>
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                  <div className="space-y-1">
+                    <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Length (cm)</label>
+                    <input required type="number" min="0.1" step="0.1" value={form.packageLengthCm} onChange={(event) => onChange('packageLengthCm', Number(event.target.value))} className="w-full border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Breadth (cm)</label>
+                    <input required type="number" min="0.1" step="0.1" value={form.packageBreadthCm} onChange={(event) => onChange('packageBreadthCm', Number(event.target.value))} className="w-full border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Height (cm)</label>
+                    <input required type="number" min="0.1" step="0.1" value={form.packageHeightCm} onChange={(event) => onChange('packageHeightCm', Number(event.target.value))} className="w-full border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Weight (kg)</label>
+                    <input required type="number" min="0.01" step="0.01" value={form.packageWeightKg} onChange={(event) => onChange('packageWeightKg', Number(event.target.value))} className="w-full border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" />
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-4 border border-stone-200 bg-white p-6">
+                <h4 className="mb-4 border-b border-stone-100 pb-2 font-sans text-[10px] font-semibold uppercase tracking-widest text-stone-400">Product Detail Content</h4>
+
+                <div className="space-y-1">
+                  <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Key Features</label>
+                  <textarea rows={3} value={form.keyFeaturesText} onChange={(event) => onChange('keyFeaturesText', event.target.value)} className="w-full resize-none border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" placeholder={'Enter key features (one per line)...'} />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Why You'll Love It?</label>
+                  <textarea rows={3} value={form.whyLoveIt} onChange={(event) => onChange('whyLoveIt', event.target.value)} className="w-full resize-none border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" placeholder="Explain what makes this product special..." />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Dimensions</label>
+                    <input type="text" value={form.dimensions} onChange={(event) => onChange('dimensions', event.target.value)} className="w-full border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" placeholder="e.g. 38 x 29 x 14 cm" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">More Information</label>
+                    <input type="text" value={form.moreInformation} onChange={(event) => onChange('moreInformation', event.target.value)} className="w-full border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" placeholder="Limited edition, care notes..." />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Shipping & Returns</label>
+                  <textarea rows={2} value={form.shippingReturns} onChange={(event) => onChange('shippingReturns', event.target.value)} className="w-full resize-none border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" />
+                </div>
+              </section>
+            </div>
+
+            <div className="space-y-8">
+              <section className="space-y-4 border border-stone-200 bg-white p-6">
+                <h4 className="mb-4 border-b border-stone-100 pb-2 font-sans text-[10px] font-semibold uppercase tracking-widest text-stone-400">Inventory & Status</h4>
+
+                <div className="space-y-1">
+                  <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Product Visibility</label>
+                  <select value={form.isActive ? 'active' : 'hidden'} onChange={(event) => onChange('isActive', event.target.value === 'active')} className="w-full cursor-pointer border border-stone-200 bg-white p-3 text-[12px] outline-none focus:border-[#1a1a1a]">
+                    <option value="active">Active in storefront</option>
+                    <option value="hidden">Hidden from storefront</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Stock Quantity</label>
+                    <input required type="number" min="0" value={form.stockQuantity} onChange={(event) => onChange('stockQuantity', Number(event.target.value))} className="w-full border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-sans text-[11px] font-medium text-[#1a1a1a]">Low Stock Alert</label>
+                    <input required type="number" min="0" value={form.lowStockThreshold} onChange={(event) => onChange('lowStockThreshold', Number(event.target.value))} className="w-full border border-stone-200 p-3 text-[12px] outline-none focus:border-[#1a1a1a]" />
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-4 border border-stone-200 bg-white p-6">
+                <h4 className="mb-4 border-b border-stone-100 pb-2 font-sans text-[10px] font-semibold uppercase tracking-widest text-stone-400">Product Images</h4>
+
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`relative flex cursor-pointer flex-col items-center justify-center border-2 border-dashed p-6 text-center transition-colors ${
+                    isDragging ? 'border-[#1a1a1a] bg-stone-50' : 'border-stone-200 hover:bg-stone-50'
+                  }`}
+                >
+                  <UploadCloud size={24} strokeWidth={1.5} className="mb-2 text-stone-400" />
+                  <span className="font-sans text-[11px] font-medium text-[#1a1a1a]">{isUploading ? 'Uploading images...' : 'Click to upload images'}</span>
+                  <span className="mt-1 font-sans text-[10px] text-stone-400">JPG, PNG, WebP up to 5MB</span>
+                  <input type="file" multiple accept="image/*" onChange={handleImageFileChange} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                </div>
+
+                {form.images.length > 0 && (
+                  <div className="mt-4 grid grid-cols-3 gap-2">
                     {form.images.map((imageUrl, index) => (
-                      <div key={`${imageUrl}-${index}`} className="group/thumb relative aspect-[3/4] bg-stone-100 rounded-xl overflow-hidden border border-stone-200/60 shadow-sm animate-scale-up">
-                        <img src={imageUrl} alt={`Upload ${index + 1}`} className="w-full h-full object-cover" />
-
+                      <div key={`${imageUrl}-${index}`} className={`group relative aspect-[3/4] overflow-hidden border bg-stone-100 ${index === 0 ? 'border-[#1a1a1a]' : 'border-transparent'}`}>
+                        <img src={imageUrl} className="h-full w-full object-cover" alt={`Gallery preview ${index + 1}`} />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                          {index !== 0 && (
+                            <button type="button" onClick={() => setCoverImage(index)} className="cursor-pointer rounded-sm bg-white px-2 py-1 text-[8px] uppercase tracking-widest text-[#1a1a1a] hover:bg-stone-200">
+                              Set Cover
+                            </button>
+                          )}
+                          <button type="button" onClick={() => onImageRemove(index)} className="cursor-pointer rounded-sm bg-red-600 p-1.5 text-white hover:bg-red-700">
+                            <X size={12} />
+                          </button>
+                        </div>
                         {index === 0 && (
-                          <span className="absolute top-1.5 left-1.5 bg-stone-900/90 backdrop-blur-xs text-white text-[8px] font-mono tracking-widest uppercase px-1.5 py-0.5 rounded font-extrabold">
+                          <div className="absolute left-1 top-1 rounded-sm bg-[#1a1a1a] px-1.5 py-0.5 text-[7px] uppercase tracking-widest text-white">
                             Cover
-                          </span>
+                          </div>
                         )}
-
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onImageRemove(index);
-                          }}
-                          className="absolute top-1.5 right-1.5 bg-red-600/90 hover:bg-red-700 text-white p-1 rounded-full shadow-md opacity-100 sm:opacity-0 group-hover/thumb:opacity-100 transition-opacity duration-200 cursor-pointer"
-                          title="Delete picture"
-                        >
-                          <X size={11} />
-                        </button>
-
-                        <span className="absolute bottom-1.5 right-1.5 bg-white/80 backdrop-blur-xs text-black font-semibold text-[8px] font-mono px-1 rounded">
-                          {index + 1}
-                        </span>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+              </section>
             </div>
+          </form>
+        </div>
 
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Product Description</label>
-              <textarea
-                rows={3}
-                value={form.description}
-                onChange={(event) => onChange('description', event.target.value)}
-                placeholder="e.g., Premium leather shoulder bag with spacious compartments."
-                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-light resize-none"
-              />
-            </div>
-
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Key Features</label>
-              <textarea
-                rows={3}
-                value={form.keyFeaturesText}
-                onChange={(event) => onChange('keyFeaturesText', event.target.value)}
-                placeholder={'One feature per line, e.g.\nFits 15" Laptop\nZipper Closure'}
-                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-light resize-none"
-              />
-            </div>
-
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Why You'll Love It?</label>
-              <textarea
-                rows={3}
-                value={form.whyLoveIt}
-                onChange={(event) => onChange('whyLoveIt', event.target.value)}
-                placeholder="Shown inside the Why You'll Love It accordion."
-                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-light resize-none"
-              />
-            </div>
-
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Dimensions</label>
-              <input
-                type="text"
-                value={form.dimensions}
-                onChange={(event) => onChange('dimensions', event.target.value)}
-                placeholder="e.g., 38 x 29 x 14 cm"
-                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-light"
-              />
-            </div>
-
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">Shipping & Returns</label>
-              <textarea
-                rows={2}
-                value={form.shippingReturns}
-                onChange={(event) => onChange('shippingReturns', event.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-light resize-none"
-              />
-            </div>
-
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="block text-[10px] tracking-widest uppercase text-stone-500 font-semibold">More Information</label>
-              <textarea
-                rows={2}
-                value={form.moreInformation}
-                onChange={(event) => onChange('moreInformation', event.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none p-3 rounded-lg font-light resize-none"
-              />
-            </div>
-          </div>
-
-          <div className="pt-6 border-t border-stone-100 flex justify-end gap-3.5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="bg-stone-100 hover:bg-stone-200 text-stone-600 px-6 py-3 rounded-xl uppercase tracking-widest font-bold"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="bg-[#1a1a1a] hover:bg-black text-[#fcfbf9] px-8 py-3 rounded-xl uppercase tracking-widest font-bold cursor-pointer"
-            >
-              {mode === 'add' ? 'Publish Product' : 'Save Product'}
-            </button>
-          </div>
-        </form>
+        <div className="flex shrink-0 justify-end gap-4 border-t border-stone-200 bg-white p-6">
+          <button type="button" onClick={onClose} className="cursor-pointer border border-stone-200 px-6 py-3 text-[9px] uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50">
+            Cancel
+          </button>
+          <button form="productForm" type="submit" className="cursor-pointer bg-[#1a1a1a] px-6 py-3 text-[9px] uppercase tracking-widest text-white transition-colors hover:bg-stone-800">
+            {mode === 'add' ? 'Publish Product' : 'Save Changes'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -986,6 +842,7 @@ function ProductModal({
 
 function CopyButton({ value, label = 'Copy' }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
+  const isIconOnly = label === '';
 
   const handleCopy = async () => {
     if (!value) {
@@ -1002,10 +859,14 @@ function CopyButton({ value, label = 'Copy' }: { value: string; label?: string }
       type="button"
       disabled={!value}
       onClick={() => void handleCopy()}
-      className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-[8px] font-bold uppercase tracking-widest text-stone-500 transition-colors hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-40"
+      className={
+        isIconOnly
+          ? 'inline-flex cursor-pointer items-center text-stone-400 transition-colors hover:text-[#1a1a1a] disabled:cursor-not-allowed disabled:opacity-40'
+          : 'inline-flex cursor-pointer items-center gap-1.5 border border-stone-200 bg-white px-2.5 py-1.5 text-[9px] font-normal uppercase tracking-widest text-stone-500 transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a] disabled:cursor-not-allowed disabled:opacity-40'
+      }
     >
       {copied ? <CheckCircle size={11} /> : <Copy size={11} />}
-      {copied ? 'Copied' : label}
+      {!isIconOnly && (copied ? 'Copied' : label)}
     </button>
   );
 }
@@ -1028,7 +889,7 @@ function DrawerCopyAction({ value, label }: { value: string; label: string }) {
       type="button"
       disabled={!value}
       onClick={() => void handleCopy()}
-      className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.18em] text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-40"
+      className="flex cursor-pointer items-center justify-center gap-2 border border-stone-200 bg-white px-3 py-2.5 text-[9px] font-semibold uppercase tracking-widest text-stone-500 transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a] disabled:cursor-not-allowed disabled:opacity-40"
     >
       {copied ? <CheckCircle size={12} /> : <Copy size={12} />}
       {copied ? 'Copied' : label}
@@ -1042,8 +903,8 @@ function DetailRow({ label, value, copyable = true }: { label: string; value: st
   return (
     <div className="flex items-start justify-between gap-4 border-b border-stone-100 py-3 last:border-b-0">
       <div className="min-w-0">
-        <p className="text-[8px] font-bold uppercase tracking-[0.22em] text-stone-400">{label}</p>
-        <p className="mt-1 break-words font-mono text-[10px] font-semibold text-[#111]">{displayValue}</p>
+        <p className="text-[9px] font-normal uppercase tracking-widest text-stone-400">{label}</p>
+        <p className="mt-1 break-words font-sans text-[11px] font-normal text-[#1a1a1a]">{displayValue}</p>
       </div>
       {copyable && <CopyButton value={value} />}
     </div>
@@ -1079,293 +940,383 @@ function OrderDrawer({
 }) {
   const subtotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const isShiprocketControlledStatus = order.status === 'Shipped' || order.status === 'Delivered';
-  const canMarkPacked = order.paymentStatus === 'paid' && order.status === 'Confirmed';
-  const canCreateShipment = order.paymentStatus === 'paid' && order.status === 'Packed' && ['not_created', 'failed'].includes(order.shippingStatus);
+  const isShippingTerminal = ['in_transit', 'delivered', 'cancelled'].includes(order.shippingStatus);
   const hasShipment = Boolean(order.awbCode || order.shiprocketOrderId || order.shipmentId);
+  const canMarkPacked = order.paymentStatus === 'paid' && order.status === 'Confirmed' && !isShippingTerminal && !hasShipment;
+  const canCreateShipment = order.paymentStatus === 'paid' && order.status === 'Packed' && ['not_created', 'failed'].includes(order.shippingStatus);
   const canCancelOrder = !hasShipment && !['Shipped', 'Delivered', 'Cancelled'].includes(order.status);
   const hasShipmentCancellationRequested = order.shippingStatus === 'cancelled' || order.currentShippingStatus.toLowerCase().includes('cancel');
+  const canSyncShipment = hasShipment && !['delivered', 'cancelled'].includes(order.shippingStatus);
   const canCancelShipment = Boolean(
     (order.awbCode || order.shiprocketOrderId) &&
       !hasShipmentCancellationRequested &&
-      !['in_transit', 'delivered'].includes(order.shippingStatus),
+      order.shippingStatus === 'created',
   );
 
+  const customerInitial = order.customer.name.trim().charAt(0).toUpperCase() || 'C';
+  const shippingAddressLines = [
+    order.shippingAddress.addressLine1,
+    `${order.shippingAddress.city}, ${order.shippingAddress.state}, ${order.shippingAddress.postalCode}`,
+    order.shippingAddress.country,
+  ].filter(Boolean);
+  const shippingDisplayStatus = order.currentShippingStatus || formatStatusLabel(order.shippingStatus);
+  const timelineItems = [
+    {
+      title: 'Order Placed',
+      description: order.paymentStatus === 'paid' ? 'Payment successfully processed.' : 'Checkout order was created.',
+      date: formatDate(order.createdAt),
+      active: true,
+    },
+    {
+      title: order.status === 'Cancelled' ? 'Order Cancelled' : 'Processing',
+      description: order.status === 'Packed' ? 'Order has been packed.' : 'Order is being packed.',
+      date: ['Packed', 'Shipped', 'Delivered', 'Cancelled'].includes(order.status) ? 'Updated' : 'Pending',
+      active: ['Packed', 'Shipped', 'Delivered', 'Cancelled'].includes(order.status),
+    },
+    {
+      title: 'Shipment Created',
+      description: hasShipment ? 'Shipment record is available in Shiprocket.' : 'Shipment has not been created yet.',
+      date: hasShipment ? 'Created' : 'Pending',
+      active: hasShipment,
+    },
+    {
+      title: 'Delivered',
+      description: order.shippingStatus === 'delivered' ? 'Shipment has been delivered.' : 'Awaiting courier delivery update.',
+      date: order.shippingStatus === 'delivered' ? 'Delivered' : 'Pending',
+      active: order.shippingStatus === 'delivered',
+    },
+  ];
+
   const content = (
-    <>
+    <div className="relative">
       {variant === 'drawer' && (
         <button
+          type="button"
           onClick={onClose}
-          className="absolute top-6 right-6 p-2 bg-stone-100 hover:bg-stone-200 rounded-full transition-colors cursor-pointer"
+          className="absolute right-0 top-0 z-10 cursor-pointer p-2 text-stone-400 transition-colors hover:text-[#1a1a1a]"
         >
-          <X size={16} />
+          <X size={18} />
         </button>
       )}
 
-      {variant === 'page' && (
-        <div className="mb-6 flex flex-col gap-4 border-b border-stone-200 pb-5 md:flex-row md:items-center md:justify-between">
-          <div>
+      <div className="mb-10 flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="mb-10 flex cursor-pointer items-center gap-3 border-b border-transparent pb-1 font-sans text-[9px] font-normal uppercase tracking-widest text-stone-500 transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a]"
+          >
+            <ArrowLeft size={13} />
+            Back to Orders
+          </button>
+          <h1 className="font-serif text-3xl leading-none text-[#1a1a1a] md:text-4xl">
+            #{order.id}
+          </h1>
+          <p className="mt-4 font-sans text-[11px] text-stone-500">Placed on {formatDate(order.createdAt)}</p>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => printPackingSlip(order)}
+            className="cursor-pointer border border-stone-200 bg-white px-6 py-3 font-sans text-[9px] font-normal uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50"
+          >
+            Print Packing Slip
+          </button>
+          <button
+            type="button"
+            onClick={() => printInvoice(order)}
+            className="cursor-pointer border border-stone-200 bg-white px-6 py-3 font-sans text-[9px] font-normal uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50"
+          >
+            Print Invoice
+          </button>
+          {canCancelOrder && (
             <button
               type="button"
-              onClick={onClose}
-              className="mb-3 flex cursor-pointer items-center gap-2 text-[9px] font-bold uppercase tracking-[0.22em] text-stone-400 transition-colors hover:text-[#111]"
+              disabled={isUpdating}
+              onClick={onCancelOrder}
+              className="cursor-pointer border border-red-100 bg-red-50 px-6 py-3 font-sans text-[9px] font-normal uppercase tracking-widest text-red-600 transition-colors hover:border-red-300 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <ArrowLeft size={12} />
-              Back to Orders
+              {isUpdating ? 'Cancelling' : 'Cancel Order'}
             </button>
-            <p className="text-[9px] font-bold uppercase tracking-[0.28em] text-stone-400">Order Detail</p>
-            <h2 className="mt-1 font-serif text-[2.4rem] leading-none tracking-tight text-[#111]">{order.id}</h2>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <span className={`rounded-xl px-4 py-2 text-[10px] font-bold uppercase tracking-wider ${getPaymentStatusClasses(order.paymentStatus)}`}>
-              {formatStatusLabel(order.paymentStatus)}
-            </span>
-            <span className={`rounded-xl px-4 py-2 text-[10px] font-bold uppercase tracking-wider ${getShippingStatusClasses(order.shippingStatus)}`}>
-              {formatStatusLabel(order.shippingStatus)}
-            </span>
-            <span className={`rounded-xl px-4 py-2 text-[10px] font-bold uppercase tracking-wider ${getStatusClasses(order.status)}`}>
-              {order.status}
-            </span>
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-8 font-sans text-xs">
-        <div className="border-b border-[#1a1a1a]/15 pb-6">
-          <div className="flex items-center gap-3 mb-1.5">
-            <span className="text-[10px] font-bold tracking-widest uppercase text-stone-400">Order Receipt Invoice</span>
-          </div>
-          <h3 className="font-serif text-3xl font-medium tracking-tight mb-2">Simvorae</h3>
-          <div className="flex justify-between items-center text-stone-500 font-mono text-[10px]">
-            <span>Order: <strong className="text-black font-semibold">{order.id}</strong></span>
-            <span>Date: {new Date(order.createdAt).toLocaleDateString()}</span>
-          </div>
-        </div>
-
-        <div className="bg-stone-50 border border-[#1a1a1a]/5 p-5 rounded-[1rem] flex justify-between items-center">
-          <div>
-            <span className="text-[8px] tracking-widest uppercase font-bold text-stone-400 block mb-1">Fulfillment Status</span>
-            <p className="font-sans font-medium text-black">
-              {isShiprocketControlledStatus ? 'Managed by Shiprocket' : 'Update internal order stage'}
-            </p>
-          </div>
-          <div className="flex flex-wrap justify-end gap-2">
-            <span className={`rounded-xl px-4 py-2 text-[10px] font-bold uppercase tracking-wider ${getStatusClasses(order.status)}`}>
-              {order.status}
-            </span>
-            {canMarkPacked && (
-              <button
-                type="button"
-                disabled={isUpdating}
-                onClick={onMarkPacked}
-                className="cursor-pointer rounded-xl bg-[#1a1a1a] px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-[#fcfbf9] hover:bg-black disabled:cursor-not-allowed disabled:bg-stone-400"
-              >
-                {isUpdating ? 'Updating' : 'Mark Packed'}
-              </button>
-            )}
-            {canCreateShipment && (
-              <button
-                type="button"
-                disabled={isCreatingShipment}
-                onClick={onCreateShipment}
-                className="cursor-pointer rounded-xl bg-[#1a1a1a] px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-[#fcfbf9] hover:bg-black disabled:cursor-not-allowed disabled:bg-stone-400"
-              >
-                {isCreatingShipment ? 'Creating' : 'Create Shipment'}
-              </button>
-            )}
-            {canCancelOrder && (
-              <button
-                type="button"
-                disabled={isUpdating}
-                onClick={onCancelOrder}
-                className="cursor-pointer rounded-xl border border-stone-200 bg-white px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-stone-500 hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className={variant === 'page' ? 'grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]' : 'space-y-8'}>
-          <div className="space-y-8">
-            <div className="space-y-4">
-              <h4 className="font-bold uppercase tracking-widest text-stone-400 text-[9px]">Ordered Products</h4>
-              <div className="space-y-3.5">
-                {order.items.map((item) => (
-                  <div key={item.id} className="flex gap-4 items-center">
-                    <div className="w-12 aspect-[4/5] bg-stone-100 rounded-lg overflow-hidden border border-[#1a1a1a]/5 flex-shrink-0">
-                      <img src={item.image} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-[13px] truncate">{item.name}</h4>
-                      <p className="text-[10px] text-stone-400 tracking-wide font-mono mt-0.5">
-                        {formatCurrency(item.price)} x {item.quantity}
-                      </p>
-                    </div>
-                    <span className="font-mono font-bold text-[13px]">{formatCurrency(item.price * item.quantity)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="border-t border-[#1a1a1a]/10 pt-4 space-y-2.5 font-light text-stone-600">
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span className="font-medium text-black font-mono">{formatCurrency(subtotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Shipping & Handling</span>
-                <span className="font-medium text-emerald-700 uppercase font-mono">Free via Shiprocket</span>
-              </div>
-              <div className="flex justify-between border-t border-[#1a1a1a]/15 pt-4 text-base font-medium text-black">
-                <span className="font-serif text-lg tracking-tight">Invoice Total</span>
-                <span className="font-mono text-lg font-bold">{formatCurrency(order.total)}</span>
-              </div>
-            </div>
-          </div>
-
-          {order.shipmentAttempts.length > 0 && (
-            <div className="space-y-3 border-t border-[#1a1a1a]/10 pt-6">
-              <h4 className="font-bold uppercase tracking-widest text-stone-400 text-[9px]">Previous Shipment Attempts</h4>
-
-              <div className="space-y-2">
-                {order.shipmentAttempts.map((attempt, index) => (
-                  <div key={`${attempt.shipmentId || attempt.shiprocketOrderId || index}-${index}`} className="rounded-xl border border-stone-200 bg-white p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-stone-400">Attempt {index + 1}</span>
-                      <span className="rounded-full bg-red-50 px-2.5 py-1 text-[8px] font-bold uppercase tracking-widest text-red-700">
-                        {formatStatusLabel(attempt.status)}
-                      </span>
-                    </div>
-                    <div className="mt-3 grid grid-cols-1 gap-2 text-[10px] sm:grid-cols-2">
-                      <DetailRow label="Shiprocket Order" value={attempt.shiprocketOrderId} />
-                      <DetailRow label="Shipment ID" value={attempt.shipmentId} />
-                      <DetailRow label="AWB" value={attempt.awbCode} />
-                      <DetailRow label="Courier" value={attempt.courierName} copyable={false} />
-                    </div>
-                    {attempt.cancelledAt && (
-                      <p className="mt-2 font-mono text-[9px] text-stone-400">
-                        Cancelled: {formatDate(attempt.cancelledAt)}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
           )}
+        </div>
+      </div>
 
-          <div className="space-y-8">
-            <div className="space-y-3 border-t border-[#1a1a1a]/10 pt-6 xl:border-t-0 xl:pt-0">
-              <h4 className="font-bold uppercase tracking-widest text-stone-400 text-[9px]">Payment & Shipment</h4>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-8">
+        <div className="space-y-8 lg:col-span-2">
+        <div className="border border-stone-200 bg-white">
+          <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
+            <h2 className="font-serif text-xl text-[#1a1a1a]">Order Items</h2>
+            <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getStatusClasses(order.status)}`}>
+              {order.status}
+            </span>
+          </div>
 
-              <div className="overflow-hidden rounded-[1rem] border border-stone-200 bg-white px-4">
-                <DetailRow label="Payment Status" value={formatStatusLabel(order.paymentStatus)} copyable={false} />
-                <DetailRow label="Razorpay Order ID" value={order.razorpayOrderId} />
-                <DetailRow label="Razorpay Payment ID" value={order.razorpayPaymentId} />
-                <DetailRow label="Shipping Status" value={formatStatusLabel(order.shippingStatus)} copyable={false} />
-                <DetailRow label="Current Courier Status" value={order.currentShippingStatus} copyable={false} />
-                <DetailRow label="Courier" value={order.courierName} copyable={false} />
-                <DetailRow label="Shiprocket Order ID" value={order.shiprocketOrderId} />
-                <DetailRow label="Shipment ID" value={order.shipmentId} />
-                <DetailRow label="AWB Code" value={order.awbCode} />
-                <DetailRow label="Pickup Status" value={order.pickupStatus} copyable={false} />
-                <DetailRow label="Tracking URL" value={order.trackingUrl} />
+          <div className="p-6">
+            <div className="divide-y divide-stone-100">
+              {order.items.map((item) => (
+                <div key={item.id} className="grid grid-cols-[64px_minmax(0,1fr)_140px] items-center gap-5 py-4 transition-colors hover:bg-stone-50">
+                  <div className="h-16 w-16 bg-stone-100">
+                    <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="truncate font-sans text-[12px] font-normal text-[#1a1a1a]">{item.name}</h3>
+                    <p className="mt-2 font-sans text-[10px] font-normal text-stone-500">SKU {item.id.slice(-8).toUpperCase()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-sans text-[10px] text-stone-500">{formatCurrency(item.price)} x {item.quantity}</p>
+                    <p className="mt-2 font-serif text-2xl leading-none text-[#1a1a1a]">{formatCurrency(item.price * item.quantity)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8 space-y-4 border-t border-stone-100 pt-6">
+              <div className="flex items-center justify-between font-sans text-[11px] font-normal text-stone-500">
+                <span>Subtotal</span>
+                <span className="text-[#1a1a1a]">{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between font-sans text-[11px] font-normal text-stone-500">
+                <span>Shipping</span>
+                <span className="text-[#1a1a1a]">{order.shipping > 0 ? formatCurrency(order.shipping) : formatCurrency(0)}</span>
+              </div>
+              <div className="flex items-center justify-between font-sans text-[11px] font-normal text-stone-500">
+                <span>Tax</span>
+                <span className="text-[#1a1a1a]">{formatCurrency(0)}</span>
               </div>
             </div>
 
-            <div className="space-y-3 border-t border-[#1a1a1a]/10 pt-6">
-              <h4 className="font-bold uppercase tracking-widest text-stone-400 text-[9px]">Operational Actions</h4>
+            <div className="mt-8 flex items-center justify-between border-t border-stone-100 pt-6">
+              <span className="font-sans text-[9px] font-normal uppercase tracking-widest text-[#1a1a1a]">Total</span>
+              <span className="font-serif text-4xl leading-none text-[#1a1a1a]">{formatCurrency(order.total)}</span>
+            </div>
+          </div>
+        </div>
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => printPackingSlip(order)}
-                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.18em] text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900"
-                >
-                  <FileText size={12} />
-                  Print Packing Slip
-                </button>
-                <DrawerCopyAction value={order.customer.address} label="Copy Address" />
-                <button
-                  type="button"
-                  disabled={(!order.shipmentId && !order.awbCode) || isSyncingShipment}
-                  onClick={onSyncShipment}
-                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3.5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <RotateCcw size={13} />
-                  {isSyncingShipment ? 'Syncing' : 'Sync Shipment'}
-                </button>
+          <div className="border border-stone-200 bg-white">
+            <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
+              <h2 className="font-serif text-xl text-[#1a1a1a]">Logistics & Tracking</h2>
+              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getShippingStatusClasses(order.shippingStatus)}`}>
+                {formatStatusLabel(order.shippingStatus)}
+              </span>
+            </div>
+
+            <div className="p-6">
+            <div className="grid grid-cols-1 gap-8 border-b border-stone-100 pb-6 md:grid-cols-2">
+              <div>
+                <p className="mb-1 block font-sans text-[9px] font-normal uppercase tracking-widest text-stone-400">AWB Number</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-sans text-[11px] font-normal tracking-wider text-[#1a1a1a]">{order.awbCode || 'Not assigned'}</p>
+                  <CopyButton value={order.awbCode} label="" />
+                </div>
+              </div>
+              <div>
+                <p className="mb-1 block font-sans text-[9px] font-normal uppercase tracking-widest text-stone-400">Tracking URL</p>
+                {order.trackingUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => window.open(order.trackingUrl, '_blank', 'noopener,noreferrer')}
+                    className="inline-flex cursor-pointer items-center gap-2 border-b border-transparent pb-1 font-sans text-[9px] font-normal uppercase tracking-widest text-[#1a1a1a] transition-colors hover:border-[#1a1a1a]"
+                  >
+                    Track Order
+                    <ExternalLink size={11} />
+                  </button>
+                ) : (
+                  <p className="font-sans text-[11px] font-normal text-stone-500">Not available</p>
+                )}
+              </div>
+              <div>
+                <p className="mb-1 block font-sans text-[9px] font-normal uppercase tracking-widest text-stone-400">Shiprocket Order</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-sans text-[11px] font-normal text-[#1a1a1a]">{order.shiprocketOrderId || 'Not created'}</p>
+                  <CopyButton value={order.shiprocketOrderId} label="" />
+                </div>
+              </div>
+              <div>
+                <p className="mb-1 block font-sans text-[9px] font-normal uppercase tracking-widest text-stone-400">Courier Status</p>
+                <p className="font-sans text-[11px] font-normal text-[#1a1a1a]">{shippingDisplayStatus || 'Not available'}</p>
+              </div>
+            </div>
+
+            {(canMarkPacked || canCreateShipment || canSyncShipment || canCancelShipment) && (
+              <div className="mt-6 flex flex-wrap gap-3">
+                {canMarkPacked && (
+                  <button
+                    type="button"
+                    disabled={isUpdating}
+                    onClick={onMarkPacked}
+                    className="h-10 w-[126px] cursor-pointer bg-[#1a1a1a] px-4 font-sans text-[9px] font-normal uppercase tracking-widest text-[#fcfbf9] transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isUpdating ? 'Updating' : 'Mark Packed'}
+                  </button>
+                )}
+                {canCreateShipment && (
+                  <button
+                    type="button"
+                    disabled={isCreatingShipment}
+                    onClick={onCreateShipment}
+                    className="h-10 w-[162px] cursor-pointer border border-stone-200 bg-white px-4 font-sans text-[9px] font-normal uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isCreatingShipment ? 'Creating' : 'Create Shipment'}
+                  </button>
+                )}
+                {canSyncShipment && (
+                  <button
+                    type="button"
+                    disabled={isSyncingShipment}
+                    onClick={onSyncShipment}
+                    className="h-10 w-[132px] cursor-pointer border border-stone-200 bg-white px-4 font-sans text-[9px] font-normal uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isSyncingShipment ? 'Syncing' : 'Sync Status'}
+                  </button>
+                )}
                 {canCancelShipment && (
                   <button
                     type="button"
                     disabled={isCancellingShipment}
                     onClick={onCancelShipment}
-                    className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-red-700 transition-colors hover:border-red-300 hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    className="h-10 w-[166px] cursor-pointer border border-red-200 bg-white px-4 font-sans text-[9px] font-normal uppercase tracking-widest text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <X size={13} />
                     {isCancellingShipment ? 'Cancelling' : 'Cancel Shipment'}
                   </button>
                 )}
-                <button
-                  type="button"
-                  disabled={!order.trackingUrl}
-                  onClick={() => window.open(order.trackingUrl, '_blank', 'noopener,noreferrer')}
-                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-[9px] font-bold uppercase tracking-[0.18em] text-stone-600 transition-colors hover:border-stone-900 hover:text-stone-900 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <ExternalLink size={12} />
-                  Open Tracking
-                </button>
-                <DrawerCopyAction value={order.awbCode} label="Copy AWB" />
               </div>
+            )}
+            </div>
+          </div>
+
+          <div className="border border-stone-200 bg-white">
+            <div className="border-b border-stone-100 bg-stone-50/50 p-6">
+              <h2 className="font-serif text-xl text-[#1a1a1a]">Timeline</h2>
+            </div>
+            <div className="relative grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
+              <div className="absolute left-1/2 top-0 hidden h-full w-px -translate-x-1/2 bg-stone-200 md:block" />
+              {timelineItems.map((item, index) => (
+                <div key={item.title} className={`${index % 2 === 0 ? 'md:col-start-2' : 'md:col-start-1'} relative border border-stone-200 bg-white p-5`}>
+                  <span className={`absolute top-1/2 hidden h-4 w-4 -translate-y-1/2 rounded-full border-2 border-[#fcfbf9] md:block ${index % 2 === 0 ? '-left-[2.45rem]' : '-right-[2.45rem]'} ${item.active ? 'bg-[#1a1a1a]' : 'bg-stone-200'}`} />
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-sans text-[11px] font-normal text-[#1a1a1a]">{item.title}</p>
+                      <p className="mt-2 font-sans text-[11px] font-normal text-stone-500">{item.description}</p>
+                    </div>
+                    <span className="shrink-0 font-sans text-[9px] text-stone-400">{item.date}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
 
-        <div className="space-y-3 border-t border-[#1a1a1a]/10 pt-6">
-          <h4 className="font-bold uppercase tracking-widest text-stone-400 text-[9px]">Shipping & Customer Details</h4>
+        <div className="space-y-8">
+          <div className="border border-stone-200 bg-white">
+            <div className="border-b border-stone-100 bg-stone-50/50 p-6">
+              <h2 className="font-serif text-xl text-[#1a1a1a]">Customer</h2>
+            </div>
+            <div className="p-6">
+              <div className="flex items-center gap-5">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-stone-50 font-serif text-2xl text-[#1a1a1a]">
+                  {customerInitial}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-sans text-[11px] font-normal text-[#1a1a1a]">{order.customer.name}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="truncate font-sans text-[11px] font-normal text-stone-500">{order.customer.email}</p>
+                    <CopyButton value={order.customer.email} label="" />
+                  </div>
+                </div>
+              </div>
 
-          <div className="space-y-3 font-light text-stone-600">
-            <p className="flex items-start gap-2">
-              <User size={13} className="mt-0.5 text-stone-400" />
-              <span className="text-black font-medium">{order.customer.name}</span>
-            </p>
-            <p className="flex items-start gap-2">
-              <Mail size={13} className="mt-0.5 text-stone-400" />
-              <span>{order.customer.email}</span>
-            </p>
-            <p className="flex items-start gap-2">
-              <Phone size={13} className="mt-0.5 text-stone-400" />
-              <span>{order.customer.phone}</span>
-            </p>
-            <p className="flex items-start gap-2">
-              <MapPin size={13} className="mt-0.5 text-stone-400" />
-              <span>{order.customer.address}</span>
-            </p>
+              <div className="mt-8">
+                <p className="mb-3 font-sans text-[9px] font-normal uppercase tracking-widest text-stone-400">Contact Info</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-sans text-[11px] font-normal text-[#1a1a1a]">{order.customer.phone}</p>
+                  <CopyButton value={order.customer.phone} label="" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border border-stone-200 bg-white">
+            <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
+              <h2 className="font-serif text-xl text-[#1a1a1a]">Payment Details</h2>
+              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getPaymentStatusClasses(order.paymentStatus)}`}>
+                {formatStatusLabel(order.paymentStatus)}
+              </span>
+            </div>
+            <div className="space-y-7 p-6">
+              <div>
+                <p className="mb-2 font-sans text-[9px] font-normal uppercase tracking-widest text-stone-400">Razorpay Order ID</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-sans text-[11px] font-normal text-[#1a1a1a]">{order.razorpayOrderId || 'Not available'}</p>
+                  <CopyButton value={order.razorpayOrderId} label="" />
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 font-sans text-[9px] font-normal uppercase tracking-widest text-stone-400">Payment ID</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-sans text-[11px] font-normal text-[#1a1a1a]">{order.razorpayPaymentId || 'Not available'}</p>
+                  <CopyButton value={order.razorpayPaymentId} label="" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border border-stone-200 bg-white">
+            <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
+              <h2 className="font-serif text-xl text-[#1a1a1a]">Shipping Address</h2>
+              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getShippingStatusClasses(order.shippingStatus)}`}>
+                {formatStatusLabel(order.shippingStatus)}
+              </span>
+            </div>
+            <div className="flex items-start justify-between gap-4 p-6">
+              <p className="font-sans text-[11px] font-normal leading-relaxed text-[#1a1a1a]">
+                {order.customer.name}<br />
+                {shippingAddressLines.map((line) => (
+                  <span key={line}>
+                    {line}<br />
+                  </span>
+                ))}
+              </p>
+              <CopyButton value={`${order.customer.name}, ${shippingAddressLines.join(', ')}`} label="" />
+            </div>
+          </div>
+
+          <div className="border border-stone-200 bg-white">
+            <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
+              <h2 className="font-serif text-xl text-[#1a1a1a]">Billing Address</h2>
+              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getPaymentStatusClasses(order.paymentStatus)}`}>
+                {formatStatusLabel(order.paymentStatus)}
+              </span>
+            </div>
+            <div className="flex items-start justify-between gap-4 p-6">
+              <p className="font-sans text-[11px] font-normal leading-relaxed text-[#1a1a1a]">
+                {order.customer.name}<br />
+                {shippingAddressLines.map((line) => (
+                  <span key={line}>
+                    {line}<br />
+                  </span>
+                ))}
+              </p>
+              <CopyButton value={`${order.customer.name}, ${shippingAddressLines.join(', ')}`} label="" />
+            </div>
           </div>
         </div>
-
-        <div className="pt-6 border-t border-[#1a1a1a]/10">
-          <button
-            onClick={() => printInvoice(order)}
-            className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#1a1a1a] py-3.5 text-[9px] font-bold uppercase tracking-[0.2em] text-[#fcfbf9] transition-all duration-300 hover:bg-black"
-          >
-            <span>Print Invoice</span>
-          </button>
-        </div>
       </div>
-    </>
+    </div>
   );
 
   if (variant === 'page') {
     return (
-      <div className="rounded-[1.5rem] border border-stone-200 bg-white/90 p-5 shadow-sm md:p-7">
+      <div className="bg-[#fcfbf9] text-[#1a1a1a]">
         {content}
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-[#0c0c0c]/85 backdrop-blur-sm z-[200] flex items-center justify-end">
-      <div className="admin-scrollbar bg-[#fcfbf9] w-full max-w-3xl h-full p-8 shadow-2xl flex flex-col justify-between overflow-y-auto relative border-l border-stone-200">
+    <div className="fixed inset-0 z-[200] flex items-center justify-end bg-[#0c0c0c]/85 backdrop-blur-sm">
+      <div className="admin-scrollbar relative h-full w-full max-w-6xl overflow-y-auto border-l border-stone-200 bg-[#fcfbf9] p-8 md:p-12">
         {content}
       </div>
     </div>
@@ -1448,7 +1399,13 @@ export default function Admin() {
   }, [toast]);
 
   useEffect(() => {
-    const hasOpenOverlay = Boolean(isModalOpen || viewingOrder || cancelCandidate || cancelShipmentCandidate || deleteProductCandidate);
+    const hasOpenOverlay = Boolean(
+      isModalOpen ||
+      (viewingOrder && activeTab !== 'ORDERS') ||
+      cancelCandidate ||
+      cancelShipmentCandidate ||
+      deleteProductCandidate,
+    );
     const previousOverflow = document.body.style.overflow;
 
     if (hasOpenOverlay) {
@@ -1458,7 +1415,7 @@ export default function Admin() {
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [cancelCandidate, cancelShipmentCandidate, deleteProductCandidate, isModalOpen, viewingOrder]);
+  }, [activeTab, cancelCandidate, cancelShipmentCandidate, deleteProductCandidate, isModalOpen, viewingOrder]);
 
   const rangeLabel = useMemo(
     () => getDateRangeLabel(dashboardRange, customStartDate, customEndDate),
@@ -2075,16 +2032,16 @@ export default function Admin() {
 
       {toast && (
         <div className="fixed right-5 top-5 z-[260] w-[min(360px,calc(100vw-2.5rem))]">
-          <div className={`flex items-start gap-3 rounded-[1rem] border bg-[#fcfbf9] p-4 shadow-2xl ${
+          <div className={`flex items-start gap-3 border bg-[#fcfbf9] p-4 ${
             toast.type === 'success' ? 'border-emerald-200' : 'border-red-200'
           }`}>
-            <div className={`mt-0.5 rounded-full p-1.5 ${
+            <div className={`mt-0.5 p-1.5 ${
               toast.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
             }`}>
               {toast.type === 'success' ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
             </div>
             <div className="min-w-0">
-              <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">
+              <p className="text-[9px] font-semibold uppercase tracking-widest text-stone-400">
                 {toast.type === 'success' ? 'Action Complete' : 'Action Failed'}
               </p>
               <p className="mt-1 text-xs font-medium leading-5 text-[#111]">{toast.message}</p>
@@ -2092,7 +2049,7 @@ export default function Admin() {
             <button
               type="button"
               onClick={() => setToast(null)}
-              className="ml-auto cursor-pointer rounded-lg p-1 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-900"
+              className="ml-auto cursor-pointer p-1 text-stone-400 transition-colors hover:bg-stone-50 hover:text-stone-900"
             >
               <X size={13} />
             </button>
@@ -2137,7 +2094,7 @@ export default function Admin() {
         <div className="mb-16">
           <Link to="/" className="font-serif text-2xl uppercase tracking-widest text-[#1a1a1a] transition-opacity hover:opacity-70">
             Simvorae
-            <span className="mt-2 block font-sans text-[8px] font-bold tracking-[0.3em] text-stone-400">ADMIN PORTAL</span>
+            <span className="mt-2 block font-sans text-[8px] font-bold uppercase tracking-[0.3em] text-stone-400">ADMIN PORTAL</span>
           </Link>
         </div>
 
@@ -2167,7 +2124,7 @@ export default function Admin() {
           <button
             type="button"
             onClick={() => navigate('/shop')}
-            className="mb-6 flex w-full cursor-pointer items-center justify-center gap-2 border border-stone-200 py-3 text-[10px] font-semibold uppercase tracking-widest text-stone-500 transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a]"
+            className="mb-8 flex cursor-pointer items-center gap-2 font-sans text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-400 transition-colors hover:text-[#1a1a1a]"
           >
             <span>Preview Shop</span>
             <ExternalLink size={11} />
@@ -2199,9 +2156,9 @@ export default function Admin() {
       </aside>
 
       <div className="min-h-[100dvh] overflow-x-hidden pt-24 lg:ml-64 lg:pt-0">
-        <main className="mx-auto w-full max-w-7xl p-4 md:p-8 lg:p-12">
+        <main className="mx-auto w-full max-w-[1460px] p-4 md:p-8 lg:p-[60px]">
           {(error || productError) && (
-            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-xs font-medium text-red-700">
+            <div className="mb-6 border border-red-200 bg-red-50 px-5 py-4 text-xs font-medium text-red-700">
               {error || productError}
             </div>
           )}
@@ -2486,25 +2443,26 @@ export default function Admin() {
           )}
 
           {activeTab === 'CATALOG' && (
-            <div className="space-y-8">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-2xl border border-stone-200">
-                <div className="relative w-full md:w-80">
-                  <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" />
-                  <input
-                    type="text"
-                    value={productSearch}
-                    onChange={(event) => setProductSearch(event.target.value)}
-                    placeholder="Search catalog, materials, SKUs..."
-                    className="w-full bg-stone-50/50 hover:bg-stone-50 border border-stone-200 focus:border-stone-400 focus:outline-none pl-10 pr-4 py-2.5 rounded-xl text-xs font-light tracking-wide transition-all"
-                  />
-                </div>
+            <div className="flex h-full flex-col">
+              <div className="mb-8 flex shrink-0 flex-col items-start justify-between gap-6 md:flex-row md:items-end">
+                <h1 className="font-serif text-3xl md:text-4xl">Products</h1>
 
-                <div className="flex flex-wrap gap-2 items-center w-full md:w-auto">
-                  <span className="text-[10px] uppercase tracking-widest text-stone-400 font-bold mr-2">Category:</span>
+                <div className="flex w-full flex-col items-center gap-4 md:w-auto md:flex-row">
+                  <div className="flex w-full items-center gap-4 border border-stone-200 bg-white px-3 py-2 md:w-auto">
+                    <Search size={14} className="text-stone-400" />
+                    <input
+                      type="text"
+                      value={productSearch}
+                      onChange={(event) => setProductSearch(event.target.value)}
+                      placeholder="Search products..."
+                      className="w-full border-none bg-transparent text-[11px] outline-none placeholder:text-stone-400 md:w-48"
+                    />
+                  </div>
+
                   <select
                     value={selectedCategory}
                     onChange={(event) => setSelectedCategory(event.target.value)}
-                    className="cursor-pointer rounded-xl border border-stone-200 bg-white px-4 py-2 text-xs font-medium text-stone-600 transition-colors hover:border-stone-400 focus:outline-none"
+                    className="w-full cursor-pointer appearance-none border border-stone-200 bg-white px-3 py-2 text-[11px] outline-none md:w-40"
                   >
                     <option value="All">All Categories</option>
                     {categoryOptions.map((category) => (
@@ -2513,124 +2471,138 @@ export default function Admin() {
                   </select>
 
                   <button
+                    type="button"
                     onClick={openAddModal}
-                    className="bg-[#1a1a1a] hover:bg-black text-[#fcfbf9] px-6 py-2 rounded-xl text-[10px] tracking-widest uppercase font-bold flex items-center gap-2 transition-all duration-300 ml-auto cursor-pointer"
+                    className="w-full cursor-pointer bg-[#1a1a1a] px-6 py-3 text-[9px] uppercase tracking-widest text-[#fcfbf9] transition-colors hover:bg-stone-800 md:w-auto"
                   >
-                    <Plus size={12} />
-                    <span>Add Product</span>
+                    Add Product
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+              <div className="mb-8 grid grid-cols-2 gap-3 xl:grid-cols-4">
                 {[
-                  { label: 'Active SKUs', value: catalogInventorySummary.active, tone: 'text-emerald-700', note: 'Visible storefront' },
+                  { label: 'Active SKUs', value: catalogInventorySummary.active, tone: 'text-green-700', note: 'Visible storefront' },
                   { label: 'Low Stock', value: catalogInventorySummary.lowStock, tone: 'text-amber-700', note: 'At or below alert' },
                   { label: 'Out of Stock', value: catalogInventorySummary.outOfStock, tone: 'text-red-700', note: 'Cannot fulfill' },
                   { label: 'Hidden', value: catalogInventorySummary.hidden, tone: 'text-stone-600', note: 'Not visible' },
                 ].map((item) => (
-                  <div key={item.label} className="rounded-[1rem] border border-stone-200 bg-white px-4 py-3 shadow-sm">
-                    <p className="text-[8px] font-bold uppercase tracking-[0.24em] text-stone-400">{item.label}</p>
+                  <div key={item.label} className="border border-stone-200 bg-white p-6 md:p-8">
+                    <p className="font-sans text-[9px] font-semibold uppercase tracking-widest text-stone-400">{item.label}</p>
                     <p className={`mt-2 font-serif text-2xl leading-none ${item.tone}`}>{item.value}</p>
-                    <p className="mt-1 text-[9px] font-medium text-stone-400">{item.note}</p>
+                    <p className="mt-1 font-sans text-[9px] font-normal text-stone-400">{item.note}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="bg-white border border-stone-200 rounded-[1.5rem] shadow-sm overflow-hidden">
-                <div className="admin-scrollbar max-h-[620px] overflow-auto">
-                  <table className="w-full text-left font-sans text-xs border-collapse">
-                    <thead className="sticky top-0 z-10 bg-white">
-                      <tr className="border-b border-stone-100 text-stone-400 uppercase tracking-widest text-[9px] font-bold bg-stone-50/50">
-                        <th className="py-4 px-6 font-semibold">ID</th>
-                        <th className="py-4 px-6 font-semibold">Preview</th>
-                        <th className="py-4 px-2 font-semibold">Product Name</th>
-                        <th className="py-4 px-6 font-semibold">Category</th>
-                        <th className="py-4 px-6 font-semibold">Material & Color</th>
-                        <th className="py-4 px-6 font-semibold">Inventory</th>
-                        <th className="py-4 px-6 font-semibold">Status</th>
-                        <th className="py-4 px-6 font-semibold">Price</th>
-                        <th className="py-4 px-6 font-semibold text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-50">
+              <div className="flex w-full flex-col overflow-hidden border border-stone-200 bg-white">
+                <div className="admin-scrollbar max-h-[680px] overflow-auto">
+                  <div className="min-w-[1000px]">
+                    <div className="sticky top-0 z-10 grid grid-cols-12 gap-4 border-b border-[#1a1a1a] bg-stone-50 p-4 font-sans text-[9px] font-semibold uppercase tracking-widest text-stone-400">
+                      <div className="col-span-3">Product</div>
+                      <div className="col-span-2">Details</div>
+                      <div className="col-span-2 text-center">Inventory</div>
+                      <div className="col-span-1 text-right">Price</div>
+                      <div className="col-span-2 text-center">Shiprocket Details</div>
+                      <div className="col-span-1 text-center">Status</div>
+                      <div className="col-span-1 text-right">Action</div>
+                    </div>
+
+                    <div className="divide-y divide-stone-100">
                       {paginatedCatalog.map((product) => {
                         const inventoryStatus = getInventoryStatus(product);
+                        const imageCount = Math.max(product.images.length, product.image ? 1 : 0);
 
                         return (
-                          <tr key={product.id} className="group hover:bg-stone-50/40 transition-colors">
-                            <td className="py-4 px-6 font-mono text-stone-500">{product.id.slice(-6).toUpperCase()}</td>
-                            <td className="py-4 px-6">
-                              <div className="w-12 aspect-[3/4] bg-stone-100 rounded-lg overflow-hidden border border-[#1a1a1a]/5">
-                                <img src={product.image} className="w-full h-full object-cover mix-blend-multiply" alt={product.name} />
+                          <div key={product.id} className="grid grid-cols-12 items-center gap-4 p-4 transition-colors hover:bg-stone-50">
+                            <div className="col-span-3 flex items-start gap-4">
+                              <div className="relative h-20 w-16 shrink-0 overflow-hidden border border-stone-200 bg-stone-100">
+                                <img src={product.image} className="h-full w-full object-cover" alt={product.name} />
+                                {imageCount > 1 && (
+                                  <div className="absolute bottom-1 right-1 bg-white/90 px-1 font-sans text-[8px]">
+                                    +{imageCount - 1}
+                                  </div>
+                                )}
                               </div>
-                            </td>
-                            <td className="py-4 px-2">
-                              <h4 className="font-serif text-[15px] font-medium text-[#111] mb-0.5">{product.name}</h4>
-                              <p className="text-[10px] text-stone-400 tracking-wide font-sans max-w-[200px] truncate" title={product.description}>
-                                {product.description || 'No description.'}
-                              </p>
-                            </td>
-                            <td className="py-4 px-6">
-                              <span className="text-stone-400 text-[10px] uppercase tracking-widest">{product.category}</span>
-                            </td>
-                            <td className="py-4 px-6">
-                              <div className="flex items-center gap-2">
-                                <span className="bg-stone-100 font-medium text-stone-700 text-[10px] uppercase px-2.5 py-1 rounded-md">{product.material}</span>
-                                <span className="bg-stone-100 font-medium text-stone-700 text-[10px] uppercase px-2.5 py-1 rounded-md">{product.color}</span>
+                              <div className="flex min-w-0 flex-col">
+                                <span className="mb-1 truncate font-sans text-[11px] font-medium text-[#1a1a1a]">{product.name}</span>
+                                <span className="line-clamp-2 font-sans text-[10px] leading-relaxed text-stone-500">{product.description || 'No description.'}</span>
                               </div>
-                            </td>
-                            <td className="py-4 px-6">
-                              <p className="font-mono text-xs font-bold text-[#111]">{product.stockQuantity}</p>
-                              <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-stone-400">Low at {product.lowStockThreshold}</p>
-                            </td>
-                            <td className="py-4 px-6">
-                              <span className={`inline-block rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider ${inventoryStatus.className}`}>
-                                {inventoryStatus.label}
+                            </div>
+
+                            <div className="col-span-2 flex flex-col gap-1">
+                              <span className="font-sans text-[11px] text-[#1a1a1a]">{product.category}</span>
+                              <span className="font-sans text-[10px] text-stone-500">{product.material} &middot; {product.color}</span>
+                            </div>
+
+                            <div className="col-span-2 flex flex-col items-center justify-center text-center">
+                              <span className={`font-sans text-[11px] ${product.stockQuantity <= product.lowStockThreshold ? 'font-medium text-red-600' : 'text-[#1a1a1a]'}`}>
+                                {product.stockQuantity} in stock
                               </span>
-                            </td>
-                            <td className="py-4 px-6 font-mono font-bold text-[#111]">{formatCurrency(product.price)}</td>
-                            <td className="py-4 px-6 text-right">
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  onClick={() => openEditModal(product)}
-                                  className="p-2 bg-stone-50 hover:bg-[#1a1a1a] hover:text-[#fcfbf9] text-stone-500 rounded-xl transition-all duration-300 border border-stone-200 cursor-pointer"
-                                  title="Edit product info"
-                                >
-                                  <Edit2 size={12} />
+                              {product.stockQuantity <= product.lowStockThreshold && (
+                                <span className="mt-1 text-[8px] uppercase tracking-widest text-red-600">Low Stock</span>
+                              )}
+                            </div>
+
+                            <div className="col-span-1 text-right font-serif text-lg">
+                              {formatCurrency(product.price)}
+                            </div>
+
+                            <div className="col-span-2 flex flex-col items-center justify-center text-center">
+                              <span className="font-sans text-[10px] text-stone-500">
+                                {product.packageDetails.lengthCm}x{product.packageDetails.breadthCm}x{product.packageDetails.heightCm} cm
+                              </span>
+                              <span className="mt-0.5 font-sans text-[10px] text-stone-500">
+                                {product.packageDetails.weightKg} kg
+                              </span>
+                            </div>
+
+                            <div className="col-span-1 text-center">
+                              <span className={`rounded-full px-3 py-1 text-[8px] uppercase tracking-widest ${product.isActive ? 'bg-[#1a1a1a] text-[#fcfbf9]' : 'bg-stone-200 text-stone-500'}`}>
+                                {product.isActive ? 'Active' : 'Hidden'}
+                              </span>
+                              <span className="sr-only">{inventoryStatus.label}</span>
+                            </div>
+
+                            <div className="col-span-1 flex items-center justify-end gap-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(product)}
+                                className="cursor-pointer text-[9px] uppercase tracking-widest text-stone-400 transition-colors hover:text-[#1a1a1a]"
+                              >
+                                Edit
                               </button>
                               <button
+                                type="button"
                                 onClick={() => handleDeleteProduct(product)}
-                                className="p-2 bg-stone-50 hover:bg-red-600 hover:text-white text-stone-500 rounded-xl transition-all duration-300 border border-stone-200 cursor-pointer"
-                                title="Remove product"
+                                className="cursor-pointer text-[9px] uppercase tracking-widest text-red-500 transition-colors hover:text-red-700"
                               >
-                                  <Trash2 size={12} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
+                                Delete
+                              </button>
+                            </div>
+                          </div>
                         );
                       })}
-                    </tbody>
-                  </table>
+                    </div>
+                  </div>
                 </div>
 
                 {isProductsLoading && (
-                  <div className="p-16 text-center text-xs font-bold uppercase tracking-[0.25em] text-stone-400">
+                  <div className="p-16 text-center text-[9px] font-semibold uppercase tracking-widest text-stone-400">
                     Loading catalog
                   </div>
                 )}
 
                 {!isProductsLoading && filteredCatalog.length === 0 && (
                   <div className="p-16 text-center text-stone-400 flex flex-col items-center justify-center">
-                    <p className="text-[10px] tracking-[0.25em] uppercase font-bold mb-3">Void product list</p>
+                    <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest">Void product list</p>
                     <p className="text-xs font-light text-stone-500 mb-6">No matching items were found matching your filters.</p>
                     <button
                       onClick={() => {
                         setProductSearch('');
                         setSelectedCategory('All');
                       }}
-                      className="cursor-pointer border-b border-[#1a1a1a] pb-0.5 text-[10px] font-bold uppercase tracking-widest text-[#1a1a1a]"
+                      className="cursor-pointer border-b border-[#1a1a1a] pb-1 text-[9px] font-semibold uppercase tracking-widest text-[#1a1a1a] transition-opacity hover:opacity-60"
                     >
                       Clear Filter
                     </button>
@@ -2702,7 +2674,7 @@ export default function Admin() {
                             key={queue.value}
                             type="button"
                             onClick={() => setActiveOrderQueue(queue.value)}
-                            className={`cursor-pointer rounded-full border px-4 py-2 text-[9px] uppercase tracking-widest transition-colors ${
+                            className={`cursor-pointer rounded-sm border px-4 py-2 text-[9px] uppercase tracking-widest transition-colors ${
                               isActive
                                 ? 'border-[#1a1a1a] bg-[#1a1a1a] text-white'
                                 : 'border-stone-200 bg-white text-stone-500 hover:border-stone-400'
@@ -2848,7 +2820,7 @@ export default function Admin() {
                                   <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${getShippingStatusClasses(order.shippingStatus)}`}>
                                     {formatStatusLabel(order.shippingStatus)}
                                   </span>
-                                  {needsAction && <span className="mt-1 text-[8px] uppercase tracking-widest text-amber-700">Action needed</span>}
+                                  {needsAction && <span className="mt-1 text-[9px] uppercase tracking-widest text-amber-700">Action needed</span>}
                                 </div>
                                 <div className="col-span-1 text-right font-serif text-lg text-[#1a1a1a]">
                                   {formatCurrency(order.total)}
@@ -2867,7 +2839,7 @@ export default function Admin() {
 
                     {!isLoading && filteredOrders.length === 0 && (
                       <div className="flex flex-col items-center justify-center px-8 py-20 text-center text-stone-400">
-                        <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.3em]">
+                        <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest">
                           {orders.length === 0 ? 'No orders yet' : 'No matching orders'}
                         </p>
                         <p className="mb-6 text-xs font-light text-stone-500">
@@ -2889,7 +2861,7 @@ export default function Admin() {
                             setOrderStartDate('');
                             setOrderEndDate('');
                           }}
-                          className="cursor-pointer border-b border-[#1a1a1a] pb-1 text-[10px] font-bold uppercase tracking-[0.22em] text-[#1a1a1a]"
+                          className="cursor-pointer border-b border-[#1a1a1a] pb-1 text-[9px] font-semibold uppercase tracking-widest text-[#1a1a1a] transition-opacity hover:opacity-60"
                         >
                           {orders.length === 0 ? 'Refresh Orders' : 'Clear Filters'}
                         </button>
@@ -2897,12 +2869,12 @@ export default function Admin() {
                     )}
 
                     {isLoading && (
-                      <div className="px-8 py-20 text-center text-xs font-bold uppercase tracking-[0.3em] text-stone-400">
+                      <div className="px-8 py-20 text-center text-[10px] font-semibold uppercase tracking-widest text-stone-400">
                         Loading orders
                       </div>
                     )}
 
-                    {!isLoading && filteredOrders.length > 0 && (
+                    {!isLoading && filteredOrders.length > 0 && orderPageCount > 1 && (
                       <div className="mt-6 flex shrink-0 items-center justify-between border-t border-stone-200 pt-6">
                         <button
                           type="button"
@@ -2948,10 +2920,10 @@ export default function Admin() {
 
       {cancelCandidate && (
         <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#1a1a1a]/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden border border-stone-200 bg-[#fcfbf9] text-center shadow-2xl">
+          <div className="w-full max-w-lg overflow-hidden border border-stone-200 bg-[#fcfbf9] text-center">
             <div className="border-b border-stone-200 px-8 py-7">
               <div>
-                <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.28em] text-stone-400">Order Action</p>
+                <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-widest text-stone-400">Order Action</p>
                 <h3 className="font-serif text-[2rem] font-medium leading-none tracking-tight text-[#111]">Cancel order</h3>
               </div>
               <button
@@ -2970,12 +2942,12 @@ export default function Admin() {
 
               <div className="grid grid-cols-1 overflow-hidden border border-stone-200 bg-white text-left sm:grid-cols-2">
                 <div className="border-b border-stone-200 p-4 sm:border-b-0 sm:border-r">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">Customer</p>
+                  <p className="text-[9px] font-semibold uppercase tracking-widest text-stone-400">Customer</p>
                   <p className="mt-2 text-sm font-semibold text-[#111]">{cancelCandidate.customer.name}</p>
                   <p className="mt-1 text-xs text-stone-400">{cancelCandidate.customer.phone}</p>
                 </div>
                 <div className="p-4 text-left sm:text-right">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">Order Total</p>
+                  <p className="text-[9px] font-semibold uppercase tracking-widest text-stone-400">Order Total</p>
                   <p className="mt-2 font-mono text-sm font-bold text-[#111]">{formatCurrency(cancelCandidate.total)}</p>
                   <p className="mt-1 text-xs text-stone-400">{cancelCandidate.status}</p>
                 </div>
@@ -2986,7 +2958,7 @@ export default function Admin() {
               <button
                 type="button"
                 onClick={() => setCancelCandidate(null)}
-                className="w-full cursor-pointer border border-stone-200 bg-transparent px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#1a1a1a] transition-colors hover:bg-stone-50"
+                className="w-full cursor-pointer border border-stone-200 bg-transparent px-5 py-3 text-[9px] font-semibold uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50"
               >
                 Keep Order
               </button>
@@ -2994,7 +2966,7 @@ export default function Admin() {
                 type="button"
                 disabled={updatingOrderFor === cancelCandidate.id}
                 onClick={() => void confirmCancelOrder()}
-                className="w-full cursor-pointer border border-[#1a1a1a] bg-[#1a1a1a] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#fcfbf9] transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:border-stone-400 disabled:bg-stone-400"
+                className="w-full cursor-pointer border border-[#1a1a1a] bg-[#1a1a1a] px-5 py-3 text-[9px] font-normal uppercase tracking-widest text-[#fcfbf9] transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:border-stone-400 disabled:bg-stone-400"
               >
                 {updatingOrderFor === cancelCandidate.id ? 'Cancelling' : 'Cancel Order'}
               </button>
@@ -3005,10 +2977,10 @@ export default function Admin() {
 
       {cancelShipmentCandidate && (
         <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#1a1a1a]/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden border border-stone-200 bg-[#fcfbf9] text-center shadow-2xl">
+          <div className="w-full max-w-lg overflow-hidden border border-stone-200 bg-[#fcfbf9] text-center">
             <div className="border-b border-stone-200 px-8 py-7">
               <div>
-                <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.28em] text-stone-400">Shiprocket Action</p>
+                <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-widest text-stone-400">Shiprocket Action</p>
                 <h3 className="font-serif text-[2rem] font-medium leading-none tracking-tight text-[#111]">Cancel shipment</h3>
               </div>
               <button
@@ -3027,12 +2999,12 @@ export default function Admin() {
 
               <div className="grid grid-cols-1 overflow-hidden border border-stone-200 bg-white text-left sm:grid-cols-2">
                 <div className="border-b border-stone-200 p-4 sm:border-b-0 sm:border-r">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">AWB</p>
+                  <p className="text-[9px] font-semibold uppercase tracking-widest text-stone-400">AWB</p>
                   <p className="mt-2 font-mono text-sm font-bold text-[#111]">{cancelShipmentCandidate.awbCode || 'Not assigned'}</p>
                   <p className="mt-1 text-xs text-stone-400">{cancelShipmentCandidate.courierName || 'Courier not assigned'}</p>
                 </div>
                 <div className="p-4 text-left sm:text-right">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">Shiprocket Order</p>
+                  <p className="text-[9px] font-semibold uppercase tracking-widest text-stone-400">Shiprocket Order</p>
                   <p className="mt-2 font-mono text-sm font-bold text-[#111]">{cancelShipmentCandidate.shiprocketOrderId || 'Not available'}</p>
                   <p className="mt-1 text-xs text-stone-400">{formatStatusLabel(cancelShipmentCandidate.shippingStatus)}</p>
                 </div>
@@ -3043,7 +3015,7 @@ export default function Admin() {
               <button
                 type="button"
                 onClick={() => setCancelShipmentCandidate(null)}
-                className="w-full cursor-pointer border border-stone-200 bg-transparent px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#1a1a1a] transition-colors hover:bg-stone-50"
+                className="w-full cursor-pointer border border-stone-200 bg-transparent px-5 py-3 text-[9px] font-semibold uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50"
               >
                 Keep Shipment
               </button>
@@ -3051,7 +3023,7 @@ export default function Admin() {
                 type="button"
                 disabled={cancellingShipmentFor === cancelShipmentCandidate.id}
                 onClick={() => void confirmCancelShipment()}
-                className="w-full cursor-pointer border border-[#1a1a1a] bg-[#1a1a1a] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#fcfbf9] transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-300 disabled:text-stone-500"
+                className="w-full cursor-pointer border border-[#1a1a1a] bg-[#1a1a1a] px-5 py-3 text-[9px] font-normal uppercase tracking-widest text-[#fcfbf9] transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-300 disabled:text-stone-500"
               >
                 {cancellingShipmentFor === cancelShipmentCandidate.id ? 'Cancelling' : 'Cancel Shipment'}
               </button>
@@ -3062,10 +3034,10 @@ export default function Admin() {
 
       {deleteProductCandidate && (
         <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#1a1a1a]/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden border border-stone-200 bg-[#fcfbf9] text-center shadow-2xl">
+          <div className="w-full max-w-lg overflow-hidden border border-stone-200 bg-[#fcfbf9] text-center">
             <div className="border-b border-stone-200 px-8 py-7">
               <div>
-                <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.28em] text-stone-400">Catalog Action</p>
+                <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-widest text-stone-400">Catalog Action</p>
                 <h3 className="font-serif text-[2rem] font-medium leading-none tracking-tight text-[#111]">Delete product</h3>
               </div>
               <button
@@ -3092,9 +3064,9 @@ export default function Admin() {
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-stone-400">Product</p>
+                    <p className="text-[9px] font-semibold uppercase tracking-widest text-stone-400">Product</p>
                     <h4 className="mt-2 truncate font-serif text-xl font-medium text-[#111]">{deleteProductCandidate.name}</h4>
-                    <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-stone-400">
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-stone-400">
                       {deleteProductCandidate.id.slice(-6).toUpperCase()} · {deleteProductCandidate.category}
                     </p>
                     <p className="mt-3 font-mono text-xs font-bold text-[#111]">{formatCurrency(deleteProductCandidate.price)}</p>
@@ -3107,7 +3079,7 @@ export default function Admin() {
               <button
                 type="button"
                 onClick={() => setDeleteProductCandidate(null)}
-                className="w-full cursor-pointer border border-stone-200 bg-transparent px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#1a1a1a] transition-colors hover:bg-stone-50"
+                className="w-full cursor-pointer border border-stone-200 bg-transparent px-5 py-3 text-[9px] font-semibold uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50"
               >
                 Keep Product
               </button>
@@ -3115,7 +3087,7 @@ export default function Admin() {
                 type="button"
                 disabled={deletingProductFor === deleteProductCandidate.id}
                 onClick={() => void confirmDeleteProduct()}
-                className="w-full cursor-pointer border border-[#1a1a1a] bg-[#1a1a1a] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[#fcfbf9] transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-300 disabled:text-stone-500"
+                className="w-full cursor-pointer border border-[#1a1a1a] bg-[#1a1a1a] px-5 py-3 text-[9px] font-semibold uppercase tracking-widest text-[#fcfbf9] transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-300 disabled:text-stone-500"
               >
                 {deletingProductFor === deleteProductCandidate.id ? 'Deleting' : 'Delete Product'}
               </button>
