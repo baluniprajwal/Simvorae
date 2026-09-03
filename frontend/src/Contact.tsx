@@ -2,34 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import Lenis from 'lenis';
 
 export default function Contact() {
   const container = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     window.scrollTo(0, 0);
-    
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      orientation: 'vertical',
-      gestureOrientation: 'vertical',
-      smoothWheel: true,
-      wheelMultiplier: 1,
-    });
-
-    function raf(time: number) {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
-    }
-    
-    const animationFrameId = requestAnimationFrame(raf);
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-      lenis.destroy();
-    };
   }, []);
 
   return (

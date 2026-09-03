@@ -2,13 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import Lenis from 'lenis';
 import { ChevronDown } from 'lucide-react';
 import { useCartStore } from './store/cartStore';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { fetchJson } from './lib/api';
 import type { Product as ProductType, ProductDetailResponse } from './types/product';
+import { useToast } from './contexts/ToastContext';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -62,6 +62,7 @@ export default function Product() {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const { addItem } = useCartStore();
+  const { showSuccess } = useToast();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -104,31 +105,6 @@ export default function Product() {
 
     return () => {
       ignore = true;
-    };
-  }, [id]);
-
-  useEffect(() => {
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      orientation: 'vertical',
-      gestureOrientation: 'vertical',
-      smoothWheel: true,
-      wheelMultiplier: 1,
-      touchMultiplier: 2,
-    });
-
-    function raf(time: number) {
-      lenis.raf(time);
-      animationFrameId = requestAnimationFrame(raf);
-    }
-
-    let animationFrameId = requestAnimationFrame(raf);
-    window.scrollTo(0, 0);
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-      lenis.destroy();
     };
   }, [id]);
 
@@ -190,6 +166,7 @@ export default function Product() {
       quantity: 1,
     });
 
+    showSuccess(`Added ${product.name} to your bag.`);
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2000);
   };

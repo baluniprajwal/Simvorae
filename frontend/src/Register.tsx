@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { motion } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, CheckCircle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 import { useAuthStore } from './store/authStore';
+import { useToast } from './contexts/ToastContext';
 
 function getErrorMessage(error: unknown) {
   if (axios.isAxiosError(error)) {
@@ -51,14 +52,18 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const { showError, showSuccess } = useToast();
   const isCheckoutSignup = searchParams.get('next') === 'checkout';
   const verifiedLoginPath = isCheckoutSignup ? '/checkout/login' : '/login';
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError('');
     setMessage('');
+
+    if (password.length < 8) {
+      showError('Password must be at least 8 characters long.');
+      return;
+    }
 
     try {
       const response = await register({
@@ -67,9 +72,11 @@ export default function Register() {
         password,
       });
       setMessage(response.message || 'Check your email and click Verify Email to create your account.');
+      showSuccess('Verification email sent. Please check your inbox.');
       setPassword('');
     } catch (registerError) {
-      setError(getErrorMessage(registerError));
+      const message = getErrorMessage(registerError);
+      showError(message.toLowerCase().includes('already') ? 'An account already exists with this email.' : 'Could not create your account right now. Please try again.');
     }
   };
 
@@ -202,13 +209,6 @@ export default function Register() {
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            {error && (
-              <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>{error}</p>
-              </div>
-            )}
-
             <UnderlineField label="Full Name" value={name} onChange={setName} placeholder="Enter your full name" />
             <UnderlineField label="Email Address" value={email} onChange={setEmail} placeholder="Enter your email" type="email" />
             <UnderlineField label="Password" value={password} onChange={setPassword} placeholder="Create a password" type="password" />

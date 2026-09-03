@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertTriangle } from 'lucide-react';
 import { useAuthStore } from './store/authStore';
+import { useToast } from './contexts/ToastContext';
 
 function getErrorMessage(error: unknown) {
   if (axios.isAxiosError(error)) {
@@ -52,19 +52,20 @@ function UnderlineField({
 export default function Login() {
   const navigate = useNavigate();
   const { login, isLoading } = useAuthStore();
+  const { showError, showSuccess } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError('');
 
     try {
       await login({ email: email.trim(), password });
+      showSuccess('Logged in successfully.');
       navigate('/', { replace: true });
     } catch (loginError) {
-      setError(getErrorMessage(loginError));
+      const message = getErrorMessage(loginError);
+      showError(message.toLowerCase().includes('invalid') ? 'Invalid credentials. Please check your email and password.' : 'Could not sign in right now. Please try again.');
     }
   };
 
@@ -130,13 +131,6 @@ export default function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-8">
-            {error && (
-              <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>{error}</p>
-              </div>
-            )}
-
             <UnderlineField
               label="Email Address"
               value={email}

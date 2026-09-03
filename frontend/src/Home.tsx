@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import Lenis from 'lenis';
 import { ArrowUpRight, Play, ChevronDown } from 'lucide-react';
 import { useCartStore } from './store/cartStore';
 import Navbar from './components/Navbar';
@@ -31,32 +30,6 @@ export default function Home() {
       setProgress(currentProgress);
     }, 120);
     return () => clearInterval(interval);
-  }, []);
-
-  // Initialize Lenis Smooth Scroll
-  useEffect(() => {
-    const lenis = new Lenis({
-      duration: 1.4,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      orientation: 'vertical',
-      gestureOrientation: 'vertical',
-      smoothWheel: true,
-    });
-
-    lenis.on('scroll', ScrollTrigger.update);
-
-    const tickerCallback = (time: number) => {
-      lenis.raf(time * 1000);
-    };
-
-    gsap.ticker.add(tickerCallback);
-
-    gsap.ticker.lagSmoothing(0);
-
-    return () => {
-      gsap.ticker.remove(tickerCallback);
-      lenis.destroy();
-    };
   }, []);
 
   // Main Animations

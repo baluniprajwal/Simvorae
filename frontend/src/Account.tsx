@@ -477,7 +477,7 @@ export default function Account() {
 
       <AnimatePresence>
         {isLogoutModalOpen && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -503,14 +503,14 @@ export default function Account() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="w-full cursor-pointer bg-[#1a1a1a] py-3 text-[10px] uppercase tracking-[0.2em] text-[#fcfbf9] transition-colors hover:bg-stone-800"
+                  className="w-full cursor-pointer bg-[#1a1a1a] py-3 font-sans text-[10px] uppercase tracking-[0.2em] text-[#fcfbf9] transition-colors hover:bg-stone-800"
                 >
                   Confirm Logout
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsLogoutModalOpen(false)}
-                  className="w-full cursor-pointer border border-stone-200 bg-transparent py-3 text-[10px] uppercase tracking-[0.2em] text-[#1a1a1a] transition-colors hover:bg-stone-50"
+                  className="w-full cursor-pointer border border-stone-200 bg-transparent py-3 font-sans text-[10px] uppercase tracking-[0.2em] text-[#1a1a1a] transition-colors hover:bg-stone-50"
                 >
                   Cancel
                 </button>

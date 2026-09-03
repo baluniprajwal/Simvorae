@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import Lenis from 'lenis';
 import Admin from './Admin';
 import AdminLogin from './AdminLogin';
 import Home from './Home';
@@ -19,6 +20,7 @@ import VerifyEmail from './VerifyEmail';
 import About from './About';
 import Contact from './Contact';
 import { useAuthStore } from './store/authStore';
+import { ToastProvider } from './contexts/ToastContext';
 
 function ScrollToTop() {
   const { pathname, search } = useLocation();
@@ -30,12 +32,52 @@ function ScrollToTop() {
   return null;
 }
 
+function SmoothScroll() {
+  useEffect(() => {
+    const lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      orientation: 'vertical',
+      gestureOrientation: 'vertical',
+      smoothWheel: true,
+      wheelMultiplier: 1,
+    });
+
+    let animationFrameId = 0;
+    const updateScrollLock = () => {
+      if (document.documentElement.dataset.scrollLocked === 'true') {
+        lenis.stop();
+      } else {
+        lenis.start();
+      }
+    };
+
+    function raf(time: number) {
+      lenis.raf(time);
+      animationFrameId = requestAnimationFrame(raf);
+    }
+
+    window.addEventListener('simvorae-scroll-lock-change', updateScrollLock);
+    updateScrollLock();
+    animationFrameId = requestAnimationFrame(raf);
+
+    return () => {
+      window.removeEventListener('simvorae-scroll-lock-change', updateScrollLock);
+      cancelAnimationFrame(animationFrameId);
+      lenis.destroy();
+    };
+  }, []);
+
+  return null;
+}
+
 function AppContent() {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
 
   return (
     <>
+      <SmoothScroll />
       <ScrollToTop />
       {!isAdminRoute && <Cart />}
       <Routes>
@@ -108,7 +150,9 @@ function ProtectedAdminRoute() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </BrowserRouter>
   );
 }

@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useGSAP } from '@gsap/react';
-import Lenis from 'lenis';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronDown, SlidersHorizontal, X } from 'lucide-react';
 import Navbar from './components/Navbar';
@@ -212,31 +211,6 @@ export default function Shop() {
       ignore = true;
     };
   }, [activeCategory, activeColor, activeMaterial, activePrice, sortOrder, searchQuery]);
-
-  useEffect(() => {
-    if (isMobileFiltersOpen) return;
-
-    const lenis = new Lenis({
-      duration: 1.4,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      orientation: 'vertical',
-      gestureOrientation: 'vertical',
-      smoothWheel: true,
-      wheelMultiplier: 1,
-    });
-
-    function raf(time: number) {
-      lenis.raf(time);
-      animationFrameId = requestAnimationFrame(raf);
-    }
-
-    let animationFrameId = requestAnimationFrame(raf);
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-      lenis.destroy();
-    };
-  }, [isMobileFiltersOpen]);
 
   useGSAP(() => {
     const tl = gsap.timeline();

@@ -1,5 +1,6 @@
 import { type ChangeEvent, type DragEvent, type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   ArrowLeft,
   AlertTriangle,
@@ -30,8 +31,9 @@ import {
 } from 'lucide-react';
 import { type Order, type OrderStatus, useOrderStore } from './store/orderStore';
 import { type ProductStoreItem, useProductStore } from './store/productStore';
+import { useToast } from './contexts/ToastContext';
 
-type AdminTab = 'OVERVIEW' | 'CATALOG' | 'ORDERS';
+type AdminTab = 'OVERVIEW' | 'CATALOG' | 'ORDERS' | 'CUSTOMERS';
 type DashboardRange = 'week' | 'month' | 'year' | 'all' | 'custom';
 type OrderQueue = 'all' | 'newPaid' | 'toPack' | 'readyToShip' | 'inTransit' | 'delivered' | 'problems';
 
@@ -55,6 +57,18 @@ type ProductFormState = {
   stockQuantity: number;
   lowStockThreshold: number;
   isActive: boolean;
+};
+
+type CustomerSummary = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  joinedAt: string;
+  orderCount: number;
+  totalSpent: number;
+  recentOrders: Order[];
 };
 
 const categoryOptions = ['Classic Tote', 'Hobo Shoulder Bag', 'Top Handle Bag', 'Crossbody Bag', 'Chain Clutch'];
@@ -82,11 +96,13 @@ const orderQueueOptions: Array<{ value: OrderQueue; label: string; description: 
 
 const catalogPageSize = 8;
 const orderPageSize = 10;
+const customerPageSize = 8;
 
 const adminTabRoutes: Record<AdminTab, string> = {
   OVERVIEW: '/admin/overview',
   CATALOG: '/admin/catalog',
   ORDERS: '/admin/orders',
+  CUSTOMERS: '/admin/customers',
 };
 
 const adminPathToTab = (pathname: string): AdminTab => {
@@ -96,6 +112,10 @@ const adminPathToTab = (pathname: string): AdminTab => {
 
   if (pathname.startsWith('/admin/orders')) {
     return 'ORDERS';
+  }
+
+  if (pathname.startsWith('/admin/customers')) {
+    return 'CUSTOMERS';
   }
 
   return 'OVERVIEW';
@@ -179,19 +199,7 @@ const createEmptyForm = (): ProductFormState => ({
   isActive: true,
 });
 
-const getStatusClasses = (status: OrderStatus) => {
-  switch (status) {
-    case 'Delivered':
-      return 'bg-green-50 text-green-700 border-green-100';
-    case 'Shipped':
-    case 'Packed':
-      return 'bg-amber-50 text-amber-700 border-amber-100';
-    case 'Cancelled':
-      return 'bg-red-50 text-red-600 border-red-100';
-    default:
-      return 'bg-stone-100 text-stone-700 border-stone-200';
-  }
-};
+const neutralBadgeClasses = 'bg-stone-100 text-[#1a1a1a] border-stone-200';
 
 const formatStatusLabel = (status: string) =>
   status
@@ -199,32 +207,43 @@ const formatStatusLabel = (status: string) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
 
-const getPaymentStatusClasses = (status: Order['paymentStatus']) => {
-  switch (status) {
-    case 'paid':
-      return 'bg-green-50 text-green-700 border-green-100';
-    case 'failed':
-      return 'bg-red-50 text-red-600 border-red-100';
-    case 'refunded':
-      return 'bg-stone-100 text-[#1a1a1a] border-stone-200';
-    default:
-      return 'bg-amber-50 text-amber-700 border-amber-100';
-  }
-};
+const getFriendlyAdminErrorMessage = (error: unknown, fallback: string) => {
+  const rawMessage = error instanceof Error ? error.message : String(error || '');
+  const message = rawMessage.toLowerCase();
 
-const getShippingStatusClasses = (status: Order['shippingStatus']) => {
-  switch (status) {
-    case 'delivered':
-      return 'bg-green-50 text-green-700 border-green-100';
-    case 'created':
-    case 'in_transit':
-      return 'bg-amber-50 text-amber-700 border-amber-100';
-    case 'failed':
-    case 'cancelled':
-      return 'bg-red-50 text-red-600 border-red-100';
-    default:
-      return 'bg-stone-100 text-[#1a1a1a] border-stone-200';
+  if (!rawMessage) {
+    return fallback;
   }
+
+  if (message.includes('network') || message.includes('failed to fetch') || message.includes('net::')) {
+    return 'Connection failed. Please check your internet or backend server and try again.';
+  }
+
+  if (message.includes('unauthorized') || message.includes('forbidden') || message.includes('401') || message.includes('403')) {
+    return 'You do not have permission to perform this action. Please sign in again.';
+  }
+
+  if (message.includes('route not found') || message.includes('404')) {
+    return 'This admin action is not available right now. Please refresh and try again.';
+  }
+
+  if (message.includes('validation') || message.includes('required') || message.includes('invalid')) {
+    return 'Please check the entered details and try again.';
+  }
+
+  if (message.includes('shiprocket') || message.includes('shipment') || message.includes('awb')) {
+    return 'Shipment could not be updated right now. Please check Shiprocket details and try again.';
+  }
+
+  if (message.includes('razorpay') || message.includes('payment')) {
+    return 'Payment details could not be updated right now. Please try again.';
+  }
+
+  if (message.includes('s3') || message.includes('upload') || message.includes('image')) {
+    return 'Image upload failed. Please check the file and try again.';
+  }
+
+  return fallback;
 };
 
 const getInventoryStatus = (product: { isActive?: boolean; stockQuantity?: number; lowStockThreshold?: number }) => {
@@ -232,18 +251,18 @@ const getInventoryStatus = (product: { isActive?: boolean; stockQuantity?: numbe
   const lowStockThreshold = product.lowStockThreshold ?? 3;
 
   if (!product.isActive) {
-    return { label: 'Hidden', className: 'bg-stone-100 text-stone-600' };
+    return { label: 'Hidden', className: neutralBadgeClasses };
   }
 
   if (stockQuantity <= 0) {
-    return { label: 'Out of Stock', className: 'bg-red-50 text-red-700' };
+    return { label: 'Out of Stock', className: neutralBadgeClasses };
   }
 
   if (stockQuantity <= lowStockThreshold) {
-    return { label: 'Low Stock', className: 'bg-amber-50 text-amber-700' };
+    return { label: 'Low Stock', className: neutralBadgeClasses };
   }
 
-  return { label: 'Active', className: 'bg-emerald-50 text-emerald-700' };
+  return { label: 'Active', className: neutralBadgeClasses };
 };
 
 const orderMatchesQueue = (order: Order, queue: OrderQueue) => {
@@ -659,7 +678,12 @@ function ProductModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#1a1a1a]/60 p-4 backdrop-blur-sm md:p-8">
+    <div
+      data-lenis-prevent
+      onWheel={(event) => event.preventDefault()}
+      onTouchMove={(event) => event.preventDefault()}
+      className="fixed inset-0 z-[200] flex items-center justify-center overscroll-contain bg-[#1a1a1a]/60 p-4 backdrop-blur-sm md:p-8"
+    >
       <div className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden border border-stone-200 bg-[#fcfbf9]">
         <div className="flex shrink-0 items-center justify-between border-b border-stone-200 bg-white p-6">
           <h3 className="font-serif text-2xl text-[#1a1a1a]">{mode === 'add' ? 'Add New Product' : 'Edit Product'}</h3>
@@ -668,7 +692,12 @@ function ProductModal({
           </button>
         </div>
 
-        <div className="admin-scrollbar flex-1 overflow-y-auto p-6 md:p-8">
+        <div
+          data-lenis-prevent
+          onWheel={(event) => event.stopPropagation()}
+          onTouchMove={(event) => event.stopPropagation()}
+          className="admin-scrollbar flex-1 overscroll-contain overflow-y-auto p-6 md:p-8"
+        >
           <form id="productForm" onSubmit={onSubmit} className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             <div className="space-y-8 lg:col-span-2">
               <section className="space-y-4 border border-stone-200 bg-white p-6">
@@ -1048,7 +1077,7 @@ function OrderDrawer({
         <div className="border border-stone-200 bg-white">
           <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
             <h2 className="font-serif text-xl text-[#1a1a1a]">Order Items</h2>
-            <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getStatusClasses(order.status)}`}>
+            <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${neutralBadgeClasses}`}>
               {order.status}
             </span>
           </div>
@@ -1097,7 +1126,7 @@ function OrderDrawer({
           <div className="border border-stone-200 bg-white">
             <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
               <h2 className="font-serif text-xl text-[#1a1a1a]">Logistics & Tracking</h2>
-              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getShippingStatusClasses(order.shippingStatus)}`}>
+              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${neutralBadgeClasses}`}>
                 {formatStatusLabel(order.shippingStatus)}
               </span>
             </div>
@@ -1240,7 +1269,7 @@ function OrderDrawer({
           <div className="border border-stone-200 bg-white">
             <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
               <h2 className="font-serif text-xl text-[#1a1a1a]">Payment Details</h2>
-              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getPaymentStatusClasses(order.paymentStatus)}`}>
+              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${neutralBadgeClasses}`}>
                 {formatStatusLabel(order.paymentStatus)}
               </span>
             </div>
@@ -1265,7 +1294,7 @@ function OrderDrawer({
           <div className="border border-stone-200 bg-white">
             <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
               <h2 className="font-serif text-xl text-[#1a1a1a]">Shipping Address</h2>
-              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getShippingStatusClasses(order.shippingStatus)}`}>
+              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${neutralBadgeClasses}`}>
                 {formatStatusLabel(order.shippingStatus)}
               </span>
             </div>
@@ -1285,7 +1314,7 @@ function OrderDrawer({
           <div className="border border-stone-200 bg-white">
             <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
               <h2 className="font-serif text-xl text-[#1a1a1a]">Billing Address</h2>
-              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getPaymentStatusClasses(order.paymentStatus)}`}>
+              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${neutralBadgeClasses}`}>
                 {formatStatusLabel(order.paymentStatus)}
               </span>
             </div>
@@ -1326,6 +1355,7 @@ function OrderDrawer({
 export default function Admin() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { showError, showSuccess } = useToast();
   const {
     products,
     categoryStats,
@@ -1342,7 +1372,11 @@ export default function Admin() {
   const { orders, isLoading, error, fetchOrders, markPacked, cancelOrder, createShipment, syncShipment, cancelShipment } = useOrderStore();
 
   const activeTab = adminPathToTab(location.pathname);
-  const setActiveTab = (tab: AdminTab) => navigate(adminTabRoutes[tab]);
+  const setActiveTab = (tab: AdminTab) => {
+    setViewingOrder(null);
+    setSelectedCustomerId(null);
+    navigate(adminTabRoutes[tab]);
+  };
   const [productSearch, setProductSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [productForm, setProductForm] = useState<ProductFormState>(createEmptyForm());
@@ -1364,12 +1398,13 @@ export default function Admin() {
   const [orderEndDate, setOrderEndDate] = useState('');
   const [catalogPage, setCatalogPage] = useState(1);
   const [orderPage, setOrderPage] = useState(1);
+  const [customerPage, setCustomerPage] = useState(1);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [creatingShipmentFor, setCreatingShipmentFor] = useState('');
   const [syncingShipmentFor, setSyncingShipmentFor] = useState('');
   const [cancellingShipmentFor, setCancellingShipmentFor] = useState('');
   const [updatingOrderFor, setUpdatingOrderFor] = useState('');
   const [deletingProductFor, setDeletingProductFor] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -1390,32 +1425,52 @@ export default function Admin() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (!toast) {
-      return;
-    }
+    const message = error || productError;
 
-    const timeoutId = window.setTimeout(() => setToast(null), 3000);
-    return () => window.clearTimeout(timeoutId);
-  }, [toast]);
+    if (message) {
+      showError(getFriendlyAdminErrorMessage(message, 'Something went wrong. Please refresh and try again.'));
+    }
+  }, [error, productError, showError]);
 
   useEffect(() => {
     const hasOpenOverlay = Boolean(
       isModalOpen ||
-      (viewingOrder && activeTab !== 'ORDERS') ||
       cancelCandidate ||
       cancelShipmentCandidate ||
       deleteProductCandidate,
     );
+    const rootElement = document.documentElement;
     const previousOverflow = document.body.style.overflow;
+    const previousRootOverflow = rootElement.style.overflow;
+    const previousBodyPosition = document.body.style.position;
+    const previousBodyTop = document.body.style.top;
+    const previousBodyWidth = document.body.style.width;
+    const scrollY = window.scrollY;
 
     if (hasOpenOverlay) {
       document.body.style.overflow = 'hidden';
+      rootElement.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      rootElement.dataset.scrollLocked = 'true';
+      window.dispatchEvent(new Event('simvorae-scroll-lock-change'));
     }
 
     return () => {
       document.body.style.overflow = previousOverflow;
+      rootElement.style.overflow = previousRootOverflow;
+      document.body.style.position = previousBodyPosition;
+      document.body.style.top = previousBodyTop;
+      document.body.style.width = previousBodyWidth;
+
+      if (hasOpenOverlay) {
+        delete rootElement.dataset.scrollLocked;
+        window.dispatchEvent(new Event('simvorae-scroll-lock-change'));
+        window.scrollTo(0, scrollY);
+      }
     };
-  }, [activeTab, cancelCandidate, cancelShipmentCandidate, deleteProductCandidate, isModalOpen, viewingOrder]);
+  }, [cancelCandidate, cancelShipmentCandidate, deleteProductCandidate, isModalOpen]);
 
   const rangeLabel = useMemo(
     () => getDateRangeLabel(dashboardRange, customStartDate, customEndDate),
@@ -1637,6 +1692,60 @@ export default function Admin() {
 
   const recentOrders = useMemo(() => [...orders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5), [orders]);
 
+  const customers = useMemo(() => {
+    const customerMap = new Map<string, CustomerSummary>();
+
+    orders.forEach((order) => {
+      const customerKey = order.customer.email.trim().toLowerCase() || order.customer.phone.trim();
+
+      if (!customerKey) {
+        return;
+      }
+
+      const existingCustomer = customerMap.get(customerKey);
+      const orderTotal = order.paymentStatus === 'paid' ? order.total : 0;
+
+      if (!existingCustomer) {
+        customerMap.set(customerKey, {
+          id: customerKey,
+          name: order.customer.name,
+          email: order.customer.email,
+          phone: order.customer.phone,
+          address: order.customer.address,
+          joinedAt: order.createdAt,
+          orderCount: 1,
+          totalSpent: orderTotal,
+          recentOrders: [order],
+        });
+        return;
+      }
+
+      existingCustomer.orderCount += 1;
+      existingCustomer.totalSpent += orderTotal;
+      existingCustomer.joinedAt =
+        new Date(order.createdAt) < new Date(existingCustomer.joinedAt)
+          ? order.createdAt
+          : existingCustomer.joinedAt;
+      existingCustomer.recentOrders = [...existingCustomer.recentOrders, order].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      existingCustomer.address = existingCustomer.address || order.customer.address;
+      existingCustomer.phone = existingCustomer.phone || order.customer.phone;
+      existingCustomer.email = existingCustomer.email || order.customer.email;
+      existingCustomer.name = existingCustomer.name || order.customer.name;
+    });
+
+    return Array.from(customerMap.values()).sort((a, b) => b.recentOrders[0].createdAt.localeCompare(a.recentOrders[0].createdAt));
+  }, [orders]);
+
+  const customerPageCount = Math.max(1, Math.ceil(customers.length / customerPageSize));
+  const paginatedCustomers = useMemo(
+    () => customers.slice((customerPage - 1) * customerPageSize, customerPage * customerPageSize),
+    [customerPage, customers],
+  );
+  const selectedCustomer = useMemo(
+    () => customers.find((customer) => customer.id === selectedCustomerId) ?? null,
+    [customers, selectedCustomerId],
+  );
+
   const orderQueueCounts = useMemo(
     () =>
       orderQueueOptions.reduce<Record<OrderQueue, number>>((counts, queue) => {
@@ -1710,6 +1819,10 @@ export default function Admin() {
   useEffect(() => {
     setOrderPage((page) => Math.min(page, orderPageCount));
   }, [orderPageCount]);
+
+  useEffect(() => {
+    setCustomerPage((page) => Math.min(page, customerPageCount));
+  }, [customerPageCount]);
 
   const salesHistory = useMemo(() => {
     const paidOrders = orders.filter((order) => order.paymentStatus === 'paid');
@@ -1883,15 +1996,15 @@ export default function Admin() {
     try {
       if (editingProduct) {
         await updateProduct(editingProduct.id, payload);
-        setToast({ type: 'success', message: `${productForm.name} updated.` });
+        showSuccess(`${productForm.name} updated.`);
       } else {
         await addProduct(payload);
-        setToast({ type: 'success', message: `${productForm.name} created.` });
+        showSuccess(`${productForm.name} created.`);
       }
 
       closeModal();
     } catch (error) {
-      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to save product.' });
+      showError(getFriendlyAdminErrorMessage(error, 'Product could not be saved. Please check the details and try again.'));
     }
   };
 
@@ -1910,7 +2023,7 @@ export default function Admin() {
         }));
       }
     } catch (error) {
-      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to upload product image.' });
+      showError(getFriendlyAdminErrorMessage(error, 'Image upload failed. Please check the file and try again.'));
     }
   };
 
@@ -1926,10 +2039,10 @@ export default function Admin() {
     try {
       setDeletingProductFor(deleteProductCandidate.id);
       await deleteProduct(deleteProductCandidate.id);
-      setToast({ type: 'success', message: `${deleteProductCandidate.name} deleted.` });
+      showSuccess(`${deleteProductCandidate.name} deleted.`);
       setDeleteProductCandidate(null);
     } catch (error) {
-      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to delete product.' });
+      showError(getFriendlyAdminErrorMessage(error, 'Product could not be deleted. Please try again.'));
     } finally {
       setDeletingProductFor(null);
     }
@@ -1953,9 +2066,9 @@ export default function Admin() {
     try {
       const updatedOrder = await markPacked(order.id);
       setViewingOrder((current) => (current?.id === order.id ? updatedOrder : current));
-      setToast({ type: 'success', message: `${order.id} marked packed.` });
+      showSuccess(`${order.id} marked packed.`);
     } catch (error) {
-      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to mark order packed.' });
+      showError(getFriendlyAdminErrorMessage(error, 'Order could not be marked as packed. Please try again.'));
     } finally {
       setUpdatingOrderFor('');
     }
@@ -1973,9 +2086,9 @@ export default function Admin() {
       const updatedOrder = await cancelOrder(order.id);
       setViewingOrder((current) => (current?.id === order.id ? updatedOrder : current));
       setCancelCandidate(null);
-      setToast({ type: 'success', message: `${order.id} cancelled.` });
+      showSuccess(`${order.id} cancelled.`);
     } catch (error) {
-      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to cancel order.' });
+      showError(getFriendlyAdminErrorMessage(error, 'Order could not be cancelled. Please try again.'));
     } finally {
       setUpdatingOrderFor('');
     }
@@ -1987,9 +2100,9 @@ export default function Admin() {
     try {
       const updatedOrder = await createShipment(order.id);
       setViewingOrder((current) => (current?.id === order.id ? updatedOrder : current));
-      setToast({ type: 'success', message: `Shipment created for ${order.id}.` });
+      showSuccess(`Shipment created for ${order.id}.`);
     } catch (error) {
-      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to create shipment.' });
+      showError(getFriendlyAdminErrorMessage(error, 'Shipment could not be created. Please check Shiprocket details and try again.'));
     } finally {
       setCreatingShipmentFor('');
     }
@@ -2000,9 +2113,9 @@ export default function Admin() {
       setSyncingShipmentFor(order.id);
       const updatedOrder = await syncShipment(order.id);
       setViewingOrder(updatedOrder);
-      setToast({ type: 'success', message: `Shipment synced for ${order.id}.` });
+      showSuccess(`Shipment synced for ${order.id}.`);
     } catch (error) {
-      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to sync shipment.' });
+      showError(getFriendlyAdminErrorMessage(error, 'Shipment status could not be synced. Please try again.'));
     } finally {
       setSyncingShipmentFor('');
     }
@@ -2018,9 +2131,9 @@ export default function Admin() {
       const updatedOrder = await cancelShipment(cancelShipmentCandidate.id);
       setViewingOrder(updatedOrder);
       setCancelShipmentCandidate(null);
-      setToast({ type: 'success', message: `Shiprocket cancellation requested for ${cancelShipmentCandidate.id}.` });
+      showSuccess(`Shiprocket cancellation requested for ${cancelShipmentCandidate.id}.`);
     } catch (error) {
-      setToast({ type: 'error', message: error instanceof Error ? error.message : 'Failed to cancel shipment.' });
+      showError(getFriendlyAdminErrorMessage(error, 'Shipment could not be cancelled. Please try again.'));
     } finally {
       setCancellingShipmentFor('');
     }
@@ -2029,33 +2142,6 @@ export default function Admin() {
   return (
     <div className="min-h-screen bg-[#fcfbf9] font-sans text-[#1a1a1a]">
       <div className="pointer-events-none fixed inset-0 z-0 opacity-[0.03]" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/stardust.png")' }} />
-
-      {toast && (
-        <div className="fixed right-5 top-5 z-[260] w-[min(360px,calc(100vw-2.5rem))]">
-          <div className={`flex items-start gap-3 border bg-[#fcfbf9] p-4 ${
-            toast.type === 'success' ? 'border-emerald-200' : 'border-red-200'
-          }`}>
-            <div className={`mt-0.5 p-1.5 ${
-              toast.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-            }`}>
-              {toast.type === 'success' ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
-            </div>
-            <div className="min-w-0">
-              <p className="text-[9px] font-semibold uppercase tracking-widest text-stone-400">
-                {toast.type === 'success' ? 'Action Complete' : 'Action Failed'}
-              </p>
-              <p className="mt-1 text-xs font-medium leading-5 text-[#111]">{toast.message}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setToast(null)}
-              className="ml-auto cursor-pointer p-1 text-stone-400 transition-colors hover:bg-stone-50 hover:text-stone-900"
-            >
-              <X size={13} />
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="fixed left-0 right-0 top-0 z-40 flex h-16 items-center justify-between border-b border-stone-200 bg-[#fcfbf9] px-6 lg:hidden">
         <Link to="/" className="font-serif text-xl uppercase tracking-widest text-[#1a1a1a]">
@@ -2103,6 +2189,7 @@ export default function Admin() {
             { id: 'OVERVIEW' as const, label: 'Dashboard', icon: LayoutDashboard },
             { id: 'ORDERS' as const, label: `Orders (${orders.length})`, icon: FileText },
             { id: 'CATALOG' as const, label: `Products (${products.length})`, icon: ShoppingBag },
+            { id: 'CUSTOMERS' as const, label: `Customers (${customers.length})`, icon: User },
           ].map((item) => {
             const isActive = activeTab === item.id;
             return (
@@ -2157,12 +2244,6 @@ export default function Admin() {
 
       <div className="min-h-[100dvh] overflow-x-hidden pt-24 lg:ml-64 lg:pt-0">
         <main className="mx-auto w-full max-w-[1460px] p-4 md:p-8 lg:p-[60px]">
-          {(error || productError) && (
-            <div className="mb-6 border border-red-200 bg-red-50 px-5 py-4 text-xs font-medium text-red-700">
-              {error || productError}
-            </div>
-          )}
-
           {activeTab === 'OVERVIEW' && (
             <div>
               <div className="mb-12 flex flex-col justify-between gap-6 md:flex-row md:items-end">
@@ -2807,20 +2888,20 @@ export default function Admin() {
                                   <span className="mt-1 text-[9px] uppercase tracking-widest text-stone-400">{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
                                 </div>
                                 <div className="col-span-1 flex items-center justify-center text-center">
-                                  <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${getPaymentStatusClasses(order.paymentStatus)}`}>
+                                <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${neutralBadgeClasses}`}>
                                     {formatStatusLabel(order.paymentStatus)}
                                   </span>
                                 </div>
                                 <div className="col-span-2 flex items-center justify-center text-center">
-                                  <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${getStatusClasses(order.status)}`}>
+                                <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${neutralBadgeClasses}`}>
                                     {order.status}
                                   </span>
                                 </div>
                                 <div className="col-span-2 flex flex-col items-center justify-center text-center">
-                                  <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${getShippingStatusClasses(order.shippingStatus)}`}>
+                                <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${neutralBadgeClasses}`}>
                                     {formatStatusLabel(order.shippingStatus)}
                                   </span>
-                                  {needsAction && <span className="mt-1 text-[9px] uppercase tracking-widest text-amber-700">Action needed</span>}
+                                {needsAction && <span className="mt-1 text-[9px] uppercase tracking-widest text-stone-500">Action needed</span>}
                                 </div>
                                 <div className="col-span-1 text-right font-serif text-lg text-[#1a1a1a]">
                                   {formatCurrency(order.total)}
@@ -2899,6 +2980,176 @@ export default function Admin() {
                     )}
                   </div>
                 </>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'CUSTOMERS' && (
+            <div className="flex h-full flex-col">
+              {!selectedCustomer ? (
+                <>
+                  <div className="mb-12 flex items-end justify-between">
+                    <h1 className="font-serif text-3xl md:text-4xl">Customers</h1>
+                  </div>
+
+                  <div className="w-full overflow-x-auto">
+                    <div className="min-w-[600px]">
+                      <div className="mb-4 grid grid-cols-4 gap-4 border-b border-[#1a1a1a] pb-4 font-sans text-[9px] font-semibold uppercase tracking-widest text-stone-400">
+                        <div className="col-span-1">Name</div>
+                        <div className="col-span-1">Email</div>
+                        <div className="col-span-1 text-center">Orders</div>
+                        <div className="col-span-1 text-right">Action</div>
+                      </div>
+
+                      {paginatedCustomers.map((customer) => (
+                        <div key={customer.id} className="grid grid-cols-4 items-center gap-4 border-b border-stone-200 py-4 transition-colors hover:bg-stone-50">
+                          <div className="font-sans text-[11px] font-medium text-[#1a1a1a]">{customer.name}</div>
+                          <div className="truncate font-sans text-[11px] font-normal text-stone-500">{customer.email || 'No email'}</div>
+                          <div className="text-center font-sans text-[11px] font-normal text-stone-500">{customer.orderCount}</div>
+                          <div className="text-right">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCustomerId(customer.id)}
+                              className="cursor-pointer border-b border-[#1a1a1a] pb-1 font-sans text-[9px] font-normal uppercase tracking-widest text-[#1a1a1a] transition-opacity hover:opacity-60"
+                            >
+                              View Profile
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {customers.length === 0 && (
+                      <div className="flex flex-col items-center justify-center border border-dashed border-stone-200 p-12 text-center text-stone-400">
+                        <ShoppingBag size={24} strokeWidth={1} className="mb-4" />
+                        <span className="font-sans text-[11px] font-normal">Customers will appear here after orders are placed.</span>
+                      </div>
+                    )}
+
+                    {customerPageCount > 1 && (
+                      <div className="mt-4 flex shrink-0 items-center justify-between border-t border-stone-200 pt-4">
+                        <span className="font-sans text-[11px] font-normal text-stone-500">
+                          Showing {(customerPage - 1) * customerPageSize + 1} to {Math.min(customerPage * customerPageSize, customers.length)} of {customers.length} entries
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setCustomerPage((page) => Math.max(1, page - 1))}
+                            disabled={customerPage === 1}
+                            className="cursor-pointer border border-stone-200 px-3 py-1 font-sans text-[10px] font-normal uppercase tracking-widest transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Prev
+                          </button>
+                          <span className="flex items-center px-3 py-1 font-sans text-[11px] font-normal">
+                            Page {customerPage} of {customerPageCount}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setCustomerPage((page) => Math.min(customerPageCount, page + 1))}
+                            disabled={customerPage === customerPageCount}
+                            className="cursor-pointer border border-stone-200 px-3 py-1 font-sans text-[10px] font-normal uppercase tracking-widest transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-1 flex-col">
+                  <div className="mb-8">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCustomerId(null)}
+                      className="flex cursor-pointer items-center gap-2 font-sans text-[9px] font-normal uppercase tracking-widest text-stone-400 transition-colors hover:text-[#1a1a1a]"
+                    >
+                      <ArrowLeft size={12} />
+                      Back to Customers
+                    </button>
+                  </div>
+
+                  <div className="flex flex-1 flex-col gap-12 md:flex-row">
+                    <div className="flex w-full flex-col gap-6 md:w-1/3">
+                      <div className="flex flex-col items-center border border-stone-200 bg-white p-8 text-center">
+                        <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-stone-100 font-serif text-3xl text-[#1a1a1a]">
+                          {selectedCustomer.name.charAt(0).toUpperCase()}
+                        </div>
+                        <h2 className="font-serif text-2xl text-[#1a1a1a]">{selectedCustomer.name}</h2>
+                        <div className="mt-1 font-sans text-[11px] font-normal text-stone-400">
+                          Customer since {new Date(selectedCustomer.joinedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </div>
+
+                        <div className="my-6 h-px w-full bg-stone-100" />
+
+                        <div className="w-full space-y-4 text-left">
+                          <div className="group flex items-center justify-between gap-4">
+                            <div className="min-w-0">
+                              <div className="mb-1 font-sans text-[9px] font-normal uppercase tracking-widest text-stone-400">Email Address</div>
+                              <div className="truncate font-sans text-[12px] font-normal text-[#1a1a1a]">{selectedCustomer.email || 'No email'}</div>
+                            </div>
+                            <CopyButton value={selectedCustomer.email} label="" />
+                          </div>
+
+                          <div className="group flex items-center justify-between gap-4">
+                            <div className="min-w-0">
+                              <div className="mb-1 font-sans text-[9px] font-normal uppercase tracking-widest text-stone-400">Phone Number</div>
+                              <div className="font-sans text-[12px] font-normal text-[#1a1a1a]">{selectedCustomer.phone || 'No phone'}</div>
+                            </div>
+                            <CopyButton value={selectedCustomer.phone} label="" />
+                          </div>
+
+                          <div>
+                            <div className="mb-1 font-sans text-[9px] font-normal uppercase tracking-widest text-stone-400">Default Address</div>
+                            <div className="font-sans text-[12px] font-normal leading-relaxed text-[#1a1a1a]">{selectedCustomer.address || 'No address saved'}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-center justify-center border border-stone-200 bg-stone-50 p-8 text-center">
+                        <div className="mb-2 font-sans text-[9px] font-normal uppercase tracking-widest text-stone-400">Total Spent</div>
+                        <div className="font-serif text-3xl text-[#1a1a1a]">{formatCurrency(selectedCustomer.totalSpent)}</div>
+                        <div className="mt-2 font-sans text-[11px] font-normal text-stone-500">Across {selectedCustomer.orderCount} orders</div>
+                      </div>
+                    </div>
+
+                    <div className="w-full md:w-2/3">
+                      <h3 className="mb-6 font-serif text-xl">Recent Orders</h3>
+                      {selectedCustomer.recentOrders.length > 0 ? (
+                        <div className="space-y-4">
+                          {selectedCustomer.recentOrders.slice(0, 5).map((order) => (
+                            <button
+                              key={order.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedCustomerId(null);
+                                navigate(adminTabRoutes.ORDERS);
+                                setViewingOrder(order);
+                              }}
+                              className="group flex w-full cursor-pointer items-center justify-between border border-stone-200 bg-white p-6 text-left transition-colors hover:border-[#1a1a1a]"
+                            >
+                              <div>
+                                <div className="font-sans text-[12px] font-medium text-[#1a1a1a]">{order.id}</div>
+                                <div className="mt-1 font-sans text-[10px] font-normal text-stone-400">Placed on {formatDate(order.createdAt)}</div>
+                              </div>
+                              <div className="flex items-center gap-6">
+                                <span className="font-serif text-lg">{formatCurrency(order.total)}</span>
+                                <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${neutralBadgeClasses}`}>
+                                  {order.status}
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center border border-dashed border-stone-200 p-12 text-center text-stone-400">
+                          <ShoppingBag size={24} strokeWidth={1} className="mb-4" />
+                          <span className="font-sans text-[11px] font-normal">This customer has not placed any orders yet.</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -3031,96 +3282,53 @@ export default function Admin() {
           </div>
         </div>
       )}
+      <AnimatePresence>
+        {deleteProductCandidate && (
+          <div className="fixed inset-0 z-[220] flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+              className="absolute inset-0 bg-[#1a1a1a]/40 backdrop-blur-sm"
+              onClick={() => setDeleteProductCandidate(null)}
+            />
 
-      {deleteProductCandidate && (
-        <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#1a1a1a]/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden border border-stone-200 bg-[#fcfbf9] text-center">
-            <div className="border-b border-stone-200 px-8 py-7">
-              <div>
-                <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-widest text-stone-400">Catalog Action</p>
-                <h3 className="font-serif text-[2rem] font-medium leading-none tracking-tight text-[#111]">Delete product</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDeleteProductCandidate(null)}
-                className="sr-only"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="px-8 py-6">
-              <p className="mb-5 text-xs font-light leading-6 text-stone-500">
-                This will remove <span className="font-semibold text-[#111]">{deleteProductCandidate.name}</span> from the catalog and delete its uploaded product images from storage.
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.4 }}
+              className="relative z-10 w-full max-w-sm border border-stone-200 bg-[#fcfbf9] p-8 text-center shadow-2xl"
+            >
+              <h3 className="mb-4 font-serif text-2xl text-[#1a1a1a]">Delete Product</h3>
+              <p className="mb-8 font-sans text-[11px] leading-relaxed text-stone-500">
+                Are you sure you want to delete{' '}
+                <span className="font-semibold text-[#1a1a1a]">{deleteProductCandidate.name}</span>? This action cannot be undone.
               </p>
 
-              <div className="overflow-hidden border border-stone-200 bg-white text-left">
-                <div className="flex gap-4 p-4">
-                  <div className="h-24 w-18 shrink-0 overflow-hidden border border-stone-200 bg-stone-100">
-                    <img
-                      src={deleteProductCandidate.image}
-                      alt={deleteProductCandidate.name}
-                      className="h-full w-full object-cover mix-blend-multiply"
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[9px] font-semibold uppercase tracking-widest text-stone-400">Product</p>
-                    <h4 className="mt-2 truncate font-serif text-xl font-medium text-[#111]">{deleteProductCandidate.name}</h4>
-                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-stone-400">
-                      {deleteProductCandidate.id.slice(-6).toUpperCase()} · {deleteProductCandidate.category}
-                    </p>
-                    <p className="mt-3 font-mono text-xs font-bold text-[#111]">{formatCurrency(deleteProductCandidate.price)}</p>
-                  </div>
-                </div>
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  disabled={deletingProductFor === deleteProductCandidate.id}
+                  onClick={() => void confirmDeleteProduct()}
+                  className="w-full cursor-pointer bg-red-600 py-3 font-sans text-[10px] uppercase tracking-[0.2em] text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {deletingProductFor === deleteProductCandidate.id ? 'Deleting' : 'Confirm Delete'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteProductCandidate(null)}
+                  className="w-full cursor-pointer border border-stone-200 bg-transparent py-3 font-sans text-[10px] uppercase tracking-[0.2em] text-[#1a1a1a] transition-colors hover:bg-stone-50"
+                >
+                  Cancel
+                </button>
               </div>
-            </div>
-
-            <div className="flex flex-col-reverse gap-3 border-t border-stone-200 px-8 py-6">
-              <button
-                type="button"
-                onClick={() => setDeleteProductCandidate(null)}
-                className="w-full cursor-pointer border border-stone-200 bg-transparent px-5 py-3 text-[9px] font-semibold uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50"
-              >
-                Keep Product
-              </button>
-              <button
-                type="button"
-                disabled={deletingProductFor === deleteProductCandidate.id}
-                onClick={() => void confirmDeleteProduct()}
-                className="w-full cursor-pointer border border-[#1a1a1a] bg-[#1a1a1a] px-5 py-3 text-[9px] font-semibold uppercase tracking-widest text-[#fcfbf9] transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-300 disabled:text-stone-500"
-              >
-                {deletingProductFor === deleteProductCandidate.id ? 'Deleting' : 'Delete Product'}
-              </button>
-            </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
-      {viewingOrder && activeTab !== 'ORDERS' && (
-        <OrderDrawer
-          order={viewingOrder}
-          onClose={() => setViewingOrder(null)}
-          onMarkPacked={() => {
-            void handleMarkPacked(viewingOrder);
-          }}
-          onCreateShipment={() => {
-            void handleCreateShipment(viewingOrder);
-          }}
-          onSyncShipment={() => {
-            void handleSyncShipment(viewingOrder);
-          }}
-          onCancelShipment={() => {
-            setCancelShipmentCandidate(viewingOrder);
-          }}
-          onCancelOrder={() => {
-            setCancelCandidate(viewingOrder);
-          }}
-          isUpdating={updatingOrderFor === viewingOrder.id}
-          isCreatingShipment={creatingShipmentFor === viewingOrder.id}
-          isSyncingShipment={syncingShipmentFor === viewingOrder.id}
-          isCancellingShipment={cancellingShipmentFor === viewingOrder.id}
-        />
-      )}
     </div>
   );
 }
