@@ -14,7 +14,7 @@ import {
   ExternalLink,
   FileText,
   LayoutDashboard,
-  LockKeyhole,
+  LogOut,
   Mail,
   MapPin,
   Package,
@@ -32,6 +32,7 @@ import {
 import { type Order, type OrderStatus, useOrderStore } from './store/orderStore';
 import { type ProductStoreItem, useProductStore } from './store/productStore';
 import { useToast } from './contexts/ToastContext';
+import { clearAdminToken } from './lib/adminAuth';
 
 type AdminTab = 'OVERVIEW' | 'CATALOG' | 'ORDERS' | 'CUSTOMERS';
 type DashboardRange = 'week' | 'month' | 'year' | 'all' | 'custom';
@@ -200,6 +201,61 @@ const createEmptyForm = (): ProductFormState => ({
 });
 
 const neutralBadgeClasses = 'bg-stone-100 text-[#1a1a1a] border-stone-200';
+const successBadgeClasses = 'bg-green-50 text-green-700 border-green-100';
+const warningBadgeClasses = 'bg-amber-50 text-amber-700 border-amber-100';
+const dangerBadgeClasses = 'bg-red-50 text-red-600 border-red-100';
+
+const getOrderStatusBadgeClasses = (status: string) => {
+  if (status === 'Delivered') {
+    return successBadgeClasses;
+  }
+
+  if (['Pending', 'Confirmed', 'Packed', 'Shipped'].includes(status)) {
+    return warningBadgeClasses;
+  }
+
+  if (status === 'Cancelled') {
+    return dangerBadgeClasses;
+  }
+
+  return neutralBadgeClasses;
+};
+
+const getPaymentStatusBadgeClasses = (status: string) => {
+  if (status === 'paid') {
+    return successBadgeClasses;
+  }
+
+  if (status === 'pending') {
+    return warningBadgeClasses;
+  }
+
+  if (['failed', 'refunded'].includes(status)) {
+    return dangerBadgeClasses;
+  }
+
+  return neutralBadgeClasses;
+};
+
+const getShippingStatusBadgeClasses = (status: string) => {
+  if (status === 'delivered') {
+    return successBadgeClasses;
+  }
+
+  if (['created', 'awb_assigned', 'pickup_scheduled', 'shipped', 'in_transit'].includes(status)) {
+    return warningBadgeClasses;
+  }
+
+  if (status === 'not_created') {
+    return warningBadgeClasses;
+  }
+
+  if (['failed', 'cancelled'].includes(status)) {
+    return dangerBadgeClasses;
+  }
+
+  return neutralBadgeClasses;
+};
 
 const formatStatusLabel = (status: string) =>
   status
@@ -255,14 +311,14 @@ const getInventoryStatus = (product: { isActive?: boolean; stockQuantity?: numbe
   }
 
   if (stockQuantity <= 0) {
-    return { label: 'Out of Stock', className: neutralBadgeClasses };
+    return { label: 'Out of Stock', className: dangerBadgeClasses };
   }
 
   if (stockQuantity <= lowStockThreshold) {
-    return { label: 'Low Stock', className: neutralBadgeClasses };
+    return { label: 'Low Stock', className: warningBadgeClasses };
   }
 
-  return { label: 'Active', className: neutralBadgeClasses };
+  return { label: 'Active', className: successBadgeClasses };
 };
 
 const orderMatchesQueue = (order: Order, queue: OrderQueue) => {
@@ -1077,7 +1133,7 @@ function OrderDrawer({
         <div className="border border-stone-200 bg-white">
           <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
             <h2 className="font-serif text-xl text-[#1a1a1a]">Order Items</h2>
-            <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${neutralBadgeClasses}`}>
+            <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getOrderStatusBadgeClasses(order.status)}`}>
               {order.status}
             </span>
           </div>
@@ -1125,8 +1181,8 @@ function OrderDrawer({
 
           <div className="border border-stone-200 bg-white">
             <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
-              <h2 className="font-serif text-xl text-[#1a1a1a]">Logistics & Tracking</h2>
-              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${neutralBadgeClasses}`}>
+              <h2 className="font-serif text-xl text-[#1a1a1a]">Logistics and Tracking</h2>
+              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getShippingStatusBadgeClasses(order.shippingStatus)}`}>
                 {formatStatusLabel(order.shippingStatus)}
               </span>
             </div>
@@ -1269,7 +1325,7 @@ function OrderDrawer({
           <div className="border border-stone-200 bg-white">
             <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
               <h2 className="font-serif text-xl text-[#1a1a1a]">Payment Details</h2>
-              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${neutralBadgeClasses}`}>
+              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getPaymentStatusBadgeClasses(order.paymentStatus)}`}>
                 {formatStatusLabel(order.paymentStatus)}
               </span>
             </div>
@@ -1294,7 +1350,7 @@ function OrderDrawer({
           <div className="border border-stone-200 bg-white">
             <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
               <h2 className="font-serif text-xl text-[#1a1a1a]">Shipping Address</h2>
-              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${neutralBadgeClasses}`}>
+              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getShippingStatusBadgeClasses(order.shippingStatus)}`}>
                 {formatStatusLabel(order.shippingStatus)}
               </span>
             </div>
@@ -1314,7 +1370,7 @@ function OrderDrawer({
           <div className="border border-stone-200 bg-white">
             <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 p-6">
               <h2 className="font-serif text-xl text-[#1a1a1a]">Billing Address</h2>
-              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${neutralBadgeClasses}`}>
+              <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getPaymentStatusBadgeClasses(order.paymentStatus)}`}>
                 {formatStatusLabel(order.paymentStatus)}
               </span>
             </div>
@@ -1385,6 +1441,7 @@ export default function Admin() {
   const [cancelCandidate, setCancelCandidate] = useState<Order | null>(null);
   const [cancelShipmentCandidate, setCancelShipmentCandidate] = useState<Order | null>(null);
   const [deleteProductCandidate, setDeleteProductCandidate] = useState<ProductStoreItem | null>(null);
+  const [isAdminLogoutModalOpen, setIsAdminLogoutModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [dashboardRange, setDashboardRange] = useState<DashboardRange>('week');
   const [customStartDate, setCustomStartDate] = useState(getDateKey(new Date()));
@@ -1437,7 +1494,8 @@ export default function Admin() {
       isModalOpen ||
       cancelCandidate ||
       cancelShipmentCandidate ||
-      deleteProductCandidate,
+      deleteProductCandidate ||
+      isAdminLogoutModalOpen,
     );
     const rootElement = document.documentElement;
     const previousOverflow = document.body.style.overflow;
@@ -1470,7 +1528,7 @@ export default function Admin() {
         window.scrollTo(0, scrollY);
       }
     };
-  }, [cancelCandidate, cancelShipmentCandidate, deleteProductCandidate, isModalOpen]);
+  }, [cancelCandidate, cancelShipmentCandidate, deleteProductCandidate, isAdminLogoutModalOpen, isModalOpen]);
 
   const rangeLabel = useMemo(
     () => getDateRangeLabel(dashboardRange, customStartDate, customEndDate),
@@ -2229,14 +2287,11 @@ export default function Admin() {
             </div>
             <button
               type="button"
-              onClick={() => {
-                window.localStorage.removeItem('simvorae_admin_token');
-                navigate('/admin/login', { replace: true });
-              }}
+              onClick={() => setIsAdminLogoutModalOpen(true)}
               className="cursor-pointer p-2 text-stone-400 transition-colors hover:text-[#1a1a1a]"
               title="Logout"
             >
-              <LockKeyhole size={14} />
+              <LogOut size={14} />
             </button>
           </div>
         </div>
@@ -2494,9 +2549,7 @@ export default function Admin() {
                             <div className="font-sans text-[11px] font-medium">{order.id}</div>
                             <div className="font-sans text-[11px] text-stone-500">{formatDate(order.createdAt)}</div>
                             <div className="text-center font-sans text-[9px] uppercase tracking-widest">
-                              <span className={`inline-block rounded-full px-3 py-1 ${
-                                order.status === 'Delivered' ? 'bg-stone-50 text-stone-500' : 'bg-stone-100 text-[#1a1a1a]'
-                              }`}>
+                              <span className={`inline-block rounded-sm border px-3 py-1 font-normal ${getOrderStatusBadgeClasses(order.status)}`}>
                                 {order.status}
                               </span>
                             </div>
@@ -2888,20 +2941,20 @@ export default function Admin() {
                                   <span className="mt-1 text-[9px] uppercase tracking-widest text-stone-400">{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
                                 </div>
                                 <div className="col-span-1 flex items-center justify-center text-center">
-                                <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${neutralBadgeClasses}`}>
+                                <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${getPaymentStatusBadgeClasses(order.paymentStatus)}`}>
                                     {formatStatusLabel(order.paymentStatus)}
                                   </span>
                                 </div>
                                 <div className="col-span-2 flex items-center justify-center text-center">
-                                <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${neutralBadgeClasses}`}>
+                                <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${getOrderStatusBadgeClasses(order.status)}`}>
                                     {order.status}
                                   </span>
                                 </div>
                                 <div className="col-span-2 flex flex-col items-center justify-center text-center">
-                                <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${neutralBadgeClasses}`}>
+                                <span className={`rounded-sm border px-3 py-1 text-[9px] uppercase tracking-widest ${getShippingStatusBadgeClasses(order.shippingStatus)}`}>
                                     {formatStatusLabel(order.shippingStatus)}
                                   </span>
-                                {needsAction && <span className="mt-1 text-[9px] uppercase tracking-widest text-stone-500">Action needed</span>}
+                                {needsAction && <span className="mt-1 text-[9px] uppercase tracking-widest text-amber-700">Action needed</span>}
                                 </div>
                                 <div className="col-span-1 text-right font-serif text-lg text-[#1a1a1a]">
                                   {formatCurrency(order.total)}
@@ -3134,7 +3187,7 @@ export default function Admin() {
                               </div>
                               <div className="flex items-center gap-6">
                                 <span className="font-serif text-lg">{formatCurrency(order.total)}</span>
-                                <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${neutralBadgeClasses}`}>
+                                <span className={`rounded-sm border px-3 py-1 font-sans text-[9px] font-normal uppercase tracking-widest ${getOrderStatusBadgeClasses(order.status)}`}>
                                   {order.status}
                                 </span>
                               </div>
@@ -3169,119 +3222,147 @@ export default function Admin() {
         />
       )}
 
-      {cancelCandidate && (
-        <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#1a1a1a]/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden border border-stone-200 bg-[#fcfbf9] text-center">
-            <div className="border-b border-stone-200 px-8 py-7">
-              <div>
-                <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-widest text-stone-400">Order Action</p>
-                <h3 className="font-serif text-[2rem] font-medium leading-none tracking-tight text-[#111]">Cancel order</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCancelCandidate(null)}
-                className="sr-only"
-              >
-                Close
-              </button>
-            </div>
+      <AnimatePresence>
+        {cancelCandidate && (
+          <div className="fixed inset-0 z-[220] flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+              className="absolute inset-0 bg-[#1a1a1a]/40 backdrop-blur-sm"
+              onClick={() => setCancelCandidate(null)}
+            />
 
-            <div className="px-8 py-6">
-              <p className="mb-5 text-xs font-light leading-6 text-stone-500">
-                This will cancel <span className="font-mono font-bold text-[#111]">{cancelCandidate.id}</span>. Use this only for stock issues, customer requests, fraud checks, or invalid order details.
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.4 }}
+              className="relative z-10 w-full max-w-sm border border-stone-200 bg-[#fcfbf9] p-8 text-center shadow-2xl"
+            >
+              <h3 className="mb-4 font-serif text-2xl text-[#1a1a1a]">Cancel Order</h3>
+              <p className="mb-8 font-sans text-[11px] leading-relaxed text-stone-500">
+                Are you sure you want to cancel <span className="font-semibold text-[#1a1a1a]">{cancelCandidate.id}</span>? Use this only for customer requests, stock issues, or invalid order details.
               </p>
 
-              <div className="grid grid-cols-1 overflow-hidden border border-stone-200 bg-white text-left sm:grid-cols-2">
-                <div className="border-b border-stone-200 p-4 sm:border-b-0 sm:border-r">
-                  <p className="text-[9px] font-semibold uppercase tracking-widest text-stone-400">Customer</p>
-                  <p className="mt-2 text-sm font-semibold text-[#111]">{cancelCandidate.customer.name}</p>
-                  <p className="mt-1 text-xs text-stone-400">{cancelCandidate.customer.phone}</p>
-                </div>
-                <div className="p-4 text-left sm:text-right">
-                  <p className="text-[9px] font-semibold uppercase tracking-widest text-stone-400">Order Total</p>
-                  <p className="mt-2 font-mono text-sm font-bold text-[#111]">{formatCurrency(cancelCandidate.total)}</p>
-                  <p className="mt-1 text-xs text-stone-400">{cancelCandidate.status}</p>
-                </div>
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  disabled={updatingOrderFor === cancelCandidate.id}
+                  onClick={() => void confirmCancelOrder()}
+                  className="w-full cursor-pointer bg-red-600 py-3 font-sans text-[10px] uppercase tracking-[0.2em] text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {updatingOrderFor === cancelCandidate.id ? 'Cancelling' : 'Confirm Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCancelCandidate(null)}
+                  className="w-full cursor-pointer border border-stone-200 bg-transparent py-3 font-sans text-[10px] uppercase tracking-[0.2em] text-[#1a1a1a] transition-colors hover:bg-stone-50"
+                >
+                  Cancel
+                </button>
               </div>
-            </div>
-
-            <div className="flex flex-col-reverse gap-3 border-t border-stone-200 px-8 py-6">
-              <button
-                type="button"
-                onClick={() => setCancelCandidate(null)}
-                className="w-full cursor-pointer border border-stone-200 bg-transparent px-5 py-3 text-[9px] font-semibold uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50"
-              >
-                Keep Order
-              </button>
-              <button
-                type="button"
-                disabled={updatingOrderFor === cancelCandidate.id}
-                onClick={() => void confirmCancelOrder()}
-                className="w-full cursor-pointer border border-[#1a1a1a] bg-[#1a1a1a] px-5 py-3 text-[9px] font-normal uppercase tracking-widest text-[#fcfbf9] transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:border-stone-400 disabled:bg-stone-400"
-              >
-                {updatingOrderFor === cancelCandidate.id ? 'Cancelling' : 'Cancel Order'}
-              </button>
-            </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
-      {cancelShipmentCandidate && (
-        <div className="fixed inset-0 z-[220] flex items-center justify-center bg-[#1a1a1a]/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg overflow-hidden border border-stone-200 bg-[#fcfbf9] text-center">
-            <div className="border-b border-stone-200 px-8 py-7">
-              <div>
-                <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-widest text-stone-400">Shiprocket Action</p>
-                <h3 className="font-serif text-[2rem] font-medium leading-none tracking-tight text-[#111]">Cancel shipment</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCancelShipmentCandidate(null)}
-                className="sr-only"
-              >
-                Close
-              </button>
-            </div>
+      <AnimatePresence>
+        {cancelShipmentCandidate && (
+          <div className="fixed inset-0 z-[220] flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+              className="absolute inset-0 bg-[#1a1a1a]/40 backdrop-blur-sm"
+              onClick={() => setCancelShipmentCandidate(null)}
+            />
 
-            <div className="px-8 py-6">
-              <p className="mb-5 text-xs font-light leading-6 text-stone-500">
-                This will request cancellation in Shiprocket for <span className="font-mono font-bold text-[#111]">{cancelShipmentCandidate.id}</span>. Shipment cancellation works only before pickup or in-transit movement begins.
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.4 }}
+              className="relative z-10 w-full max-w-sm border border-stone-200 bg-[#fcfbf9] p-8 text-center shadow-2xl"
+            >
+              <h3 className="mb-4 font-serif text-2xl text-[#1a1a1a]">Cancel Shipment</h3>
+              <p className="mb-8 font-sans text-[11px] leading-relaxed text-stone-500">
+                Are you sure you want to request Shiprocket cancellation for <span className="font-semibold text-[#1a1a1a]">{cancelShipmentCandidate.id}</span>? This works only before pickup or courier movement begins.
               </p>
 
-              <div className="grid grid-cols-1 overflow-hidden border border-stone-200 bg-white text-left sm:grid-cols-2">
-                <div className="border-b border-stone-200 p-4 sm:border-b-0 sm:border-r">
-                  <p className="text-[9px] font-semibold uppercase tracking-widest text-stone-400">AWB</p>
-                  <p className="mt-2 font-mono text-sm font-bold text-[#111]">{cancelShipmentCandidate.awbCode || 'Not assigned'}</p>
-                  <p className="mt-1 text-xs text-stone-400">{cancelShipmentCandidate.courierName || 'Courier not assigned'}</p>
-                </div>
-                <div className="p-4 text-left sm:text-right">
-                  <p className="text-[9px] font-semibold uppercase tracking-widest text-stone-400">Shiprocket Order</p>
-                  <p className="mt-2 font-mono text-sm font-bold text-[#111]">{cancelShipmentCandidate.shiprocketOrderId || 'Not available'}</p>
-                  <p className="mt-1 text-xs text-stone-400">{formatStatusLabel(cancelShipmentCandidate.shippingStatus)}</p>
-                </div>
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  disabled={cancellingShipmentFor === cancelShipmentCandidate.id}
+                  onClick={() => void confirmCancelShipment()}
+                  className="w-full cursor-pointer bg-red-600 py-3 font-sans text-[10px] uppercase tracking-[0.2em] text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {cancellingShipmentFor === cancelShipmentCandidate.id ? 'Cancelling' : 'Confirm Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCancelShipmentCandidate(null)}
+                  className="w-full cursor-pointer border border-stone-200 bg-transparent py-3 font-sans text-[10px] uppercase tracking-[0.2em] text-[#1a1a1a] transition-colors hover:bg-stone-50"
+                >
+                  Cancel
+                </button>
               </div>
-            </div>
-
-            <div className="flex flex-col-reverse gap-3 border-t border-stone-200 px-8 py-6">
-              <button
-                type="button"
-                onClick={() => setCancelShipmentCandidate(null)}
-                className="w-full cursor-pointer border border-stone-200 bg-transparent px-5 py-3 text-[9px] font-semibold uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50"
-              >
-                Keep Shipment
-              </button>
-              <button
-                type="button"
-                disabled={cancellingShipmentFor === cancelShipmentCandidate.id}
-                onClick={() => void confirmCancelShipment()}
-                className="w-full cursor-pointer border border-[#1a1a1a] bg-[#1a1a1a] px-5 py-3 text-[9px] font-normal uppercase tracking-widest text-[#fcfbf9] transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:border-stone-300 disabled:bg-stone-300 disabled:text-stone-500"
-              >
-                {cancellingShipmentFor === cancelShipmentCandidate.id ? 'Cancelling' : 'Cancel Shipment'}
-              </button>
-            </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {isAdminLogoutModalOpen && (
+          <div className="fixed inset-0 z-[220] flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+              className="absolute inset-0 bg-[#1a1a1a]/40 backdrop-blur-sm"
+              onClick={() => setIsAdminLogoutModalOpen(false)}
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.4 }}
+              className="relative z-10 w-full max-w-sm border border-stone-200 bg-[#fcfbf9] p-8 text-center shadow-2xl"
+            >
+              <h3 className="mb-4 font-serif text-2xl text-[#1a1a1a]">Sign Out</h3>
+              <p className="mb-8 font-sans text-[11px] leading-relaxed text-stone-500">
+                Are you sure you want to end your admin session? You will need to log in again to access the portal.
+              </p>
+
+              <div className="flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAdminLogoutModalOpen(false);
+                    clearAdminToken();
+                    showSuccess('Signed out successfully.');
+                    navigate('/admin/login', { replace: true });
+                  }}
+                  className="w-full cursor-pointer bg-[#1a1a1a] py-3 font-sans text-[10px] uppercase tracking-[0.2em] text-[#fcfbf9] transition-colors hover:bg-stone-800"
+                >
+                  Confirm Logout
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAdminLogoutModalOpen(false)}
+                  className="w-full cursor-pointer border border-stone-200 bg-transparent py-3 font-sans text-[10px] uppercase tracking-[0.2em] text-[#1a1a1a] transition-colors hover:bg-stone-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {deleteProductCandidate && (
           <div className="fixed inset-0 z-[220] flex items-center justify-center px-4">

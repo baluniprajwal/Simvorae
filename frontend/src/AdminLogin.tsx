@@ -1,7 +1,9 @@
 import axios from 'axios';
-import { type FormEvent, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
-import { ArrowLeft, LockKeyhole, Mail } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { useToast } from './contexts/ToastContext';
+import { isAdminTokenValid, setAdminToken } from './lib/adminAuth';
 import api from './lib/api';
 
 type LoginResponse = {
@@ -12,19 +14,22 @@ type LoginResponse = {
 };
 
 export default function AdminLogin() {
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const navigate = useNavigate();
+  const { showError, showSuccess } = useToast();
 
-  if (window.localStorage.getItem('simvorae_admin_token')) {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  if (isAdminTokenValid()) {
     return <Navigate to="/admin" replace />;
   }
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError('');
     setIsSubmitting(true);
 
     try {
@@ -34,92 +39,97 @@ export default function AdminLogin() {
       });
 
       if (response.data.user.role !== 'admin') {
-        throw new Error('This account does not have admin access.');
+        showError('This account does not have admin access.');
+        return;
       }
 
-      window.localStorage.setItem('simvorae_admin_token', response.data.token);
+      setAdminToken(response.data.token);
+      showSuccess('Access granted. Welcome to Admin Portal.');
       navigate('/admin', { replace: true });
     } catch (error) {
       const message = axios.isAxiosError(error)
-        ? error.response?.data?.message || error.message
-        : error instanceof Error
-          ? error.message
-          : 'Admin login failed.';
-      setError(message);
+        ? error.response?.data?.message || 'Invalid admin email or password.'
+        : 'Invalid admin email or password.';
+      showError(message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-[#141414] text-[#fcfbf9] flex items-center justify-center p-6">
-      <div className="pointer-events-none fixed inset-0 opacity-[0.08]" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/stardust.png")' }} />
+    <div className="relative flex min-h-screen items-center justify-center bg-[#fcfbf9] p-6 font-sans text-[#1a1a1a]">
+      <div
+        className="pointer-events-none fixed inset-0 z-40 h-full w-full opacity-[0.035]"
+        style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/stardust.png")' }}
+      />
 
-      <section className="relative w-full max-w-md rounded-[2rem] border border-white/10 bg-[#fcfbf9] p-7 text-[#1a1a1a] shadow-2xl md:p-9">
-        <button
-          type="button"
-          onClick={() => navigate('/')}
-          className="mb-8 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.25em] text-stone-500 hover:text-stone-900"
-        >
-          <ArrowLeft size={13} />
-          Back to store
-        </button>
+      <Link
+        to="/"
+        className="absolute left-6 top-6 z-50 font-serif text-2xl uppercase tracking-widest text-[#1a1a1a] transition-opacity hover:opacity-70 md:left-12 md:top-10"
+      >
+        Simvorae
+      </Link>
 
-        <div className="mb-8">
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.3em] text-stone-400">Admin Portal</p>
-          <h1 className="font-serif text-4xl tracking-tight">SIMVORAE</h1>
-          <p className="mt-3 text-sm font-light leading-6 text-stone-500">
-            Sign in with an admin account to manage orders and catalog operations.
-          </p>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: [0.2, 1, 0.2, 1] }}
+        className="relative z-50 w-full max-w-md border border-stone-200 bg-white p-8 shadow-sm md:p-12"
+      >
+        <div className="mb-10 text-center">
+          <h1 className="mb-2 font-serif text-3xl text-[#1a1a1a] md:text-4xl">Portal Access</h1>
+          <p className="font-sans text-[10px] uppercase tracking-[0.2em] text-stone-500">Authorized Personnel Only</p>
         </div>
 
-        {error && (
-          <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700">
-            {error}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-8">
+          <div className="group relative flex flex-col gap-2 border-b border-stone-200 pb-2">
+            <label className="font-sans text-[9px] font-semibold uppercase tracking-widest text-stone-500 transition-colors group-focus-within:text-[#1a1a1a]">
+              Admin Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              className="w-full bg-transparent px-0 py-2 text-sm text-[#1a1a1a] transition-colors placeholder:text-stone-300 focus:outline-none"
+              placeholder="admin@simvorae.com"
+            />
+            <span className="absolute bottom-0 left-0 h-[1px] w-0 bg-[#1a1a1a] transition-all duration-500 group-focus-within:w-full" />
           </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <label className="block">
-            <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.25em] text-stone-500">Email</span>
-            <div className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 focus-within:border-stone-500">
-              <Mail size={15} className="text-stone-400" />
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="admin@example.com"
-                className="w-full bg-transparent text-sm outline-none placeholder:text-stone-400"
-              />
-            </div>
-          </label>
-
-          <label className="block">
-            <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.25em] text-stone-500">Password</span>
-            <div className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 focus-within:border-stone-500">
-              <LockKeyhole size={15} className="text-stone-400" />
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="Minimum 8 characters"
-                className="w-full bg-transparent text-sm outline-none placeholder:text-stone-400"
-              />
-            </div>
-          </label>
+          <div className="group relative flex flex-col gap-2 border-b border-stone-200 pb-2">
+            <label className="font-sans text-[9px] font-semibold uppercase tracking-widest text-stone-500 transition-colors group-focus-within:text-[#1a1a1a]">
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+              className="w-full bg-transparent px-0 py-2 text-sm text-[#1a1a1a] transition-colors placeholder:text-stone-300 focus:outline-none"
+              placeholder="Enter password"
+            />
+            <span className="absolute bottom-0 left-0 h-[1px] w-0 bg-[#1a1a1a] transition-all duration-500 group-focus-within:w-full" />
+          </div>
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="mt-4 w-full rounded-2xl bg-[#1a1a1a] px-5 py-4 text-[10px] font-bold uppercase tracking-[0.25em] text-[#fcfbf9] transition-colors hover:bg-black disabled:cursor-not-allowed disabled:bg-stone-400"
+            className="mt-4 w-full cursor-pointer bg-[#1a1a1a] py-4 font-sans text-[11px] font-semibold uppercase tracking-widest text-[#fcfbf9] transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-400"
           >
-            {isSubmitting ? 'Signing in' : 'Enter Dashboard'}
+            {isSubmitting ? 'Authenticating' : 'Authenticate'}
           </button>
         </form>
-      </section>
-    </main>
+
+        <div className="mt-8 text-center">
+          <Link
+            to="/login"
+            className="border-b border-transparent pb-1 text-[9px] uppercase tracking-[0.2em] text-stone-400 transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a]"
+          >
+            Return to Customer Login
+          </Link>
+        </div>
+      </motion.div>
+    </div>
   );
 }

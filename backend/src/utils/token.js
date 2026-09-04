@@ -2,6 +2,22 @@ import crypto from 'crypto';
 
 const defaultExpiresInSeconds = 60 * 60 * 24 * 7;
 
+function getExpiresInSeconds(envName, fallbackSeconds) {
+  const rawValue = process.env[envName];
+
+  if (!rawValue) {
+    return fallbackSeconds;
+  }
+
+  const seconds = Number(rawValue);
+
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    throw new Error(`${envName} must be a positive number of seconds.`);
+  }
+
+  return seconds;
+}
+
 function base64UrlEncode(value) {
   return Buffer.from(JSON.stringify(value)).toString('base64url');
 }
@@ -37,6 +53,14 @@ export function signToken(payload, expiresInSeconds = defaultExpiresInSeconds) {
   const signature = crypto.createHmac('sha256', getJwtSecret()).update(data).digest('base64url');
 
   return `${data}.${signature}`;
+}
+
+export function getCustomerTokenExpirySeconds() {
+  return getExpiresInSeconds('JWT_EXPIRES_IN_SECONDS', defaultExpiresInSeconds);
+}
+
+export function getAdminTokenExpirySeconds() {
+  return getExpiresInSeconds('JWT_ADMIN_EXPIRES_IN_SECONDS', 60 * 60 * 12);
 }
 
 export function verifyToken(token) {

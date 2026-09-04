@@ -21,6 +21,7 @@ import About from './About';
 import Contact from './Contact';
 import { useAuthStore } from './store/authStore';
 import { ToastProvider } from './contexts/ToastContext';
+import { clearAdminToken, isAdminTokenValid } from './lib/adminAuth';
 
 function ScrollToTop() {
   const { pathname, search } = useLocation();
@@ -138,9 +139,8 @@ function ProtectedOrderDetailRoute() {
 }
 
 function ProtectedAdminRoute() {
-  const token = window.localStorage.getItem('simvorae_admin_token');
-
-  if (!token) {
+  if (!isAdminTokenValid()) {
+    clearAdminToken();
     return <Navigate to="/admin/login" replace />;
   }
 

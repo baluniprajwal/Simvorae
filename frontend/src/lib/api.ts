@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearAdminToken, getAdminToken } from './adminAuth';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
@@ -10,9 +11,9 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const adminToken = window.localStorage.getItem('simvorae_admin_token');
+  const adminToken = getAdminToken();
   const customerToken = window.localStorage.getItem('simvorae_customer_token');
-  const isAdminPage = window.location.pathname.startsWith('/admin');
+  const isAdminPage = window.location.pathname.startsWith('/admin') && window.location.pathname !== '/admin/login';
   const token = isAdminPage ? adminToken : customerToken;
 
   if (token) {
@@ -23,6 +24,23 @@ api.interceptors.request.use((config) => {
 
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (
+      axios.isAxiosError(error) &&
+      [401, 403].includes(error.response?.status || 0) &&
+      window.location.pathname.startsWith('/admin') &&
+      window.location.pathname !== '/admin/login'
+    ) {
+      clearAdminToken();
+      window.location.replace('/admin/login');
+    }
+
+    return Promise.reject(error);
+  },
+);
 
 export function buildApiUrl(path: string) {
   return `${API_BASE_URL}${path}`;

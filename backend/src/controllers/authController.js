@@ -3,7 +3,7 @@ import { PendingUser } from '../models/PendingUser.js';
 import { User } from '../models/User.js';
 import { createHttpError } from '../utils/createHttpError.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
-import { signToken } from '../utils/token.js';
+import { getAdminTokenExpirySeconds, getCustomerTokenExpirySeconds, signToken } from '../utils/token.js';
 import { isValidEmail, isValidIndianPhone, isValidIndianPostalCode, normalizePhone } from '../utils/validators.js';
 import { sendEmailVerification, sendPasswordResetEmail } from '../services/emailService.js';
 
@@ -186,14 +186,19 @@ export async function login(req, res, next) {
     user.lastLoginAt = new Date();
     await user.save();
 
-    const token = signToken({
-      userId: user._id.toString(),
-      role: user.role,
-    });
+    const expiresIn = user.role === 'admin' ? getAdminTokenExpirySeconds() : getCustomerTokenExpirySeconds();
+    const token = signToken(
+      {
+        userId: user._id.toString(),
+        role: user.role,
+      },
+      expiresIn,
+    );
 
     return res.status(200).json({
       success: true,
       token,
+      expiresIn,
       user: sanitizeUser(user),
     });
   } catch (error) {
