@@ -248,15 +248,8 @@ export async function verifyEmail(req, res, next) {
 
     await PendingUser.deleteOne({ _id: pendingUser._id });
 
-    const authToken = signToken({
-      userId: user._id.toString(),
-      role: user.role,
-    });
-
     return res.status(200).json({
       success: true,
-      token: authToken,
-      user: sanitizeUser(user),
       message: 'Email verified and account created successfully.',
     });
   } catch (error) {

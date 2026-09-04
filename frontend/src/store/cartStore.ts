@@ -6,6 +6,7 @@ interface CartItem {
   price: number;
   image: string;
   quantity: number;
+  stockQuantity?: number;
 }
 
 interface CartStore {
@@ -26,9 +27,12 @@ export const useCartStore = create<CartStore>((set, get) => ({
   addItem: (item) => set((state) => {
     const existingItem = state.items.find(i => i.id === item.id);
     if (existingItem) {
+      const stockQuantity = item.stockQuantity ?? existingItem.stockQuantity;
+      const nextQuantity = stockQuantity ? Math.min(existingItem.quantity + item.quantity, stockQuantity) : existingItem.quantity + item.quantity;
+
       return {
-        items: state.items.map(i => 
-          i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i
+        items: state.items.map(i =>
+          i.id === item.id ? { ...i, quantity: nextQuantity, stockQuantity } : i
         ),
         isOpen: true
       };
@@ -43,7 +47,13 @@ export const useCartStore = create<CartStore>((set, get) => ({
       return { items: state.items.filter(i => i.id !== id) };
     }
     return {
-      items: state.items.map(i => i.id === id ? { ...i, quantity } : i)
+      items: state.items.map(i => {
+        if (i.id !== id) {
+          return i;
+        }
+
+        return { ...i, quantity: i.stockQuantity ? Math.min(quantity, i.stockQuantity) : quantity };
+      })
     };
   }),
   toggleCart: () => set((state) => ({ isOpen: !state.isOpen })),

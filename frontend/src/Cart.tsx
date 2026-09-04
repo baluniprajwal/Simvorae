@@ -2,10 +2,12 @@ import { X, Minus, Plus } from 'lucide-react';
 import { useCartStore } from './store/cartStore';
 import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useToast } from './contexts/ToastContext';
 
 export default function Cart() {
   const { items, isOpen, toggleCart, removeItem, updateQuantity, getCartTotal, getCartCount } = useCartStore();
   const navigate = useNavigate();
+  const { showError } = useToast();
 
   // Prevent scrolling when cart is open
   useEffect(() => {
@@ -83,7 +85,14 @@ export default function Cart() {
                         </button>
                         <span className="text-sm w-6 text-center font-medium">{item.quantity}</span>
                         <button 
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          onClick={() => {
+                            if (item.stockQuantity && item.quantity >= item.stockQuantity) {
+                              showError(`Only ${item.stockQuantity} available for ${item.name}.`);
+                              return;
+                            }
+
+                            updateQuantity(item.id, item.quantity + 1);
+                          }}
                           className="px-3 py-1.5 hover:bg-[#1a1a1a]/5 transition-colors"
                         >
                           <Plus className="w-3.5 h-3.5" />

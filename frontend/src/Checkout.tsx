@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertTriangle, ChevronLeft, CreditCard, ShieldCheck, UserCheck } from 'lucide-react';
+import { ChevronLeft, CreditCard, ShieldCheck, UserCheck } from 'lucide-react';
 import api from './lib/api';
 import { useAuthStore } from './store/authStore';
 import { useCartStore } from './store/cartStore';
+import { useToast } from './contexts/ToastContext';
 
 type CheckoutStep = 'ADDRESS' | 'PAYMENT';
 
@@ -67,9 +68,8 @@ function FieldError({
   className?: string;
 }) {
   return (
-    <div className={className}>
+    <div className={className} data-invalid={Boolean(error) || undefined}>
       {children}
-      {error && <p className="mt-1.5 text-[11px] font-medium text-red-600">{error}</p>}
     </div>
   );
 }
@@ -80,11 +80,11 @@ export default function Checkout() {
   const refreshMe = useAuthStore((state) => state.refreshMe);
   const navigate = useNavigate();
   const hasPrefilledRef = useRef(false);
+  const { showError } = useToast();
 
   const [step, setStep] = useState<CheckoutStep>('ADDRESS');
   const [phone, setPhone] = useState('');
   const [isPaying, setIsPaying] = useState(false);
-  const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     address: '',
@@ -163,15 +163,18 @@ export default function Checkout() {
     }
 
     setFieldErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      showError(Object.values(nextErrors)[0] || 'Please check your checkout details.');
+    }
+
     return Object.keys(nextErrors).length === 0;
   };
 
   const handleAddressSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    setError('');
 
     if (!validateCheckoutForm()) {
-      setError('Please fix the highlighted checkout details.');
       return;
     }
 
@@ -183,7 +186,6 @@ export default function Checkout() {
       return;
     }
 
-    setError('');
     setIsPaying(true);
 
     try {
@@ -260,14 +262,14 @@ export default function Checkout() {
               ? verifyError.response?.data?.message || verifyError.message
               : 'Payment completed, but verification failed. Contact support with your payment ID.';
 
-            setError(message);
+            showError(message);
           } finally {
             setIsPaying(false);
           }
         },
         modal: {
           ondismiss: () => {
-            setError('Payment window was closed before completion. Your cart is still saved and no payment was confirmed.');
+            showError('Payment window was closed before completion. Your cart is still saved.');
             setIsPaying(false);
           },
         },
@@ -276,7 +278,7 @@ export default function Checkout() {
       razorpay.on('payment.failed', (response: RazorpayFailureResponse) => {
         const paymentId = response.error?.metadata?.payment_id;
         const reason = response.error?.description || response.error?.reason || 'Payment failed. Please try another payment method.';
-        setError(paymentId ? `${reason} Payment ID: ${paymentId}` : reason);
+        showError(paymentId ? `${reason} Payment ID: ${paymentId}` : reason);
         setIsPaying(false);
       });
 
@@ -288,7 +290,7 @@ export default function Checkout() {
           ? paymentError.message
           : 'Payment could not be started.';
 
-      setError(message);
+      showError(message);
       setIsPaying(false);
     }
   };
@@ -329,13 +331,6 @@ export default function Checkout() {
             <form onSubmit={handleAddressSubmit} className="space-y-4 max-w-lg">
               <p className="text-stone-500 font-light text-sm mb-4 md:mb-6">Share your contact and delivery details.</p>
 
-              {error && (
-                <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <p>{error}</p>
-                </div>
-              )}
-
               <div className="rounded-[1rem] border border-[#1a1a1a]/10 bg-stone-100/40 p-4">
                 <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-stone-400">
                   <UserCheck className="h-4 w-4 text-stone-500" />
@@ -343,7 +338,6 @@ export default function Checkout() {
                 </div>
                 <p className="font-medium text-[#1a1a1a]">{user?.name}</p>
                 <p className="mt-1 text-sm font-light text-stone-600">{user?.email}</p>
-                {fieldErrors.account && <p className="mt-2 text-[11px] font-medium text-red-600">{fieldErrors.account}</p>}
               </div>
               {(phone || formData.address) && (
                 <p className="text-[11px] leading-5 text-stone-500">
@@ -404,12 +398,6 @@ export default function Checkout() {
                 <p className="text-sm font-light text-stone-600 mb-6 md:mb-8 border border-[#1a1a1a]/10 p-4 md:p-6 rounded-[1rem] bg-[#fcfbf9]">
                   After clicking "Pay with Razorpay", complete your purchase securely using UPI, Card, Netbanking, or Wallet.
                 </p>
-
-                {error && (
-                  <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {error}
-                  </p>
-                )}
 
                 <button disabled={isPaying} onClick={handlePayment} className="w-full py-4 md:py-5 bg-[#1a1a1a] text-[#fcfbf9] text-[10px] tracking-[0.2em] uppercase font-bold hover:bg-black transition-colors flex items-center justify-center gap-2 rounded-full disabled:cursor-not-allowed disabled:opacity-60">
                   <ShieldCheck className="w-4 h-4" />

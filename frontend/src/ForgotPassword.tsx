@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Mail } from 'lucide-react';
+import { Mail } from 'lucide-react';
 import { useAuthStore } from './store/authStore';
+import { useToast } from './contexts/ToastContext';
 
 function getErrorMessage(error: unknown) {
   if (axios.isAxiosError(error)) {
@@ -46,22 +47,23 @@ function UnderlineField({
 
 export default function ForgotPassword() {
   const { forgotPassword } = useAuthStore();
+  const { showError, showSuccess } = useToast();
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError('');
     setMessage('');
     setIsSubmitting(true);
 
     try {
       const response = await forgotPassword(email.trim());
-      setMessage(response.message || 'If an account exists, a reset link has been sent.');
+      const successMessage = response.message || 'If an account exists, a reset link has been sent.';
+      setMessage(successMessage);
+      showSuccess(successMessage);
     } catch (requestError) {
-      setError(getErrorMessage(requestError));
+      showError(getErrorMessage(requestError));
     } finally {
       setIsSubmitting(false);
     }
@@ -123,13 +125,6 @@ export default function ForgotPassword() {
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-            {error && (
-              <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>{error}</p>
-              </div>
-            )}
-
             {message && (
               <p className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm leading-6 text-stone-600">
                 {message}

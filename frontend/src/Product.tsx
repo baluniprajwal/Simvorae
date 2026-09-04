@@ -57,12 +57,11 @@ export default function Product() {
   const [product, setProduct] = useState<ProductType | null>(null);
   const [similarProducts, setSimilarProducts] = useState<ProductType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState('');
   const [isAdded, setIsAdded] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
-  const { addItem } = useCartStore();
-  const { showSuccess } = useToast();
+  const { addItem, items } = useCartStore();
+  const { showError, showSuccess } = useToast();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -78,7 +77,6 @@ export default function Product() {
     async function loadProduct() {
       try {
         setIsLoading(true);
-        setErrorMessage('');
         setActiveImageIndex(0);
 
         const response = await fetchJson<ProductDetailResponse>(`/api/products/${id}`);
@@ -89,7 +87,7 @@ export default function Product() {
         setSimilarProducts(response.similarProducts);
       } catch (error) {
         if (ignore) return;
-        setErrorMessage(error instanceof Error ? error.message : 'Failed to load product.');
+        showError(error instanceof Error ? error.message : 'Failed to load product.');
         setProduct(null);
         setSimilarProducts([]);
       } finally {
@@ -106,7 +104,7 @@ export default function Product() {
     return () => {
       ignore = true;
     };
-  }, [id]);
+  }, [id, showError]);
 
   useEffect(() => {
     if (!product) return;
@@ -158,12 +156,25 @@ export default function Product() {
   const handleAddToCart = () => {
     if (!product) return;
 
+    if (product.stock <= 0) {
+      showError('This product is currently out of stock.');
+      return;
+    }
+
+    const existingItem = items.find((item) => item.id === product._id);
+
+    if (existingItem && existingItem.quantity >= product.stock) {
+      showError(`Only ${product.stock} available for this product.`);
+      return;
+    }
+
     addItem({
       id: product._id,
       name: product.name,
       price: product.price,
       image: product.image,
       quantity: 1,
+      stockQuantity: product.stock,
     });
 
     showSuccess(`Added ${product.name} to your bag.`);
@@ -194,7 +205,7 @@ export default function Product() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#fcfbf9] text-[#1a1a1a]">
         <div className="text-center">
-          <h1 className="font-serif text-4xl mb-4">{errorMessage || 'Product Not Found'}</h1>
+          <h1 className="font-serif text-4xl mb-4">Product Not Found</h1>
           <button
             onClick={() => navigate('/shop')}
             className="border-b border-[#1a1a1a] pb-1 uppercase tracking-widest text-xs font-sans"
@@ -275,17 +286,20 @@ export default function Product() {
 
             <div className="reveal-text flex flex-col gap-4 max-w-xl mb-12">
               <button
+                aria-disabled={product.stock <= 0}
                 className={`w-full cursor-pointer py-5 md:py-6 text-[10px] tracking-[0.2em] uppercase font-bold transition-all duration-500 flex items-center justify-center group ${
-                  isAdded
+                  product.stock <= 0
+                    ? 'cursor-not-allowed border border-[#1a1a1a]/20 bg-transparent text-stone-400'
+                    : isAdded
                     ? 'bg-[#b6c7a7] border border-[#b6c7a7] text-[#1a1a1a]'
                     : 'bg-[#1a1a1a] text-[#fcfbf9] hover:bg-transparent hover:text-[#1a1a1a] border border-[#1a1a1a]'
                 }`}
                 onClick={handleAddToCart}
               >
-                {isAdded ? 'Added to Bag' : 'Add to Bag'}
+                {product.stock <= 0 ? 'Out of Stock' : isAdded ? 'Added to Bag' : 'Add to Bag'}
               </button>
               <p className="text-[9px] uppercase tracking-widest text-stone-400 text-center mt-3">
-                Free worldwide shipping and returns.
+                {product.stock <= 0 ? 'This piece is currently unavailable.' : 'Free worldwide shipping and returns.'}
               </p>
             </div>
 

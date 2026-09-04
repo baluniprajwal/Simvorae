@@ -122,12 +122,6 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     try {
       const { data } = await api.get<AuthResponse>(`/api/auth/verify-email?token=${encodeURIComponent(token)}`);
-
-      if (data.token && data.user) {
-        storeSession(data.token, data.user);
-        set({ token: data.token, user: data.user });
-      }
-
       return data;
     } finally {
       set({ isLoading: false });

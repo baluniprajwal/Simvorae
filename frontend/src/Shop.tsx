@@ -7,6 +7,7 @@ import { ChevronDown, SlidersHorizontal, X } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { fetchJson } from './lib/api';
+import { useToast } from './contexts/ToastContext';
 import type {
   Product,
   ProductFiltersResponse,
@@ -98,13 +99,13 @@ export default function Shop() {
   const [availableColors, setAvailableColors] = useState<string[]>([]);
   const [availableMaterials, setAvailableMaterials] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [activePrice, setActivePrice] = useState('All');
   const [activeColor, setActiveColor] = useState('All');
   const [activeMaterial, setActiveMaterial] = useState('All');
   const [sortOrder, setSortOrder] = useState('Featured');
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const { showError } = useToast();
 
   const categories = [
     { name: 'All', count: allProducts.length },
@@ -147,7 +148,7 @@ export default function Shop() {
         setAllProducts(allProductsResponse.products);
       } catch (error) {
         if (ignore) return;
-        setErrorMessage(error instanceof Error ? error.message : 'Failed to load catalog filters.');
+        showError(error instanceof Error ? error.message : 'Failed to load catalog filters.');
       }
     }
 
@@ -156,7 +157,7 @@ export default function Shop() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [showError]);
 
   useEffect(() => {
     let ignore = false;
@@ -164,8 +165,6 @@ export default function Shop() {
     async function loadProducts() {
       try {
         setIsLoading(true);
-        setErrorMessage('');
-
         const params = new URLSearchParams();
 
         if (searchQuery) params.set('search', searchQuery);
@@ -196,7 +195,7 @@ export default function Shop() {
         setProducts(response.products);
       } catch (error) {
         if (ignore) return;
-        setErrorMessage(error instanceof Error ? error.message : 'Failed to load products.');
+        showError(error instanceof Error ? error.message : 'Failed to load products.');
         setProducts([]);
       } finally {
         if (!ignore) {
@@ -210,7 +209,7 @@ export default function Shop() {
     return () => {
       ignore = true;
     };
-  }, [activeCategory, activeColor, activeMaterial, activePrice, sortOrder, searchQuery]);
+  }, [activeCategory, activeColor, activeMaterial, activePrice, sortOrder, searchQuery, showError]);
 
   useGSAP(() => {
     const tl = gsap.timeline();
@@ -465,12 +464,6 @@ export default function Shop() {
       </div>
 
       <section className="px-6 md:px-12 pb-32 md:pb-48 max-w-[1800px] mx-auto min-h-screen">
-        {errorMessage && !isLoading && (
-          <div className="mb-8 rounded-[1rem] border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-            {errorMessage}
-          </div>
-        )}
-
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-y-16 gap-x-8 md:gap-y-24 md:gap-x-12">
             {Array.from({ length: 8 }).map((_, index) => (

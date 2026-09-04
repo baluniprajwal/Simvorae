@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, LockKeyhole, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, LockKeyhole, ShoppingBag } from 'lucide-react';
 import { useAuthStore } from './store/authStore';
 import { useCartStore } from './store/cartStore';
+import { useToast } from './contexts/ToastContext';
 
 function getErrorMessage(error: unknown) {
   if (axios.isAxiosError(error)) {
@@ -17,19 +18,20 @@ export default function CheckoutLogin() {
   const navigate = useNavigate();
   const { login, isLoading } = useAuthStore();
   const cartCount = useCartStore((state) => state.getCartCount());
+  const { showError, showSuccess } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError('');
 
     try {
       await login({ email: email.trim(), password });
+      showSuccess('Logged in successfully.');
       navigate('/checkout', { replace: true });
     } catch (loginError) {
-      setError(getErrorMessage(loginError));
+      const message = getErrorMessage(loginError);
+      showError(message.toLowerCase().includes('invalid') ? 'Invalid credentials. Please check your email and password.' : 'Could not sign in right now. Please try again.');
     }
   };
 
@@ -67,13 +69,6 @@ export default function CheckoutLogin() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>{error}</p>
-              </div>
-            )}
-
             <input
               type="email"
               value={email}

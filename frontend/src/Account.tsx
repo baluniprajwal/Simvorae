@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { AnimatePresence, motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertTriangle } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { useOrderStore } from './store/orderStore';
 import { useAuthStore } from './store/authStore';
+import { useToast } from './contexts/ToastContext';
 
 type Tab = 'profile' | 'orders' | 'addresses';
 
@@ -62,11 +62,11 @@ export default function Account() {
   const navigate = useNavigate();
   const { user, refreshMe, updateProfile, logout, isLoading } = useAuthStore();
   const { orders, fetchMyOrders, isLoading: isOrdersLoading, error: ordersError } = useOrderStore();
+  const { showError, showSuccess } = useToast();
   const defaultAddress = user?.addresses?.find((address) => address.isDefault) || user?.addresses?.[0];
   const [activeTab, setActiveTab] = useState<Tab>('profile');
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     addressLine1: '',
@@ -87,6 +87,12 @@ export default function Account() {
   }, [activeTab, fetchMyOrders]);
 
   useEffect(() => {
+    if (ordersError) {
+      showError('Could not load your orders right now. Please try again.');
+    }
+  }, [ordersError, showError]);
+
+  useEffect(() => {
     setPhone((user?.phone || defaultAddress?.phone || '').replace(/\D/g, '').slice(0, 10));
     setFormData({
       addressLine1: defaultAddress?.addressLine1 || '',
@@ -98,7 +104,6 @@ export default function Account() {
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError('');
     setMessage('');
 
     try {
@@ -109,9 +114,11 @@ export default function Account() {
           country: 'India',
         },
       });
-      setMessage(response.message || 'Account details updated.');
+      const successMessage = response.message || 'Account details updated.';
+      setMessage(successMessage);
+      showSuccess(successMessage);
     } catch (updateError) {
-      setError(getErrorMessage(updateError));
+      showError(getErrorMessage(updateError));
     }
   };
 
@@ -223,13 +230,6 @@ export default function Account() {
                 <h2 className="mb-10 font-serif text-2xl md:text-3xl">Personal Details</h2>
 
                 <form onSubmit={handleSave} className="flex flex-col gap-10">
-                  {error && (
-                    <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                      <p>{error}</p>
-                    </div>
-                  )}
-
                   {message && (
                     <p className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm leading-6 text-stone-600">
                       {message}
@@ -290,13 +290,6 @@ export default function Account() {
                 transition={{ duration: 0.6, ease: [0.2, 1, 0.2, 1] }}
               >
                 <h2 className="mb-10 font-serif text-2xl md:text-3xl">Order History</h2>
-
-                {ordersError && (
-                  <div className="mb-6 flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <p>{ordersError}</p>
-                  </div>
-                )}
 
                 <div className="flex flex-col">
                   <div className="mb-4 hidden grid-cols-12 gap-4 border-b border-[#1a1a1a] pb-4 text-[9px] font-semibold uppercase tracking-widest text-stone-400 md:grid">
@@ -444,7 +437,6 @@ export default function Account() {
                         placeholder="PIN code"
                       />
 
-                      {error && <p className="text-xs text-red-600">{error}</p>}
                       {message && <p className="text-xs text-stone-500">{message}</p>}
 
                       <button

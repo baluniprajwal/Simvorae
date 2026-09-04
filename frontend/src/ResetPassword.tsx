@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { motion } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, CheckCircle, LockKeyhole } from 'lucide-react';
+import { CheckCircle, LockKeyhole } from 'lucide-react';
 import { useAuthStore } from './store/authStore';
+import { useToast } from './contexts/ToastContext';
 
 function getErrorMessage(error: unknown) {
   if (axios.isAxiosError(error)) {
@@ -50,24 +51,31 @@ function UnderlineField({
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
   const { resetPassword } = useAuthStore();
+  const { showError, showSuccess } = useToast();
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const token = searchParams.get('token') || '';
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError('');
     setMessage('');
+
+    if (!token) {
+      showError('Reset link is missing. Please open the password reset link from your email.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const response = await resetPassword({ token, password });
-      setMessage(response.message || 'Password updated. You can sign in now.');
+      const successMessage = response.message || 'Password updated. You can sign in now.';
+      setMessage(successMessage);
+      showSuccess(successMessage);
       setPassword('');
     } catch (requestError) {
-      setError(getErrorMessage(requestError));
+      showError(getErrorMessage(requestError));
     } finally {
       setIsSubmitting(false);
     }
@@ -129,13 +137,6 @@ export default function ResetPassword() {
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-            {error && (
-              <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>{error}</p>
-              </div>
-            )}
-
             {message && (
               <p className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm leading-6 text-stone-600">
                 {message}
@@ -168,12 +169,6 @@ export default function ResetPassword() {
               >
                 {isSubmitting ? 'Updating...' : 'Update Password'}
               </button>
-            )}
-
-            {!token && (
-              <p className="text-center text-xs leading-6 text-red-600">
-                Reset token is missing. Open the password reset link from your email.
-              </p>
             )}
           </form>
         </motion.div>
