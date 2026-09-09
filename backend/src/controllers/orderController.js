@@ -1,3 +1,4 @@
+import { CheckoutAttempt } from '../models/CheckoutAttempt.js';
 import { Order } from '../models/Order.js';
 import { sendShipmentTrackingEmail } from '../services/emailService.js';
 import {
@@ -12,7 +13,7 @@ const ADMIN_ORDER_STATUSES = ['processing', 'cancelled'];
 
 export async function getOrders(req, res, next) {
   try {
-    const orders = await Order.find({}).sort({ createdAt: -1 });
+    const orders = await Order.find({ 'payment.status': 'paid' }).sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
@@ -260,7 +261,10 @@ export async function cancelOrderShipment(req, res, next) {
 
 export async function getMyOrders(req, res, next) {
   try {
-    const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
+    const orders = await Order.find({
+      user: req.user._id,
+      'payment.status': 'paid',
+    }).sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
@@ -277,6 +281,7 @@ export async function getMyOrderByNumber(req, res, next) {
     const order = await Order.findOne({
       user: req.user._id,
       orderNumber: req.params.orderNumber,
+      'payment.status': 'paid',
     });
 
     if (!order) {
@@ -286,6 +291,31 @@ export async function getMyOrderByNumber(req, res, next) {
     return res.status(200).json({
       success: true,
       order,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function markMyOrderPaymentFailed(req, res, next) {
+  try {
+    const attempt = await CheckoutAttempt.findOne({
+      user: req.user._id,
+      orderNumber: req.params.orderNumber,
+    });
+
+    if (!attempt) {
+      return res.status(200).json({
+        success: true,
+        message: 'Checkout attempt already closed.',
+      });
+    }
+
+    await CheckoutAttempt.deleteOne({ _id: attempt._id });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Unpaid checkout was removed.',
     });
   } catch (error) {
     return next(error);

@@ -22,7 +22,13 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+app.use(express.json({
+  verify: (req, _res, buf) => {
+    if (req.originalUrl === '/api/payments/razorpay/webhook') {
+      req.rawBody = buf;
+    }
+  },
+}));
 app.use(express.urlencoded({ extended: true }));
 
 app.get('/api/health', (_req, res) => {

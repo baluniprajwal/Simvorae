@@ -224,6 +224,16 @@ export default function Checkout() {
       const checkout = checkoutResponse.data;
       const orderNumber = checkout.order.orderNumber;
 
+      const markPaymentFailed = async (razorpayPaymentId = '') => {
+        try {
+          await api.post(`/api/orders/my-orders/${encodeURIComponent(orderNumber)}/payment-failed`, {
+            razorpayPaymentId,
+          });
+        } catch {
+          // The webhook may update the payment state first; customer-facing flow should not be blocked by this.
+        }
+      };
+
       const razorpay = new window.Razorpay({
         key: checkout.keyId,
         amount: checkout.payment.amount,
@@ -278,6 +288,7 @@ export default function Checkout() {
       razorpay.on('payment.failed', (response: RazorpayFailureResponse) => {
         const paymentId = response.error?.metadata?.payment_id;
         const reason = response.error?.description || response.error?.reason || 'Payment failed. Please try another payment method.';
+        void markPaymentFailed(paymentId || '');
         showError(paymentId ? `${reason} Payment ID: ${paymentId}` : reason);
         setIsPaying(false);
       });

@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
+import { CheckoutAttempt } from '../models/CheckoutAttempt.js';
 import { Order } from '../models/Order.js';
 import { Product } from '../models/Product.js';
+import { User } from '../models/User.js';
 import { createHttpError } from '../utils/createHttpError.js';
 import {
   isValidEmail,
@@ -219,7 +221,7 @@ function saveCheckoutAddressToUser({ user, customerName, checkoutPhone, shipping
   ];
 }
 
-export async function createPendingOrder({ payload, user }) {
+async function buildCheckoutData({ payload, user }) {
   const { customer, shippingAddress, items, notes = '' } = payload;
 
   if (!customer?.name?.trim()) {
@@ -242,7 +244,8 @@ export async function createPendingOrder({ payload, user }) {
   const orderItems = await buildOrderItems(items);
   const subtotal = orderItems.reduce((sum, item) => sum + item.lineTotal, 0);
   const shipping = 0;
-  const order = await Order.create({
+
+  return {
     orderNumber: createOrderNumber(),
     user: user?._id,
     customer: {
@@ -265,18 +268,54 @@ export async function createPendingOrder({ payload, user }) {
       currency: 'INR',
     },
     notes: notes.trim(),
-  });
+    checkoutPhone,
+  };
+}
+
+export async function createCheckoutAttempt({ payload, user }) {
+  const checkoutData = await buildCheckoutData({ payload, user });
+  const attempt = await CheckoutAttempt.create(checkoutData);
 
   if (user) {
-    user.phone = checkoutPhone;
-    user.lastOrderAt = new Date();
+    user.phone = checkoutData.checkoutPhone;
     saveCheckoutAddressToUser({
       user,
-      customerName: customer.name,
-      checkoutPhone,
-      shippingAddress,
+      customerName: checkoutData.customer.name,
+      checkoutPhone: checkoutData.checkoutPhone,
+      shippingAddress: checkoutData.shippingAddress,
     });
     await user.save();
+  }
+
+  return attempt;
+}
+
+export async function createOrderFromCheckoutAttempt({ attempt, razorpayPaymentId, razorpaySignature = '' }) {
+  const existingOrder = await Order.findOne({ orderNumber: attempt.orderNumber });
+
+  if (existingOrder) {
+    return existingOrder;
+  }
+
+  const order = await Order.create({
+    orderNumber: attempt.orderNumber,
+    user: attempt.user,
+    customer: attempt.customer,
+    shippingAddress: attempt.shippingAddress,
+    items: attempt.items,
+    totals: attempt.totals,
+    payment: {
+      provider: 'razorpay',
+      status: 'pending',
+      razorpayOrderId: attempt.payment.razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+    },
+    notes: attempt.notes,
+  });
+
+  if (attempt.user) {
+    await User.updateOne({ _id: attempt.user }, { $set: { lastOrderAt: new Date() } });
   }
 
   return order;

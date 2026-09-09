@@ -1,22 +1,22 @@
-import { createPendingOrder } from '../services/orderService.js';
+import { createCheckoutAttempt } from '../services/orderService.js';
 import { createRazorpayOrder } from '../services/razorpayService.js';
 import { createHttpError } from '../utils/createHttpError.js';
 
 export async function createCheckout(req, res, next) {
   try {
-    const order = await createPendingOrder({
+    const attempt = await createCheckoutAttempt({
       payload: req.body,
       user: req.user,
     });
-    const razorpayOrder = await createRazorpayOrder(order);
+    const razorpayOrder = await createRazorpayOrder(attempt);
 
-    order.payment.razorpayOrderId = razorpayOrder.id;
-    await order.save();
+    attempt.payment.razorpayOrderId = razorpayOrder.id;
+    await attempt.save();
 
     return res.status(201).json({
       success: true,
       keyId: process.env.RAZORPAY_KEY_ID,
-      order,
+      order: attempt,
       payment: {
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,

@@ -49,3 +49,25 @@ export function verifyRazorpaySignature({ razorpayOrderId, razorpayPaymentId, ra
 
   return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
 }
+
+export function verifyRazorpayWebhookSignature({ rawBody, razorpaySignature }) {
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+  if (!webhookSecret) {
+    throw createHttpError(500, 'Razorpay webhook secret is not configured.');
+  }
+
+  if (!rawBody || !razorpaySignature) {
+    return false;
+  }
+
+  const expectedSignature = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
+  const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+  const receivedBuffer = Buffer.from(razorpaySignature, 'hex');
+
+  if (expectedBuffer.length !== receivedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+}
