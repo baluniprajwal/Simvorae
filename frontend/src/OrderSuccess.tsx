@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import { type Order, useOrderStore } from './store/orderStore';
 
 type StoredOrder = {
   orderNumber?: string;
@@ -21,13 +22,16 @@ function getStoredOrder(): StoredOrder {
 
 export default function OrderSuccess() {
   const [searchParams] = useSearchParams();
+  const fetchMyOrder = useOrderStore((state) => state.fetchMyOrder);
+  const [order, setOrder] = useState<Order | null>(null);
   const storedOrder = getStoredOrder();
   const orderNumber = searchParams.get('order') || storedOrder.orderNumber || 'Processing';
-  const customerEmail = storedOrder.email || 'your registered email';
+  const customerEmail = order?.customer.email || storedOrder.email || 'your registered email';
   const paymentStatus = 'Paid';
-  const fulfillmentStatus = 'Confirmed';
-  const formattedTotal = typeof storedOrder.total === 'number'
-    ? `INR ${storedOrder.total.toLocaleString('en-IN')}`
+  const fulfillmentStatus = order?.status || 'Confirmed';
+  const totalAmount = order?.total ?? storedOrder.total;
+  const formattedTotal = typeof totalAmount === 'number'
+    ? `INR ${totalAmount.toLocaleString('en-IN')}`
     : 'Confirmed by email';
 
   const emailSent = `We've sent a confirmation email to ${customerEmail}.`;
@@ -39,6 +43,16 @@ export default function OrderSuccess() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  useEffect(() => {
+    if (!orderNumber || orderNumber === 'Processing') {
+      return;
+    }
+
+    fetchMyOrder(orderNumber)
+      .then(setOrder)
+      .catch(() => setOrder(null));
+  }, [fetchMyOrder, orderNumber]);
 
   return (
     <div className="relative flex min-h-screen flex-col bg-[#fcfbf9] font-sans text-[#1a1a1a]">
@@ -113,6 +127,35 @@ export default function OrderSuccess() {
                 </p>
               </div>
             </div>
+
+            {order?.items.length ? (
+              <div className="mb-7 border-b border-stone-100 pb-7">
+                <span className="mb-4 block text-[9px] uppercase tracking-widest text-stone-400">Order Items</span>
+                <div className="space-y-4">
+                  {order.items.slice(0, 2).map((item) => (
+                    <div key={item.id} className="flex items-center gap-4">
+                      <div className="h-16 w-12 shrink-0 overflow-hidden bg-stone-100">
+                        <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-sans text-[12px] font-medium text-[#1a1a1a]">{item.name}</p>
+                        <p className="mt-1 font-sans text-[10px] uppercase tracking-widest text-stone-400">
+                          Qty {item.quantity} · INR {item.price.toLocaleString('en-IN')}
+                        </p>
+                      </div>
+                      <p className="shrink-0 font-serif text-lg text-[#1a1a1a]">
+                        INR {(item.price * item.quantity).toLocaleString('en-IN')}
+                      </p>
+                    </div>
+                  ))}
+                  {order.items.length > 2 && (
+                    <p className="font-sans text-[10px] uppercase tracking-widest text-stone-400">
+                      +{order.items.length - 2} more item{order.items.length - 2 === 1 ? '' : 's'}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : null}
 
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
