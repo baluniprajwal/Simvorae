@@ -40,8 +40,8 @@ export interface Order {
     country: string;
   };
   status: OrderStatus;
-  paymentStatus: 'pending' | 'authorized' | 'paid' | 'failed' | 'refunded';
-  shippingStatus: 'not_created' | 'created' | 'in_transit' | 'delivered' | 'cancelled' | 'failed';
+  paymentStatus: 'pending' | 'authorized' | 'paid' | 'failed' | 'refund_pending' | 'refunded';
+  shippingStatus: 'not_created' | 'created' | 'in_transit' | 'delivered' | 'cancellation_pending' | 'cancelled' | 'failed';
   razorpayOrderId: string;
   razorpayPaymentId: string;
   shiprocketOrderId: string;

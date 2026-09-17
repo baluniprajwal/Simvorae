@@ -36,6 +36,54 @@ export async function createRazorpayOrder(order) {
   });
 }
 
+export async function createRazorpayRefund({
+  paymentId,
+  orderNumber,
+  receiptType = 'cancel',
+  reason = 'Order cancelled by merchant',
+}) {
+  if (!paymentId) {
+    throw createHttpError(400, 'Razorpay payment ID is required to issue a refund.');
+  }
+
+  const razorpay = getClient();
+  const receiptPrefix = `${receiptType}-${orderNumber}`.slice(0, 32);
+  const previousRefunds = await razorpay.payments.fetchMultipleRefund(paymentId);
+  const matchingRefunds = (previousRefunds.items || []).filter((refund) =>
+    String(refund.receipt || '').startsWith(receiptPrefix),
+  );
+  const activeRefund = matchingRefunds.find((refund) => ['pending', 'processed'].includes(refund.status));
+
+  if (activeRefund) {
+    return activeRefund;
+  }
+
+  const receipt = matchingRefunds.length > 0
+    ? `${receiptPrefix}-${matchingRefunds.length + 1}`.slice(0, 40)
+    : receiptPrefix;
+
+  try {
+    return await razorpay.payments.refund(paymentId, {
+      speed: 'normal',
+      receipt,
+      notes: {
+        orderNumber,
+        reason,
+      },
+    });
+  } catch (error) {
+    // Recover a refund accepted by Razorpay when the original response was lost.
+    const refunds = await razorpay.payments.fetchMultipleRefund(paymentId);
+    const existingRefund = refunds.items?.find((refund) => refund.receipt === receipt);
+
+    if (existingRefund) {
+      return existingRefund;
+    }
+
+    throw error;
+  }
+}
+
 export function verifyRazorpaySignature({ razorpayOrderId, razorpayPaymentId, razorpaySignature }) {
   const { keySecret } = getRazorpayCredentials();
   const body = `${razorpayOrderId}|${razorpayPaymentId}`;

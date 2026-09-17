@@ -18,7 +18,7 @@ function getOptionalCourierId() {
 }
 
 function shouldRequestPickup() {
-  return process.env.SHIPROCKET_AUTO_REQUEST_PICKUP !== 'false';
+  return process.env.SHIPROCKET_AUTO_REQUEST_PICKUP === 'true';
 }
 
 function formatShiprocketDate(date) {
@@ -108,7 +108,10 @@ function getShipmentPackageDetails(order) {
   return {
     length: Math.max(...packageSnapshots.map((item) => item.lengthCm)),
     breadth: Math.max(...packageSnapshots.map((item) => item.breadthCm)),
-    height: packageSnapshots.reduce((sum, item) => sum + item.heightCm, 0),
+    height: order.items.reduce(
+      (sum, item) => sum + item.packageSnapshot.heightCm * item.quantity,
+      0,
+    ),
     weight: order.items.reduce((sum, item) => sum + item.packageSnapshot.weightKg * item.quantity, 0),
   };
 }
@@ -185,6 +188,15 @@ function mapShiprocketStatus(currentStatus = '', statusCode = null) {
   const inTransitCodes = new Set([6, 17, 18, 22, 42]);
   const failedCodes = new Set([8, 21, 71, 72, 76, 77]);
 
+  if (normalized.includes('cancel')) {
+    return {
+      shippingStatus: 'cancelled',
+      orderStatus: null,
+      deliveredAt: null,
+      shippedAt: null,
+    };
+  }
+
   if (deliveredCodes.has(Number(statusCode)) || normalized.includes('delivered')) {
     return {
       shippingStatus: 'delivered',
@@ -244,19 +256,39 @@ function extractTrackingData(data) {
   };
 }
 
-export async function createShiprocketOrder(order) {
-  const orderResponse = await shiprocketRequest('/orders/create/adhoc', {
-    method: 'POST',
-    body: JSON.stringify(buildShiprocketPayload(order)),
-  });
+export async function createShiprocketOrder(order, { onOrderCreated } = {}) {
+  const existingShipmentId = order.shipping?.shipmentId || '';
+  const existingShiprocketOrderId = order.shipping?.shiprocketOrderId || '';
+  let data;
 
-  if (orderResponse.skipped) {
-    return {
-      skipped: true,
+  if (existingShipmentId || existingShiprocketOrderId) {
+    data = {
+      shipment_id: existingShipmentId,
+      order_id: existingShiprocketOrderId,
+      awb_code: order.shipping?.awbCode || '',
     };
+  } else {
+    const orderResponse = await shiprocketRequest('/orders/create/adhoc', {
+      method: 'POST',
+      body: JSON.stringify(buildShiprocketPayload(order)),
+    });
+
+    if (orderResponse.skipped) {
+      return {
+        skipped: true,
+      };
+    }
+
+    data = orderResponse.data;
+
+    if (onOrderCreated) {
+      await onOrderCreated({
+        shiprocketOrderId: data.order_id ? String(data.order_id) : '',
+        shipmentId: data.shipment_id ? String(data.shipment_id) : '',
+      });
+    }
   }
 
-  const data = orderResponse.data;
   const shipmentId = data.shipment_id ? String(data.shipment_id) : '';
   let awb = {
     awbCode: data.awb_code ? String(data.awb_code) : '',
@@ -272,31 +304,49 @@ export async function createShiprocketOrder(order) {
   };
 
   if (shipmentId && !awb.awbCode) {
-    const awbBody = {
-      shipment_id: Number(shipmentId),
-      ...(getOptionalCourierId() ? { courier_id: getOptionalCourierId() } : {}),
-    };
-    const awbResponse = await shiprocketRequest('/courier/assign/awb', {
-      method: 'POST',
-      body: JSON.stringify(awbBody),
-    });
+    try {
+      const awbBody = {
+        shipment_id: Number(shipmentId),
+        ...(getOptionalCourierId() ? { courier_id: getOptionalCourierId() } : {}),
+      };
+      const awbResponse = await shiprocketRequest('/courier/assign/awb', {
+        method: 'POST',
+        body: JSON.stringify(awbBody),
+      });
 
-    awb = {
-      ...awb,
-      ...extractAwbAssignment(awbResponse.data),
-      assignmentMessage: awbResponse.data?.message || '',
-    };
+      if (awbResponse.skipped) {
+        return { skipped: true };
+      }
+
+      awb = {
+        ...awb,
+        ...extractAwbAssignment(awbResponse.data),
+        assignmentMessage: awbResponse.data?.message || '',
+      };
+    } catch (error) {
+      awb.assignmentMessage = error.message || 'AWB assignment failed. Retry after checking Shiprocket.';
+    }
+  } else if (!shipmentId && !awb.awbCode) {
+    awb.assignmentMessage = 'Shiprocket shipment ID is missing. Check this order in Shiprocket.';
   }
 
   if (shipmentId && awb.awbCode && shouldRequestPickup()) {
-    const pickupResponse = await shiprocketRequest('/courier/generate/pickup', {
-      method: 'POST',
-      body: JSON.stringify({
-        shipment_id: [Number(shipmentId)],
-      }),
-    });
+    try {
+      const pickupResponse = await shiprocketRequest('/courier/generate/pickup', {
+        method: 'POST',
+        body: JSON.stringify({
+          shipment_id: [Number(shipmentId)],
+        }),
+      });
 
-    pickup = extractPickupData(pickupResponse.data);
+      if (pickupResponse.skipped) {
+        return { skipped: true };
+      }
+
+      pickup = extractPickupData(pickupResponse.data);
+    } catch (error) {
+      pickup.pickupStatus = error.message || 'Pickup request failed. Request it from Shiprocket.';
+    }
   }
 
   return {

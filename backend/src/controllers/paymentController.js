@@ -1,8 +1,17 @@
 import { CheckoutAttempt } from '../models/CheckoutAttempt.js';
 import { Order } from '../models/Order.js';
 import { sendPaymentConfirmedEmails } from '../services/emailService.js';
-import { createOrderFromCheckoutAttempt, debitOrderStock } from '../services/orderService.js';
-import { verifyRazorpaySignature, verifyRazorpayWebhookSignature } from '../services/razorpayService.js';
+import {
+  createOrderFromCheckoutAttempt,
+  debitOrderStock,
+  finalizeRefundedOrder,
+  releaseCheckoutReservation,
+} from '../services/orderService.js';
+import {
+  createRazorpayRefund,
+  verifyRazorpaySignature,
+  verifyRazorpayWebhookSignature,
+} from '../services/razorpayService.js';
 import { createHttpError } from '../utils/createHttpError.js';
 
 async function confirmPaidOrder({ order, razorpayPaymentId, razorpaySignature = '' }) {
@@ -36,16 +45,39 @@ function assertWebhookPaymentMatchesCheckout({ checkout, payment }) {
 }
 
 async function promoteAttemptToPaidOrder({ attempt, razorpayPaymentId, razorpaySignature = '' }) {
-  const order = await createOrderFromCheckoutAttempt({
-    attempt,
-    razorpayPaymentId,
-    razorpaySignature,
-  });
+  let order;
+
+  try {
+    order = await createOrderFromCheckoutAttempt({
+      attempt,
+      razorpayPaymentId,
+      razorpaySignature,
+    });
+  } catch (error) {
+    if (error.statusCode === 409 && razorpayPaymentId) {
+      await refundLateCheckoutPayment({ attempt, razorpayPaymentId });
+      throw createHttpError(409, 'Your stock reservation expired. The payment has been refunded; please try again.');
+    }
+
+    throw error;
+  }
 
   await confirmPaidOrder({ order, razorpayPaymentId, razorpaySignature });
   await CheckoutAttempt.deleteOne({ _id: attempt._id });
 
   return order;
+}
+
+async function refundLateCheckoutPayment({ attempt, razorpayPaymentId }) {
+  const refund = await createRazorpayRefund({
+    paymentId: razorpayPaymentId,
+    orderNumber: attempt.orderNumber,
+    receiptType: 'expired',
+    reason: 'Checkout stock reservation expired',
+  });
+
+  await CheckoutAttempt.deleteOne({ _id: attempt._id });
+  return refund;
 }
 
 export async function verifyPayment(req, res, next) {
@@ -60,7 +92,7 @@ export async function verifyPayment(req, res, next) {
       return next(createHttpError(400, 'Payment verification details are required.'));
     }
 
-    const paidOrder = await Order.findOne({ orderNumber });
+    const paidOrder = await Order.findOne({ orderNumber, user: req.user._id });
 
     if (paidOrder?.payment.status === 'paid') {
       return res.status(200).json({
@@ -70,7 +102,7 @@ export async function verifyPayment(req, res, next) {
       });
     }
 
-    const attempt = await CheckoutAttempt.findOne({ orderNumber });
+    const attempt = await CheckoutAttempt.findOne({ orderNumber, user: req.user._id });
 
     if (!attempt) {
       return next(createHttpError(404, 'Checkout attempt not found.'));
@@ -87,8 +119,14 @@ export async function verifyPayment(req, res, next) {
     });
 
     if (!isValidSignature) {
+      await releaseCheckoutReservation(attempt._id);
       await CheckoutAttempt.deleteOne({ _id: attempt._id });
       return next(createHttpError(400, 'Invalid payment signature.'));
+    }
+
+    if (!attempt.stockReserved) {
+      await refundLateCheckoutPayment({ attempt, razorpayPaymentId });
+      return next(createHttpError(409, 'Your stock reservation expired. The payment has been refunded; please try again.'));
     }
 
     const order = await promoteAttemptToPaidOrder({
@@ -121,6 +159,45 @@ export async function handleRazorpayWebhook(req, res, next) {
 
     const event = req.body?.event;
     const payment = req.body?.payload?.payment?.entity;
+    const refund = req.body?.payload?.refund?.entity;
+
+    if (event === 'refund.processed' || event === 'refund.failed') {
+      if (!refund?.id || !refund?.payment_id) {
+        return res.status(200).json({
+          success: true,
+          message: 'Refund webhook ignored.',
+        });
+      }
+
+      const refundedOrder = await Order.findOne({
+        $or: [
+          { 'payment.refundId': refund.id },
+          { 'payment.razorpayPaymentId': refund.payment_id },
+        ],
+      });
+
+      if (!refundedOrder) {
+        return res.status(200).json({
+          success: true,
+          message: 'Refund order not found locally.',
+        });
+      }
+
+      if (event === 'refund.processed') {
+        await finalizeRefundedOrder({ orderId: refundedOrder._id, refund });
+      } else if (refundedOrder.payment.status !== 'refunded') {
+        refundedOrder.payment.status = 'paid';
+        refundedOrder.payment.refundId = refund.id;
+        refundedOrder.payment.refundStatus = 'failed';
+        refundedOrder.payment.refundAmount = Number(refund.amount || 0);
+        await refundedOrder.save();
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Refund webhook processed.',
+      });
+    }
 
     if (!payment?.order_id) {
       return res.status(200).json({
@@ -169,10 +246,14 @@ export async function handleRazorpayWebhook(req, res, next) {
 
     if (event === 'payment.captured') {
       assertWebhookPaymentMatchesCheckout({ checkout: attempt, payment });
-      await promoteAttemptToPaidOrder({
-        attempt,
-        razorpayPaymentId: payment.id,
-      });
+      if (attempt.stockReserved) {
+        await promoteAttemptToPaidOrder({
+          attempt,
+          razorpayPaymentId: payment.id,
+        });
+      } else {
+        await refundLateCheckoutPayment({ attempt, razorpayPaymentId: payment.id });
+      }
     }
 
     if (event === 'payment.authorized') {
@@ -182,6 +263,7 @@ export async function handleRazorpayWebhook(req, res, next) {
     }
 
     if (event === 'payment.failed') {
+      await releaseCheckoutReservation(attempt._id);
       await CheckoutAttempt.deleteOne({ _id: attempt._id });
     }
 

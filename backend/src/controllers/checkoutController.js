@@ -1,4 +1,5 @@
-import { createCheckoutAttempt } from '../services/orderService.js';
+import { createCheckoutAttempt, releaseCheckoutReservation } from '../services/orderService.js';
+import { CheckoutAttempt } from '../models/CheckoutAttempt.js';
 import { createRazorpayOrder } from '../services/razorpayService.js';
 import { createHttpError } from '../utils/createHttpError.js';
 
@@ -8,10 +9,24 @@ export async function createCheckout(req, res, next) {
       payload: req.body,
       user: req.user,
     });
-    const razorpayOrder = await createRazorpayOrder(attempt);
+    let razorpayOrder;
 
-    attempt.payment.razorpayOrderId = razorpayOrder.id;
-    await attempt.save();
+    try {
+      razorpayOrder = await createRazorpayOrder(attempt);
+    } catch (error) {
+      await releaseCheckoutReservation(attempt._id);
+      await CheckoutAttempt.deleteOne({ _id: attempt._id });
+      throw error;
+    }
+
+    try {
+      attempt.payment.razorpayOrderId = razorpayOrder.id;
+      await attempt.save();
+    } catch (error) {
+      await releaseCheckoutReservation(attempt._id);
+      await CheckoutAttempt.deleteOne({ _id: attempt._id });
+      throw error;
+    }
 
     return res.status(201).json({
       success: true,

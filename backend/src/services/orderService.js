@@ -11,6 +11,8 @@ import {
   normalizePhone,
 } from '../utils/validators.js';
 
+const CHECKOUT_RESERVATION_MINUTES = 20;
+
 function createOrderNumber() {
   const date = new Date();
   const year = String(date.getFullYear()).slice(-2);
@@ -121,9 +123,11 @@ async function buildOrderItems(inputItems) {
   return orderItems;
 }
 
-export async function validateOrderStockAvailability(order) {
+export async function validateOrderStockAvailability(order, session = null) {
   const productIds = order.items.map((item) => item.product);
-  const products = await Product.find({ _id: { $in: productIds }, isActive: true }).select('name stock');
+  const products = await Product.find({ _id: { $in: productIds }, isActive: true })
+    .select('name stock')
+    .session(session);
   const productsById = new Map(products.map((product) => [product._id.toString(), product]));
   const quantityByProductId = new Map();
 
@@ -170,26 +174,103 @@ export async function debitOrderStock(order) {
     return;
   }
 
-  await validateOrderStockAvailability(order);
+  const session = await mongoose.startSession();
 
-  for (const debit of getOrderStockDebits(order)) {
-    const result = await Product.updateOne(
-      {
-        _id: debit.productId,
-        isActive: true,
-        stock: { $gte: debit.quantity },
-      },
-      {
-        $inc: { stock: -debit.quantity },
-      },
-    );
+  try {
+    await session.withTransaction(async () => {
+      const currentOrder = await Order.findById(order._id).session(session);
 
-    if (result.modifiedCount !== 1) {
-      throw createHttpError(409, `${debit.productName} stock changed before payment confirmation. Please review the order.`);
-    }
+      if (!currentOrder) {
+        throw createHttpError(404, 'Order not found while updating inventory.');
+      }
+
+      if (currentOrder.stockDebited) {
+        return;
+      }
+
+      await validateOrderStockAvailability(currentOrder, session);
+
+      const debits = getOrderStockDebits(currentOrder);
+      const result = await Product.bulkWrite(
+        debits.map((debit) => ({
+          updateOne: {
+            filter: {
+              _id: debit.productId,
+              isActive: true,
+              stock: { $gte: debit.quantity },
+            },
+            update: {
+              $inc: { stock: -debit.quantity },
+            },
+          },
+        })),
+        { ordered: true, session },
+      );
+
+      if (result.modifiedCount !== debits.length) {
+        throw createHttpError(409, 'Stock changed during payment confirmation. Please review the order.');
+      }
+
+      const orderResult = await Order.updateOne(
+        { _id: currentOrder._id, stockDebited: false },
+        { $set: { stockDebited: true } },
+        { session },
+      );
+
+      if (orderResult.modifiedCount !== 1) {
+        throw createHttpError(409, 'Order inventory was already updated.');
+      }
+    });
+
+    order.stockDebited = true;
+  } finally {
+    await session.endSession();
   }
+}
 
-  order.stockDebited = true;
+export async function finalizeRefundedOrder({ orderId, refund }) {
+  const session = await mongoose.startSession();
+
+  try {
+    await session.withTransaction(async () => {
+      const order = await Order.findById(orderId).session(session);
+
+      if (!order) {
+        throw createHttpError(404, 'Order not found while completing refund.');
+      }
+
+      if (order.payment.status === 'refunded' && order.stockRestored) {
+        return;
+      }
+
+      if (order.stockDebited && !order.stockRestored) {
+        const credits = getOrderStockDebits(order);
+        await Product.bulkWrite(
+          credits.map((credit) => ({
+            updateOne: {
+              filter: { _id: credit.productId },
+              update: { $inc: { stock: credit.quantity } },
+            },
+          })),
+          { ordered: true, session },
+        );
+
+      }
+
+      order.orderStatus = 'cancelled';
+      order.payment.status = 'refunded';
+      order.payment.refundId = refund.id || order.payment.refundId;
+      order.payment.refundStatus = 'processed';
+      order.payment.refundAmount = Number(refund.amount || order.payment.refundAmount || 0);
+      order.payment.refundedAt = new Date();
+      order.stockRestored = true;
+      await order.save({ session });
+    });
+
+    return Order.findById(orderId);
+  } finally {
+    await session.endSession();
+  }
 }
 
 function validateCheckoutPhone(phone) {
@@ -274,45 +355,159 @@ async function buildCheckoutData({ payload, user }) {
 
 export async function createCheckoutAttempt({ payload, user }) {
   const checkoutData = await buildCheckoutData({ payload, user });
-  const attempt = await CheckoutAttempt.create(checkoutData);
+  const session = await mongoose.startSession();
+  let attempt;
 
-  if (user) {
-    user.phone = checkoutData.checkoutPhone;
-    saveCheckoutAddressToUser({
-      user,
-      customerName: checkoutData.customer.name,
-      checkoutPhone: checkoutData.checkoutPhone,
-      shippingAddress: checkoutData.shippingAddress,
+  try {
+    await session.withTransaction(async () => {
+      await validateOrderStockAvailability(checkoutData, session);
+      const debits = getOrderStockDebits(checkoutData);
+      const result = await Product.bulkWrite(
+        debits.map((debit) => ({
+          updateOne: {
+            filter: {
+              _id: debit.productId,
+              isActive: true,
+              stock: { $gte: debit.quantity },
+            },
+            update: { $inc: { stock: -debit.quantity } },
+          },
+        })),
+        { ordered: true, session },
+      );
+
+      if (result.modifiedCount !== debits.length) {
+        throw createHttpError(409, 'Stock changed while checkout was starting. Please review your bag.');
+      }
+
+      [attempt] = await CheckoutAttempt.create(
+        [{
+          ...checkoutData,
+          stockReserved: true,
+          reservationExpiresAt: new Date(Date.now() + CHECKOUT_RESERVATION_MINUTES * 60 * 1000),
+        }],
+        { session },
+      );
     });
-    await user.save();
+  } finally {
+    await session.endSession();
+  }
+
+  attempt?.$session(null);
+
+  try {
+    if (user) {
+      user.phone = checkoutData.checkoutPhone;
+      saveCheckoutAddressToUser({
+        user,
+        customerName: checkoutData.customer.name,
+        checkoutPhone: checkoutData.checkoutPhone,
+        shippingAddress: checkoutData.shippingAddress,
+      });
+      await user.save();
+    }
+  } catch (error) {
+    await releaseCheckoutReservation(attempt._id);
+    await CheckoutAttempt.deleteOne({ _id: attempt._id });
+    throw error;
   }
 
   return attempt;
 }
 
-export async function createOrderFromCheckoutAttempt({ attempt, razorpayPaymentId, razorpaySignature = '' }) {
-  const existingOrder = await Order.findOne({ orderNumber: attempt.orderNumber });
+export async function releaseCheckoutReservation(attemptId) {
+  const session = await mongoose.startSession();
 
-  if (existingOrder) {
-    return existingOrder;
+  try {
+    await session.withTransaction(async () => {
+      const attempt = await CheckoutAttempt.findById(attemptId).session(session);
+
+      if (!attempt?.stockReserved) {
+        return;
+      }
+
+      const credits = getOrderStockDebits(attempt);
+      await Product.bulkWrite(
+        credits.map((credit) => ({
+          updateOne: {
+            filter: { _id: credit.productId },
+            update: { $inc: { stock: credit.quantity } },
+          },
+        })),
+        { ordered: true, session },
+      );
+
+      attempt.stockReserved = false;
+      attempt.stockReleasedAt = new Date();
+      await attempt.save({ session });
+    });
+  } finally {
+    await session.endSession();
+  }
+}
+
+export async function releaseExpiredCheckoutReservations() {
+  const expiredAttempts = await CheckoutAttempt.find({
+    stockReserved: true,
+    reservationExpiresAt: { $lte: new Date() },
+  }).select('_id').limit(100);
+
+  await Promise.allSettled(
+    expiredAttempts.map((attempt) => releaseCheckoutReservation(attempt._id)),
+  );
+}
+
+export async function createOrderFromCheckoutAttempt({ attempt, razorpayPaymentId, razorpaySignature = '' }) {
+  const session = await mongoose.startSession();
+  let order;
+
+  try {
+    await session.withTransaction(async () => {
+      const existingOrder = await Order.findOne({ orderNumber: attempt.orderNumber }).session(session);
+
+      if (existingOrder) {
+        order = existingOrder;
+        return;
+      }
+
+      const reservedAttempt = await CheckoutAttempt.findOne({
+        _id: attempt._id,
+        stockReserved: true,
+      }).session(session);
+
+      if (!reservedAttempt) {
+        throw createHttpError(409, 'Your stock reservation expired.');
+      }
+
+      [order] = await Order.create(
+        [{
+          orderNumber: reservedAttempt.orderNumber,
+          user: reservedAttempt.user,
+          customer: reservedAttempt.customer,
+          shippingAddress: reservedAttempt.shippingAddress,
+          items: reservedAttempt.items,
+          totals: reservedAttempt.totals,
+          payment: {
+            provider: 'razorpay',
+            status: 'pending',
+            razorpayOrderId: reservedAttempt.payment.razorpayOrderId,
+            razorpayPaymentId,
+            razorpaySignature,
+          },
+          notes: reservedAttempt.notes,
+          stockDebited: true,
+        }],
+        { session },
+      );
+
+      reservedAttempt.stockReserved = false;
+      await reservedAttempt.save({ session });
+    });
+  } finally {
+    await session.endSession();
   }
 
-  const order = await Order.create({
-    orderNumber: attempt.orderNumber,
-    user: attempt.user,
-    customer: attempt.customer,
-    shippingAddress: attempt.shippingAddress,
-    items: attempt.items,
-    totals: attempt.totals,
-    payment: {
-      provider: 'razorpay',
-      status: 'pending',
-      razorpayOrderId: attempt.payment.razorpayOrderId,
-      razorpayPaymentId,
-      razorpaySignature,
-    },
-    notes: attempt.notes,
-  });
+  order?.$session(null);
 
   if (attempt.user) {
     await User.updateOne({ _id: attempt.user }, { $set: { lastOrderAt: new Date() } });

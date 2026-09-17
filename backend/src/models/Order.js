@@ -9,9 +9,9 @@ const ORDER_STATUS = [
   'cancelled',
 ];
 
-const PAYMENT_STATUS = ['pending', 'authorized', 'paid', 'failed', 'refunded'];
+const PAYMENT_STATUS = ['pending', 'authorized', 'paid', 'failed', 'refund_pending', 'refunded'];
 
-const SHIPPING_STATUS = ['not_created', 'created', 'in_transit', 'delivered', 'cancelled', 'failed'];
+const SHIPPING_STATUS = ['not_created', 'created', 'in_transit', 'delivered', 'cancellation_pending', 'cancelled', 'failed'];
 
 const customerSchema = new mongoose.Schema(
   {
@@ -212,6 +212,30 @@ const paymentSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    refundId: {
+      type: String,
+      trim: true,
+      default: '',
+      index: true,
+    },
+    refundStatus: {
+      type: String,
+      enum: ['', 'pending', 'processed', 'failed'],
+      default: '',
+    },
+    refundAmount: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    refundRequestedAt: {
+      type: Date,
+      default: null,
+    },
+    refundedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { _id: false },
 );
@@ -269,6 +293,10 @@ const shippingSchema = new mongoose.Schema(
       default: '',
     },
     pickupScheduledAt: {
+      type: Date,
+      default: null,
+    },
+    cancellationRequestedAt: {
       type: Date,
       default: null,
     },
@@ -406,6 +434,11 @@ const orderSchema = new mongoose.Schema(
       required: true,
       default: false,
       index: true,
+    },
+    stockRestored: {
+      type: Boolean,
+      required: true,
+      default: false,
     },
     shipping: {
       type: shippingSchema,

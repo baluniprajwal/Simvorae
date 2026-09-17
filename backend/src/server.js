@@ -10,6 +10,7 @@ import productRoutes from './routes/productRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import { notFound } from './middlewares/notFound.js';
 import { errorHandler } from './middlewares/errorHandler.js';
+import { releaseExpiredCheckoutReservations } from './services/orderService.js';
 
 dotenv.config();
 
@@ -50,6 +51,12 @@ app.use(errorHandler);
 async function startServer() {
   try {
     await connectDB();
+
+    await releaseExpiredCheckoutReservations();
+    const reservationCleanupTimer = setInterval(() => {
+      void releaseExpiredCheckoutReservations();
+    }, 60 * 1000);
+    reservationCleanupTimer.unref();
 
     app.listen(port, () => {
       console.log(`Server running on http://localhost:${port}`);

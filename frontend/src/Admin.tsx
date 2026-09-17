@@ -226,7 +226,7 @@ const getPaymentStatusBadgeClasses = (status: string) => {
     return successBadgeClasses;
   }
 
-  if (status === 'pending') {
+  if (status === 'pending' || status === 'refund_pending') {
     return warningBadgeClasses;
   }
 
@@ -252,6 +252,10 @@ const getShippingStatusBadgeClasses = (status: string) => {
 
   if (['failed', 'cancelled'].includes(status)) {
     return dangerBadgeClasses;
+  }
+
+  if (status === 'cancellation_pending') {
+    return warningBadgeClasses;
   }
 
   return neutralBadgeClasses;
@@ -334,7 +338,7 @@ const orderMatchesQueue = (order: Order, queue: OrderQueue) => {
     case 'delivered':
       return order.shippingStatus === 'delivered' || order.status === 'Delivered';
     case 'problems':
-      return order.paymentStatus === 'failed' || order.shippingStatus === 'failed' || order.shippingStatus === 'cancelled' || order.status === 'Cancelled';
+      return order.paymentStatus === 'failed' || ['failed', 'cancellation_pending', 'cancelled'].includes(order.shippingStatus) || order.status === 'Cancelled';
     default:
       return true;
   }
@@ -1028,9 +1032,12 @@ function OrderDrawer({
   const isShippingTerminal = ['in_transit', 'delivered', 'cancelled'].includes(order.shippingStatus);
   const hasShipment = Boolean(order.awbCode || order.shiprocketOrderId || order.shipmentId);
   const canMarkPacked = order.paymentStatus === 'paid' && order.status === 'Confirmed' && !isShippingTerminal && !hasShipment;
-  const canCreateShipment = order.paymentStatus === 'paid' && order.status === 'Packed' && ['not_created', 'failed'].includes(order.shippingStatus);
-  const canCancelOrder = !hasShipment && !['Shipped', 'Delivered', 'Cancelled'].includes(order.status);
-  const hasShipmentCancellationRequested = order.shippingStatus === 'cancelled' || order.currentShippingStatus.toLowerCase().includes('cancel');
+  const canRetryAwb = Boolean(order.shipmentId && !order.awbCode && order.shippingStatus === 'created');
+  const canCreateShipment = order.paymentStatus === 'paid' && order.status === 'Packed' && (
+    ['not_created', 'failed'].includes(order.shippingStatus) || canRetryAwb
+  );
+  const canCancelOrder = order.paymentStatus === 'paid' && !hasShipment && !['Shipped', 'Delivered', 'Cancelled'].includes(order.status);
+  const hasShipmentCancellationRequested = ['cancellation_pending', 'cancelled'].includes(order.shippingStatus);
   const canSyncShipment = hasShipment && !['delivered', 'cancelled'].includes(order.shippingStatus);
   const canCancelShipment = Boolean(
     (order.awbCode || order.shiprocketOrderId) &&
@@ -1101,20 +1108,6 @@ function OrderDrawer({
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => printPackingSlip(order)}
-            className="cursor-pointer border border-stone-200 bg-white px-6 py-3 font-sans text-[9px] font-normal uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50"
-          >
-            Print Packing Slip
-          </button>
-          <button
-            type="button"
-            onClick={() => printInvoice(order)}
-            className="cursor-pointer border border-stone-200 bg-white px-6 py-3 font-sans text-[9px] font-normal uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50"
-          >
-            Print Invoice
-          </button>
           {canCancelOrder && (
             <button
               type="button"
@@ -1224,6 +1217,18 @@ function OrderDrawer({
               </div>
             </div>
 
+            {hasShipment && (
+              <div className="border-t border-stone-100 px-6 py-4 font-sans text-[11px] font-normal leading-relaxed text-stone-500">
+                Print the official label and invoice, add an e-way bill when applicable, and request pickup from the Shiprocket dashboard.
+              </div>
+            )}
+
+            {order.total > 50000 && (
+              <div className="border-t border-amber-100 bg-amber-50 px-6 py-4 font-sans text-[11px] font-normal leading-relaxed text-amber-800">
+                This order exceeds ₹50,000. An e-way bill may be required; complete the applicable documentation in Shiprocket before requesting pickup.
+              </div>
+            )}
+
             {(canMarkPacked || canCreateShipment || canSyncShipment || canCancelShipment) && (
               <div className="mt-6 flex flex-wrap gap-3">
                 {canMarkPacked && (
@@ -1243,7 +1248,7 @@ function OrderDrawer({
                     onClick={onCreateShipment}
                     className="h-10 w-[162px] cursor-pointer border border-stone-200 bg-white px-4 font-sans text-[9px] font-normal uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {isCreatingShipment ? 'Creating' : 'Create Shipment'}
+                    {isCreatingShipment ? 'Working' : canRetryAwb ? 'Retry AWB' : 'Create Shipment'}
                   </button>
                 )}
                 {canSyncShipment && (
@@ -2144,7 +2149,11 @@ export default function Admin() {
       const updatedOrder = await cancelOrder(order.id);
       setViewingOrder((current) => (current?.id === order.id ? updatedOrder : current));
       setCancelCandidate(null);
-      showSuccess(`${order.id} cancelled.`);
+      showSuccess(
+        updatedOrder.paymentStatus === 'refunded'
+          ? `${order.id} cancelled and refunded. Stock was restored.`
+          : `Refund started for ${order.id}. Cancellation will complete after Razorpay confirms it.`,
+      );
     } catch (error) {
       showError(getFriendlyAdminErrorMessage(error, 'Order could not be cancelled. Please try again.'));
     } finally {
@@ -2158,7 +2167,11 @@ export default function Admin() {
     try {
       const updatedOrder = await createShipment(order.id);
       setViewingOrder((current) => (current?.id === order.id ? updatedOrder : current));
-      showSuccess(`Shipment created for ${order.id}.`);
+      showSuccess(
+        updatedOrder.awbCode
+          ? `Shipment and AWB are ready for ${order.id}.`
+          : `Shiprocket order saved for ${order.id}. Retry AWB after resolving the Shiprocket issue.`,
+      );
     } catch (error) {
       showError(getFriendlyAdminErrorMessage(error, 'Shipment could not be created. Please check Shiprocket details and try again.'));
     } finally {
@@ -2844,6 +2857,7 @@ export default function Admin() {
                         <option value="authorized">Authorized</option>
                         <option value="paid">Paid</option>
                         <option value="failed">Failed</option>
+                        <option value="refund_pending">Refund Pending</option>
                         <option value="refunded">Refunded</option>
                       </select>
 
@@ -2868,6 +2882,7 @@ export default function Admin() {
                         <option value="created">Created</option>
                         <option value="in_transit">In Transit</option>
                         <option value="delivered">Delivered</option>
+                        <option value="cancellation_pending">Cancellation Pending</option>
                         <option value="cancelled">Cancelled</option>
                         <option value="failed">Failed</option>
                       </select>
@@ -3243,7 +3258,7 @@ export default function Admin() {
             >
               <h3 className="mb-4 font-serif text-2xl text-[#1a1a1a]">Cancel Order</h3>
               <p className="mb-8 font-sans text-[11px] leading-relaxed text-stone-500">
-                Are you sure you want to cancel <span className="font-semibold text-[#1a1a1a]">{cancelCandidate.id}</span>? Use this only for customer requests, stock issues, or invalid order details.
+                Cancelling <span className="font-semibold text-[#1a1a1a]">{cancelCandidate.id}</span> will issue a full Razorpay refund. Stock is restored after Razorpay confirms the refund.
               </p>
 
               <div className="flex flex-col gap-3">

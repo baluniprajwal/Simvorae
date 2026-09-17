@@ -249,6 +249,7 @@ export default function Checkout() {
         notes: {
           orderNumber,
         },
+        timeout: 20 * 60,
         theme: {
           color: '#1a1a1a',
         },
@@ -279,6 +280,7 @@ export default function Checkout() {
         },
         modal: {
           ondismiss: () => {
+            void markPaymentFailed();
             showError('Payment window was closed before completion. Your cart is still saved.');
             setIsPaying(false);
           },
