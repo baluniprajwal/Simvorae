@@ -187,6 +187,21 @@ function mapShiprocketStatus(currentStatus = '', statusCode = null) {
   const deliveredCodes = new Set([7]);
   const inTransitCodes = new Set([6, 17, 18, 22, 42]);
   const failedCodes = new Set([8, 21, 71, 72, 76, 77]);
+  const cancellationRejected = normalized.includes('cancel') && (
+    normalized.includes('reject') ||
+    normalized.includes('denied') ||
+    normalized.includes('failed')
+  );
+
+  if (cancellationRejected) {
+    return {
+      shippingStatus: 'created',
+      orderStatus: null,
+      deliveredAt: null,
+      shippedAt: null,
+      cancellationRejected: true,
+    };
+  }
 
   if (normalized.includes('cancel')) {
     return {
@@ -194,6 +209,7 @@ function mapShiprocketStatus(currentStatus = '', statusCode = null) {
       orderStatus: null,
       deliveredAt: null,
       shippedAt: null,
+      cancellationRejected: false,
     };
   }
 
@@ -253,6 +269,22 @@ function extractTrackingData(data) {
     statusCode: statusCode === null ? null : Number(statusCode),
     courierName: shipmentTrack?.courier_name || '',
     ...status,
+  };
+}
+
+export function extractShiprocketWebhookTracking(payload = {}) {
+  const currentStatus = String(payload.current_status || payload.shipment_status || '').trim();
+  const rawStatusCode = payload.shipment_status_id ?? payload.current_status_id ?? null;
+  const statusCode = rawStatusCode === null || rawStatusCode === '' ? null : Number(rawStatusCode);
+  const awbCode = String(payload.awb || payload.awb_code || '').trim();
+
+  return {
+    awbCode,
+    trackingUrl: String(payload.track_url || payload.tracking_url || getTrackingUrl(awbCode)).trim(),
+    currentStatus,
+    statusCode: Number.isFinite(statusCode) ? statusCode : null,
+    courierName: String(payload.courier_name || '').trim(),
+    ...mapShiprocketStatus(currentStatus, statusCode),
   };
 }
 

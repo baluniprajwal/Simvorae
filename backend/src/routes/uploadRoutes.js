@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { createProductImageUploadUrl, streamImage } from '../controllers/uploadController.js';
-import { protect, requireAdmin } from '../middlewares/authMiddleware.js';
+import { protectAdmin, requireAdmin, verifyCsrf } from '../middlewares/authMiddleware.js';
 
 const router = Router();
 
-router.post('/product-image', protect, requireAdmin, createProductImageUploadUrl);
+router.post('/product-image', protectAdmin, requireAdmin, verifyCsrf, createProductImageUploadUrl);
 router.get('/images/*', streamImage);
 
 export default router;

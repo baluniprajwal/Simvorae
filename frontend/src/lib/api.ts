@@ -1,25 +1,31 @@
 import axios from 'axios';
-import { clearAdminToken, getAdminToken } from './adminAuth';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
+window.localStorage.removeItem('simvorae_customer_token');
+window.localStorage.removeItem('simvorae_admin_token');
+window.localStorage.removeItem('simvorae_customer_user');
+
 const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
 api.interceptors.request.use((config) => {
-  const adminToken = getAdminToken();
-  const customerToken = window.localStorage.getItem('simvorae_customer_token');
-  const isAdminPage = window.location.pathname.startsWith('/admin') && window.location.pathname !== '/admin/login';
-  const token = isAdminPage ? adminToken : customerToken;
+  const isAdminPage = window.location.pathname.startsWith('/admin');
+  const csrfCookie = isAdminPage ? 'simvorae_admin_csrf' : 'simvorae_customer_csrf';
+  const csrfToken = document.cookie
+    .split('; ')
+    .find((cookie) => cookie.startsWith(`${csrfCookie}=`))
+    ?.split('=')
+    .slice(1)
+    .join('=');
 
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  } else {
-    delete config.headers.Authorization;
+  if (csrfToken && !['get', 'head', 'options'].includes(String(config.method).toLowerCase())) {
+    config.headers['X-CSRF-Token'] = decodeURIComponent(csrfToken);
   }
 
   return config;
@@ -34,7 +40,6 @@ api.interceptors.response.use(
       window.location.pathname.startsWith('/admin') &&
       window.location.pathname !== '/admin/login'
     ) {
-      clearAdminToken();
       window.location.replace('/admin/login');
     }
 

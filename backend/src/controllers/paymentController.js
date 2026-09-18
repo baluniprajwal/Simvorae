@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { CheckoutAttempt } from '../models/CheckoutAttempt.js';
 import { Order } from '../models/Order.js';
 import { sendPaymentConfirmedEmails } from '../services/emailService.js';
@@ -9,13 +10,105 @@ import {
 } from '../services/orderService.js';
 import {
   createRazorpayRefund,
+  fetchRazorpayPayment,
   verifyRazorpaySignature,
   verifyRazorpayWebhookSignature,
 } from '../services/razorpayService.js';
 import { createHttpError } from '../utils/createHttpError.js';
 
+async function sendPaymentConfirmationBestEffort(order) {
+  if (order.confirmationEmailSentAt) {
+    return;
+  }
+
+  const claimToken = crypto.randomUUID();
+  const claimedAt = new Date();
+  const staleClaimBefore = new Date(claimedAt.getTime() - 10 * 60 * 1000);
+  let claimedOrder;
+
+  try {
+    claimedOrder = await Order.findOneAndUpdate(
+      {
+        _id: order._id,
+        confirmationEmailSentAt: null,
+        $or: [
+          { confirmationEmailClaimToken: '' },
+          { confirmationEmailClaimToken: { $exists: false } },
+          { confirmationEmailClaimedAt: { $lte: staleClaimBefore } },
+        ],
+      },
+      {
+        $set: {
+          confirmationEmailClaimToken: claimToken,
+          confirmationEmailClaimedAt: claimedAt,
+          confirmationEmailLastAttemptAt: claimedAt,
+        },
+      },
+      { new: true },
+    );
+
+    if (!claimedOrder) {
+      return;
+    }
+
+    const results = await sendPaymentConfirmedEmails(claimedOrder);
+    const customerResult = results[0];
+    const customerEmailSent = customerResult?.status === 'fulfilled' && customerResult.value;
+    const update = {
+      confirmationEmailClaimToken: '',
+      confirmationEmailClaimedAt: null,
+    };
+
+    if (customerEmailSent) {
+      update.confirmationEmailSentAt = new Date();
+      update.confirmationEmailLastError = '';
+    } else {
+      const reason = customerResult?.status === 'rejected'
+        ? customerResult.reason?.message || String(customerResult.reason)
+        : 'Email provider is not configured.';
+      update.confirmationEmailLastError = reason;
+      console.error(`Order confirmation email failed for ${claimedOrder.orderNumber}: ${reason}`);
+    }
+
+    for (const result of results.slice(1)) {
+      if (result.status === 'rejected') {
+        console.error(`Admin order email failed for ${claimedOrder.orderNumber}: ${result.reason?.message || result.reason}`);
+      }
+    }
+
+    await Order.updateOne(
+      { _id: claimedOrder._id, confirmationEmailClaimToken: claimToken },
+      { $set: update },
+    );
+
+    Object.assign(order, update);
+  } catch (error) {
+    console.error(`Order confirmation email failed for ${claimedOrder?.orderNumber || order.orderNumber}: ${error.message}`);
+
+    if (!claimedOrder) {
+      return;
+    }
+
+    try {
+      await Order.updateOne(
+        { _id: claimedOrder._id, confirmationEmailClaimToken: claimToken },
+        {
+          $set: {
+            confirmationEmailClaimToken: '',
+            confirmationEmailClaimedAt: null,
+            confirmationEmailLastError: error.message || 'Order confirmation email failed.',
+          },
+        },
+      );
+    } catch (updateError) {
+      console.error(`Could not release confirmation email claim for ${claimedOrder.orderNumber}: ${updateError.message}`);
+    }
+  }
+}
+
 async function confirmPaidOrder({ order, razorpayPaymentId, razorpaySignature = '' }) {
   if (order.payment.status === 'paid') {
+    await sendPaymentConfirmationBestEffort(order);
     return { order, alreadyPaid: true };
   }
 
@@ -28,7 +121,7 @@ async function confirmPaidOrder({ order, razorpayPaymentId, razorpaySignature = 
   order.orderStatus = 'confirmed';
   await order.save();
 
-  await sendPaymentConfirmedEmails(order);
+  await sendPaymentConfirmationBestEffort(order);
 
   return { order, alreadyPaid: false };
 }
@@ -41,6 +134,18 @@ function assertWebhookPaymentMatchesCheckout({ checkout, payment }) {
 
   if (receivedAmount !== expectedAmount || receivedCurrency !== expectedCurrency) {
     throw createHttpError(400, 'Webhook payment amount does not match order total.');
+  }
+}
+
+function assertCapturedPaymentMatchesCheckout({ checkout, payment }) {
+  assertWebhookPaymentMatchesCheckout({ checkout, payment });
+
+  if (String(payment?.order_id || '') !== String(checkout.payment.razorpayOrderId || '')) {
+    throw createHttpError(400, 'Payment does not belong to this checkout.');
+  }
+
+  if (payment?.status !== 'captured' || payment?.captured !== true) {
+    throw createHttpError(409, 'Payment is not captured yet. Please wait while Razorpay confirms it.');
   }
 }
 
@@ -95,6 +200,7 @@ export async function verifyPayment(req, res, next) {
     const paidOrder = await Order.findOne({ orderNumber, user: req.user._id });
 
     if (paidOrder?.payment.status === 'paid') {
+      await sendPaymentConfirmationBestEffort(paidOrder);
       return res.status(200).json({
         success: true,
         message: 'Payment verified successfully.',
@@ -119,10 +225,14 @@ export async function verifyPayment(req, res, next) {
     });
 
     if (!isValidSignature) {
-      await releaseCheckoutReservation(attempt._id);
-      await CheckoutAttempt.deleteOne({ _id: attempt._id });
       return next(createHttpError(400, 'Invalid payment signature.'));
     }
+
+    const razorpayPayment = await fetchRazorpayPayment(razorpayPaymentId);
+    assertCapturedPaymentMatchesCheckout({
+      checkout: attempt,
+      payment: razorpayPayment,
+    });
 
     if (!attempt.stockReserved) {
       await refundLateCheckoutPayment({ attempt, razorpayPaymentId });

@@ -12,6 +12,11 @@ import {
 } from '../utils/validators.js';
 
 const CHECKOUT_RESERVATION_MINUTES = 20;
+const CHECKOUT_ATTEMPT_RETENTION_DAYS = 7;
+
+function getCheckoutAttemptPurgeDate() {
+  return new Date(Date.now() + CHECKOUT_ATTEMPT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+}
 
 function createOrderNumber() {
   const date = new Date();
@@ -439,6 +444,7 @@ export async function releaseCheckoutReservation(attemptId) {
 
       attempt.stockReserved = false;
       attempt.stockReleasedAt = new Date();
+      attempt.purgeAt = getCheckoutAttemptPurgeDate();
       await attempt.save({ session });
     });
   } finally {
@@ -447,6 +453,7 @@ export async function releaseCheckoutReservation(attemptId) {
 }
 
 export async function releaseExpiredCheckoutReservations() {
+  const releasedBefore = new Date(Date.now() - CHECKOUT_ATTEMPT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
   const expiredAttempts = await CheckoutAttempt.find({
     stockReserved: true,
     reservationExpiresAt: { $lte: new Date() },
@@ -455,6 +462,11 @@ export async function releaseExpiredCheckoutReservations() {
   await Promise.allSettled(
     expiredAttempts.map((attempt) => releaseCheckoutReservation(attempt._id)),
   );
+
+  await CheckoutAttempt.deleteMany({
+    stockReserved: false,
+    stockReleasedAt: { $lte: releasedBefore },
+  });
 }
 
 export async function createOrderFromCheckoutAttempt({ attempt, razorpayPaymentId, razorpaySignature = '' }) {

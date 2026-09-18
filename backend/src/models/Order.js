@@ -313,6 +313,23 @@ const shippingSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    trackingEmailClaimedAt: {
+      type: Date,
+      default: null,
+    },
+    trackingEmailClaimToken: {
+      type: String,
+      default: '',
+    },
+    trackingEmailLastAttemptAt: {
+      type: Date,
+      default: null,
+    },
+    trackingEmailLastError: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     shippedAt: {
       type: Date,
       default: null,
@@ -439,6 +456,27 @@ const orderSchema = new mongoose.Schema(
       type: Boolean,
       required: true,
       default: false,
+    },
+    confirmationEmailSentAt: {
+      type: Date,
+      default: null,
+    },
+    confirmationEmailClaimedAt: {
+      type: Date,
+      default: null,
+    },
+    confirmationEmailClaimToken: {
+      type: String,
+      default: '',
+    },
+    confirmationEmailLastAttemptAt: {
+      type: Date,
+      default: null,
+    },
+    confirmationEmailLastError: {
+      type: String,
+      trim: true,
+      default: '',
     },
     shipping: {
       type: shippingSchema,

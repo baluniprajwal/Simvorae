@@ -1,50 +1,39 @@
-type AdminTokenPayload = {
-  exp?: number;
-  role?: string;
+import { create } from 'zustand';
+import api from './api';
+
+export type AdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin';
 };
 
-const adminTokenKey = 'simvorae_admin_token';
+type AdminAuthState = {
+  user: AdminUser | null;
+  isInitialized: boolean;
+  bootstrap: () => Promise<void>;
+  setUser: (user: AdminUser) => void;
+  logout: () => Promise<void>;
+};
 
-function decodeAdminToken(token: string): AdminTokenPayload | null {
-  try {
-    const [, encodedPayload] = token.split('.');
-
-    if (!encodedPayload) {
-      return null;
+export const useAdminAuthStore = create<AdminAuthState>((set, get) => ({
+  user: null,
+  isInitialized: false,
+  bootstrap: async () => {
+    if (get().isInitialized) return;
+    try {
+      const { data } = await api.get<{ user: AdminUser }>('/api/auth/admin/me');
+      set({ user: data.user, isInitialized: true });
+    } catch {
+      set({ user: null, isInitialized: true });
     }
-
-    return JSON.parse(window.atob(encodedPayload.replace(/-/g, '+').replace(/_/g, '/'))) as AdminTokenPayload;
-  } catch {
-    return null;
-  }
-}
-
-export function getAdminToken() {
-  return window.localStorage.getItem(adminTokenKey);
-}
-
-export function setAdminToken(token: string) {
-  window.localStorage.setItem(adminTokenKey, token);
-}
-
-export function clearAdminToken() {
-  window.localStorage.removeItem(adminTokenKey);
-}
-
-export function isAdminTokenValid(token = getAdminToken()) {
-  if (!token) {
-    return false;
-  }
-
-  const payload = decodeAdminToken(token);
-
-  if (!payload || payload.role !== 'admin') {
-    return false;
-  }
-
-  if (payload.exp && payload.exp <= Math.floor(Date.now() / 1000)) {
-    return false;
-  }
-
-  return true;
-}
+  },
+  setUser: (user) => set({ user, isInitialized: true }),
+  logout: async () => {
+    try {
+      await api.post('/api/auth/admin/logout');
+    } finally {
+      set({ user: null, isInitialized: true });
+    }
+  },
+}));

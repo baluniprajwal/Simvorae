@@ -3,14 +3,11 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useToast } from './contexts/ToastContext';
-import { isAdminTokenValid, setAdminToken } from './lib/adminAuth';
+import { useAdminAuthStore, type AdminUser } from './lib/adminAuth';
 import api from './lib/api';
 
 type LoginResponse = {
-  token: string;
-  user: {
-    role: 'customer' | 'admin';
-  };
+  user: AdminUser;
 };
 
 export default function AdminLogin() {
@@ -19,12 +16,17 @@ export default function AdminLogin() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   const { showError, showSuccess } = useToast();
+  const adminUser = useAdminAuthStore((state) => state.user);
+  const isInitialized = useAdminAuthStore((state) => state.isInitialized);
+  const setAdminUser = useAdminAuthStore((state) => state.setUser);
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
-  if (isAdminTokenValid()) {
+  if (!isInitialized) return null;
+
+  if (adminUser) {
     return <Navigate to="/admin" replace />;
   }
 
@@ -36,6 +38,7 @@ export default function AdminLogin() {
       const response = await api.post<LoginResponse>('/api/auth/login', {
         email,
         password,
+        portal: 'admin',
       });
 
       if (response.data.user.role !== 'admin') {
@@ -43,7 +46,7 @@ export default function AdminLogin() {
         return;
       }
 
-      setAdminToken(response.data.token);
+      setAdminUser(response.data.user);
       showSuccess('Access granted. Welcome to Admin Portal.');
       navigate('/admin', { replace: true });
     } catch (error) {

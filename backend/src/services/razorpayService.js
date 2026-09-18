@@ -36,6 +36,15 @@ export async function createRazorpayOrder(order) {
   });
 }
 
+export async function fetchRazorpayPayment(paymentId) {
+  if (!paymentId) {
+    throw createHttpError(400, 'Razorpay payment ID is required.');
+  }
+
+  const razorpay = getClient();
+  return razorpay.payments.fetch(paymentId);
+}
+
 export async function createRazorpayRefund({
   paymentId,
   orderNumber,

@@ -8,6 +8,7 @@ import orderRoutes from './routes/orderRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import webhookRoutes from './routes/webhookRoutes.js';
 import { notFound } from './middlewares/notFound.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { releaseExpiredCheckoutReservations } from './services/orderService.js';
@@ -16,6 +17,10 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
+
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 
 app.use(
   cors({
@@ -45,6 +50,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/uploads', uploadRoutes);
+app.use('/api/hooks', webhookRoutes);
 app.use(notFound);
 app.use(errorHandler);
 

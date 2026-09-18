@@ -245,12 +245,18 @@ const checkoutAttemptSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    purgeAt: {
+      type: Date,
+      default: null,
+      index: {
+        expires: 0,
+      },
+    },
   },
   { timestamps: true },
 );
 
 checkoutAttemptSchema.index({ user: 1, createdAt: -1 });
-checkoutAttemptSchema.index({ 'payment.razorpayOrderId': 1 });
 checkoutAttemptSchema.index({ stockReserved: 1, reservationExpiresAt: 1 });
 
 export const CheckoutAttempt = mongoose.model('CheckoutAttempt', checkoutAttemptSchema);

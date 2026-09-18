@@ -25,16 +25,15 @@ type Customer = {
 
 type AuthResponse = {
   success: boolean;
-  token?: string;
   user?: Customer;
   message?: string;
 };
 
 type AuthState = {
   user: Customer | null;
-  token: string;
   isLoading: boolean;
-  hydrate: () => void;
+  isInitialized: boolean;
+  hydrate: () => Promise<void>;
   login: (payload: { email: string; password: string }) => Promise<AuthResponse>;
   register: (payload: { name: string; email: string; password: string }) => Promise<AuthResponse>;
   verifyEmail: (token: string) => Promise<AuthResponse>;
@@ -51,53 +50,31 @@ type AuthState = {
   }) => Promise<AuthResponse>;
   forgotPassword: (email: string) => Promise<AuthResponse>;
   resetPassword: (payload: { token: string; password: string }) => Promise<AuthResponse>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
-const customerTokenKey = 'simvorae_customer_token';
-const customerUserKey = 'simvorae_customer_user';
-
-function storeSession(token: string, user: Customer) {
-  window.localStorage.setItem(customerTokenKey, token);
-  window.localStorage.setItem(customerUserKey, JSON.stringify(user));
-}
-
-function clearSession() {
-  window.localStorage.removeItem(customerTokenKey);
-  window.localStorage.removeItem(customerUserKey);
-}
-
-function getStoredUser() {
-  try {
-    const rawUser = window.localStorage.getItem(customerUserKey);
-    return rawUser ? JSON.parse(rawUser) as Customer : null;
-  } catch {
-    clearSession();
-    return null;
-  }
-}
-
 export const useAuthStore = create<AuthState>((set) => ({
-  user: getStoredUser(),
-  token: window.localStorage.getItem(customerTokenKey) || '',
+  user: null,
   isLoading: false,
+  isInitialized: false,
 
-  hydrate: () => {
-    set({
-      user: getStoredUser(),
-      token: window.localStorage.getItem(customerTokenKey) || '',
-    });
+  hydrate: async () => {
+    try {
+      const { data } = await api.get<AuthResponse>('/api/auth/me');
+      set({ user: data.user || null, isInitialized: true });
+    } catch {
+      set({ user: null, isInitialized: true });
+    }
   },
 
   login: async (payload) => {
     set({ isLoading: true });
 
     try {
-      const { data } = await api.post<AuthResponse>('/api/auth/login', payload);
+      const { data } = await api.post<AuthResponse>('/api/auth/login', { ...payload, portal: 'customer' });
 
-      if (data.token && data.user) {
-        storeSession(data.token, data.user);
-        set({ token: data.token, user: data.user });
+      if (data.user) {
+        set({ user: data.user, isInitialized: true });
       }
 
       return data;
@@ -129,25 +106,17 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   refreshMe: async () => {
-    const currentToken = window.localStorage.getItem(customerTokenKey);
-
-    if (!currentToken) {
-      return null;
-    }
-
     try {
       const { data } = await api.get<AuthResponse>('/api/auth/me');
 
       if (data.user) {
-        window.localStorage.setItem(customerUserKey, JSON.stringify(data.user));
-        set({ user: data.user, token: currentToken });
+        set({ user: data.user, isInitialized: true });
         return data.user;
       }
 
       return null;
     } catch {
-      clearSession();
-      set({ token: '', user: null });
+      set({ user: null, isInitialized: true });
       return null;
     }
   },
@@ -159,7 +128,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       const { data } = await api.put<AuthResponse>('/api/auth/me', payload);
 
       if (data.user) {
-        window.localStorage.setItem(customerUserKey, JSON.stringify(data.user));
         set({ user: data.user });
       }
 
@@ -179,8 +147,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     return data;
   },
 
-  logout: () => {
-    clearSession();
-    set({ token: '', user: null });
+  logout: async () => {
+    try {
+      await api.post('/api/auth/logout');
+    } finally {
+      set({ user: null, isInitialized: true });
+    }
   },
 }));

@@ -21,7 +21,7 @@ import About from './About';
 import Contact from './Contact';
 import { useAuthStore } from './store/authStore';
 import { ToastProvider } from './contexts/ToastContext';
-import { clearAdminToken, isAdminTokenValid } from './lib/adminAuth';
+import { useAdminAuthStore } from './lib/adminAuth';
 
 function ScrollToTop() {
   const { pathname, search } = useLocation();
@@ -75,6 +75,16 @@ function SmoothScroll() {
 function AppContent() {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
+  const hydrateCustomer = useAuthStore((state) => state.hydrate);
+  const bootstrapAdmin = useAdminAuthStore((state) => state.bootstrap);
+
+  useEffect(() => {
+    if (isAdminRoute) {
+      void bootstrapAdmin();
+    } else {
+      void hydrateCustomer();
+    }
+  }, [bootstrapAdmin, hydrateCustomer, isAdminRoute]);
 
   return (
     <>
@@ -106,10 +116,13 @@ function AppContent() {
 }
 
 function ProtectedCheckoutRoute() {
-  const token = useAuthStore((state) => state.token);
+  const user = useAuthStore((state) => state.user);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
   const location = useLocation();
 
-  if (!token) {
+  if (!isInitialized) return null;
+
+  if (!user) {
     return <Navigate to="/checkout/login" replace state={{ from: location }} />;
   }
 
@@ -117,10 +130,13 @@ function ProtectedCheckoutRoute() {
 }
 
 function ProtectedAccountRoute() {
-  const token = useAuthStore((state) => state.token);
+  const user = useAuthStore((state) => state.user);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
   const location = useLocation();
 
-  if (!token) {
+  if (!isInitialized) return null;
+
+  if (!user) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
@@ -128,10 +144,13 @@ function ProtectedAccountRoute() {
 }
 
 function ProtectedOrderDetailRoute() {
-  const token = useAuthStore((state) => state.token);
+  const user = useAuthStore((state) => state.user);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
   const location = useLocation();
 
-  if (!token) {
+  if (!isInitialized) return null;
+
+  if (!user) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
@@ -139,10 +158,11 @@ function ProtectedOrderDetailRoute() {
 }
 
 function ProtectedAdminRoute() {
-  if (!isAdminTokenValid()) {
-    clearAdminToken();
-    return <Navigate to="/admin/login" replace />;
-  }
+  const user = useAdminAuthStore((state) => state.user);
+  const isInitialized = useAdminAuthStore((state) => state.isInitialized);
+
+  if (!isInitialized) return null;
+  if (!user) return <Navigate to="/admin/login" replace />;
 
   return <Admin />;
 }

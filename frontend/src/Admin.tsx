@@ -32,7 +32,7 @@ import {
 import { type Order, type OrderStatus, useOrderStore } from './store/orderStore';
 import { type ProductStoreItem, useProductStore } from './store/productStore';
 import { useToast } from './contexts/ToastContext';
-import { clearAdminToken } from './lib/adminAuth';
+import { useAdminAuthStore } from './lib/adminAuth';
 
 type AdminTab = 'OVERVIEW' | 'CATALOG' | 'ORDERS' | 'CUSTOMERS';
 type DashboardRange = 'week' | 'month' | 'year' | 'all' | 'custom';
@@ -1417,6 +1417,7 @@ export default function Admin() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showError, showSuccess } = useToast();
+  const logoutAdmin = useAdminAuthStore((state) => state.logout);
   const {
     products,
     categoryStats,
@@ -3355,9 +3356,9 @@ export default function Admin() {
               <div className="flex flex-col gap-3">
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     setIsAdminLogoutModalOpen(false);
-                    clearAdminToken();
+                    await logoutAdmin();
                     showSuccess('Signed out successfully.');
                     navigate('/admin/login', { replace: true });
                   }}

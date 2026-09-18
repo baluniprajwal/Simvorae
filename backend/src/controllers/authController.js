@@ -6,6 +6,7 @@ import { hashPassword, verifyPassword } from '../utils/password.js';
 import { getAdminTokenExpirySeconds, getCustomerTokenExpirySeconds, signToken } from '../utils/token.js';
 import { isValidEmail, isValidIndianPhone, isValidIndianPostalCode, normalizePhone } from '../utils/validators.js';
 import { sendEmailVerification, sendPasswordResetEmail } from '../services/emailService.js';
+import { clearAuthCookies, setAuthCookies } from '../utils/authCookies.js';
 
 const verificationTokenExpiresInMs = 1000 * 60 * 60 * 24;
 const passwordResetExpiresInMs = 1000 * 60 * 30;
@@ -163,7 +164,7 @@ export async function register(req, res, next) {
 
 export async function login(req, res, next) {
   try {
-    const { email, password } = req.body;
+    const { email, password, portal = 'customer' } = req.body;
 
     if (!isValidEmail(email) || !password) {
       return next(createHttpError(400, 'Email and password are required.'));
@@ -183,6 +184,14 @@ export async function login(req, res, next) {
       return next(createHttpError(403, 'Please verify your email before logging in.'));
     }
 
+    if (portal === 'admin' && user.role !== 'admin') {
+      return next(createHttpError(403, 'This account does not have admin access.'));
+    }
+
+    if (portal !== 'admin' && user.role === 'admin') {
+      return next(createHttpError(403, 'Use the admin portal to sign in to this account.'));
+    }
+
     user.lastLoginAt = new Date();
     await user.save();
 
@@ -194,16 +203,21 @@ export async function login(req, res, next) {
       },
       expiresIn,
     );
+    setAuthCookies(res, { role: user.role, token, expiresIn });
 
     return res.status(200).json({
       success: true,
-      token,
       expiresIn,
       user: sanitizeUser(user),
     });
   } catch (error) {
     return next(error);
   }
+}
+
+export function logout(req, res) {
+  clearAuthCookies(res, req.user.role);
+  return res.status(200).json({ success: true, message: 'Signed out successfully.' });
 }
 
 export function getMe(req, res) {
