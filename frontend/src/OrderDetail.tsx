@@ -25,6 +25,56 @@ function formatStatus(value: string) {
   return value.replace(/_/g, ' ');
 }
 
+const deliverySteps = ['Confirmed', 'Packed', 'Shipped', 'Delivered'] as const;
+
+function getDeliveryState(order: Order) {
+  if (order.status === 'Cancelled') {
+    return {
+      label: 'Order cancelled',
+      message: order.paymentStatus === 'refund_pending'
+        ? 'Your refund has been initiated. We will email you when it is completed.'
+        : order.paymentStatus === 'refunded'
+          ? 'Your payment has been refunded.'
+          : 'This order will not be shipped.',
+      activeStep: -1,
+    };
+  }
+
+  if (order.shippingStatus === 'cancelled') {
+    return {
+      label: 'Delivery being rearranged',
+      message: 'The previous shipment was cancelled. We are preparing a new delivery for your order.',
+      activeStep: 1,
+    };
+  }
+
+  if (order.shippingStatus === 'cancellation_pending') {
+    return {
+      label: 'Cancellation requested',
+      message: 'We are confirming the shipment cancellation with our delivery partner.',
+      activeStep: Math.max(1, deliverySteps.indexOf(order.status as typeof deliverySteps[number])),
+    };
+  }
+
+  if (order.shippingStatus === 'delivered' || order.status === 'Delivered') {
+    return { label: 'Delivered', message: 'Your order has been delivered.', activeStep: 3 };
+  }
+
+  if (order.shippingStatus === 'in_transit' || order.status === 'Shipped') {
+    return { label: 'On the way', message: 'Your order is with the courier and on its way to you.', activeStep: 2 };
+  }
+
+  if (order.shippingStatus === 'created') {
+    return { label: 'Shipment booked', message: 'Your parcel is ready for handover to our delivery partner.', activeStep: 1 };
+  }
+
+  if (order.status === 'Packed') {
+    return { label: 'Packed with care', message: 'Your order is packed and will be shipped shortly.', activeStep: 1 };
+  }
+
+  return { label: 'Order confirmed', message: 'We have received your order and will begin preparing it shortly.', activeStep: 0 };
+}
+
 export default function OrderDetail() {
   const { orderNumber = '' } = useParams();
   const { fetchMyOrder, isLoading, error } = useOrderStore();
@@ -62,6 +112,8 @@ export default function OrderDetail() {
     );
   }
 
+  const deliveryState = getDeliveryState(order);
+
   return (
     <div className="relative flex min-h-screen flex-col bg-[#fcfbf9] font-sans text-[#1a1a1a]">
       <div
@@ -95,12 +147,9 @@ export default function OrderDetail() {
             </div>
 
             <div className="flex gap-4">
-              <button className="cursor-pointer border-b border-[#1a1a1a] pb-1 text-[9px] font-semibold uppercase tracking-widest text-[#1a1a1a] transition-opacity hover:opacity-60">
-                Download Invoice
-              </button>
               <Link
                 to="/contact"
-                className="border-b border-transparent pb-1 text-[9px] font-semibold uppercase tracking-widest text-stone-400 transition-colors hover:text-[#1a1a1a]"
+                className="border-b border-[#1a1a1a] pb-1 text-[9px] font-semibold uppercase tracking-widest text-[#1a1a1a] transition-opacity hover:opacity-60"
               >
                 Contact Support
               </Link>
@@ -163,49 +212,52 @@ export default function OrderDetail() {
           >
             <div>
               <div className="mb-8 border-b border-[#1a1a1a] pb-4 text-[9px] font-semibold uppercase tracking-widest text-stone-400">
-                Status & Tracking
+                Your Order Journey
               </div>
 
-              <div className="flex flex-col gap-6">
-                <div className="flex items-center justify-between border-b border-stone-100 pb-6">
-                  <span className="font-sans text-[10px] uppercase tracking-widest text-stone-500">Fulfillment</span>
-                  <span className="rounded-full bg-stone-100 px-3 py-1 font-sans text-[9px] uppercase tracking-widest text-[#1a1a1a]">
-                    {order.status}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between border-b border-stone-100 pb-6">
-                  <span className="font-sans text-[10px] uppercase tracking-widest text-stone-500">Payment</span>
-                  <span className="rounded-full bg-stone-100 px-3 py-1 font-sans text-[9px] uppercase tracking-widest text-[#1a1a1a]">
-                    {order.paymentStatus}
-                  </span>
-                </div>
-                <div className="flex items-start justify-between border-b border-stone-100 pb-6">
-                  <span className="pt-1 font-sans text-[10px] uppercase tracking-widest text-stone-500">Shipping</span>
-                  <div className="flex flex-col items-end gap-2 text-right">
-                    <span className="rounded-full bg-stone-100 px-3 py-1 font-sans text-[9px] uppercase tracking-widest text-[#1a1a1a]">
-                      {formatStatus(order.shippingStatus)}
+              <div className="flex flex-col">
+                <div className="border-b border-stone-100 pb-7">
+                  <div className="mb-2 flex items-center justify-between gap-4">
+                    <h2 className="font-serif text-2xl text-[#1a1a1a]">{deliveryState.label}</h2>
+                    <span className="shrink-0 rounded-sm border border-stone-200 bg-stone-50 px-3 py-1 font-sans text-[9px] uppercase tracking-widest text-stone-600">
+                      {order.paymentStatus === 'paid' ? 'Payment received' : formatStatus(order.paymentStatus)}
                     </span>
-                    {order.currentShippingStatus && (
-                      <span className="mt-1 block max-w-[220px] font-sans text-[10px] text-stone-500">
-                        {order.currentShippingStatus}
-                      </span>
-                    )}
                   </div>
+                  <p className="max-w-md font-sans text-[11px] leading-5 text-stone-500">
+                    {deliveryState.message}
+                  </p>
                 </div>
 
+                {deliveryState.activeStep >= 0 && (
+                  <div className="grid grid-cols-4 py-7">
+                    {deliverySteps.map((step, index) => {
+                      const isComplete = index <= deliveryState.activeStep;
+                      return (
+                        <div key={step} className="relative flex flex-col gap-3 pr-2">
+                          {index < deliverySteps.length - 1 && (
+                            <span className={`absolute left-3 right-0 top-[5px] h-px ${index < deliveryState.activeStep ? 'bg-[#1a1a1a]' : 'bg-stone-200'}`} />
+                          )}
+                          <span className={`relative z-10 h-[11px] w-[11px] rounded-full border ${isComplete ? 'border-[#1a1a1a] bg-[#1a1a1a]' : 'border-stone-300 bg-[#fcfbf9]'}`} />
+                          <span className={`font-sans text-[8px] uppercase tracking-[0.14em] ${isComplete ? 'text-[#1a1a1a]' : 'text-stone-400'}`}>
+                            {step}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {(order.awbCode || order.trackingUrl || order.courierName) && (
-                  <div className="mt-2 flex flex-col gap-4 border border-stone-100 bg-stone-50 p-6">
-                    {order.awbCode && (
-                      <div>
-                        <span className="mb-1 block font-sans text-[9px] uppercase tracking-widest text-stone-400">Waybill (AWB)</span>
-                        <span className="font-sans text-[11px] font-medium tracking-wider text-[#1a1a1a]">{order.awbCode}</span>
-                      </div>
-                    )}
+                  <div className="flex items-end justify-between gap-6 border border-stone-100 bg-stone-50 p-6">
+                    <div>
+                      <span className="mb-2 block font-sans text-[9px] uppercase tracking-widest text-stone-400">Delivery Partner</span>
+                      <span className="font-sans text-[11px] text-[#1a1a1a]">{order.courierName || 'Courier assigned'}</span>
+                      {order.awbCode && (
+                        <span className="mt-1 block font-sans text-[10px] text-stone-500">Tracking no. {order.awbCode}</span>
+                      )}
+                    </div>
                     {order.courierName && (
-                      <div>
-                        <span className="mb-1 block font-sans text-[9px] uppercase tracking-widest text-stone-400">Courier</span>
-                        <span className="font-sans text-[11px] font-medium tracking-wider text-[#1a1a1a]">{order.courierName}</span>
-                      </div>
+                      <span className="sr-only">Courier: {order.courierName}</span>
                     )}
                     {order.trackingUrl && (
                       <a
@@ -214,7 +266,7 @@ export default function OrderDetail() {
                         rel="noreferrer"
                         className="w-max border-b border-[#1a1a1a] pb-1 text-left text-[9px] font-semibold uppercase tracking-widest text-[#1a1a1a] transition-opacity hover:opacity-60"
                       >
-                        Track Shipment
+                        Track My Order
                       </a>
                     )}
                   </div>
