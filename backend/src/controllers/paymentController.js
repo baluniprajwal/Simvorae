@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { CheckoutAttempt } from '../models/CheckoutAttempt.js';
 import { Order } from '../models/Order.js';
 import { sendPaymentConfirmedEmails } from '../services/emailService.js';
+import { sendRefundConfirmationBestEffort } from '../services/refundNotificationService.js';
 import {
   createOrderFromCheckoutAttempt,
   debitOrderStock,
@@ -294,7 +295,8 @@ export async function handleRazorpayWebhook(req, res, next) {
       }
 
       if (event === 'refund.processed') {
-        await finalizeRefundedOrder({ orderId: refundedOrder._id, refund });
+        const completedOrder = await finalizeRefundedOrder({ orderId: refundedOrder._id, refund });
+        await sendRefundConfirmationBestEffort(completedOrder);
       } else if (refundedOrder.payment.status !== 'refunded') {
         refundedOrder.payment.status = 'paid';
         refundedOrder.payment.refundId = refund.id;

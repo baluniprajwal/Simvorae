@@ -20,6 +20,7 @@ import {
   applyShiprocketTrackingUpdate,
   sendShipmentTrackingBestEffort,
 } from '../src/services/shipmentSyncService.js';
+import { sendRefundConfirmationBestEffort } from '../src/services/refundNotificationService.js';
 import { verifyCsrf } from '../src/middlewares/authMiddleware.js';
 import { setAuthCookies } from '../src/utils/authCookies.js';
 import {
@@ -199,6 +200,26 @@ test('concurrent shipment email sender must win an atomic claim', async (t) => {
   assert.equal(claimFilter._id, 'order-1');
   assert.equal(claimFilter['shipping.trackingNotifiedAt'], null);
   assert.equal(claimFilter.$or.length, 3);
+});
+
+test('concurrent refund email sender must win an atomic claim', async (t) => {
+  const order = {
+    _id: 'order-1',
+    orderNumber: 'SIM-TEST-1',
+    payment: { status: 'refunded' },
+    refundEmailSentAt: null,
+  };
+  let claims = 0;
+
+  t.mock.method(Order, 'findOneAndUpdate', async () => {
+    claims += 1;
+    return null;
+  });
+
+  const sent = await sendRefundConfirmationBestEffort(order);
+
+  assert.equal(sent, false);
+  assert.equal(claims, 1);
 });
 
 test('Shiprocket webhook payload maps directly without a tracking API request', () => {

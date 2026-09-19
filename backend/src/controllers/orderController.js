@@ -1,5 +1,6 @@
 import { Order } from '../models/Order.js';
 import { finalizeRefundedOrder } from '../services/orderService.js';
+import { sendRefundConfirmationBestEffort } from '../services/refundNotificationService.js';
 import { createRazorpayRefund } from '../services/razorpayService.js';
 import {
   cancelShiprocketOrder,
@@ -137,6 +138,7 @@ export async function updateOrderStatus(req, res, next) {
 
       if (refund.status === 'processed') {
         const refundedOrder = await finalizeRefundedOrder({ orderId: claimedOrder._id, refund });
+        await sendRefundConfirmationBestEffort(refundedOrder);
 
         return res.status(200).json({
           success: true,

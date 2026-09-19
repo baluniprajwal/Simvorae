@@ -478,6 +478,27 @@ const orderSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    refundEmailSentAt: {
+      type: Date,
+      default: null,
+    },
+    refundEmailClaimedAt: {
+      type: Date,
+      default: null,
+    },
+    refundEmailClaimToken: {
+      type: String,
+      default: '',
+    },
+    refundEmailLastAttemptAt: {
+      type: Date,
+      default: null,
+    },
+    refundEmailLastError: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     shipping: {
       type: shippingSchema,
       required: true,
