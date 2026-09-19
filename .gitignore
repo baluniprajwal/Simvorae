@@ -15,7 +15,8 @@ backend/dist/
 frontend/.env
 frontend/.env.*
 backend/.env
-backend/.env.*
+backend/src/seeder/
+
 !.env.example
 !frontend/.env.example
 !backend/.env.example

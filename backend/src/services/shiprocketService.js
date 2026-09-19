@@ -116,11 +116,16 @@ function getShipmentPackageDetails(order) {
   };
 }
 
+export function getShiprocketChannelOrderId(order) {
+  const attemptNumber = (order.shipmentAttempts?.length || 0) + 1;
+  return attemptNumber === 1 ? order.orderNumber : `${order.orderNumber}-R${attemptNumber}`;
+}
+
 function buildShiprocketPayload(order) {
   const packageDetails = getShipmentPackageDetails(order);
 
   return {
-    order_id: order.orderNumber,
+    order_id: getShiprocketChannelOrderId(order),
     order_date: formatShiprocketDate(order.createdAt || order.placedAt),
     pickup_location: process.env.SHIPROCKET_PICKUP_LOCATION,
     billing_customer_name: order.customer.name,
@@ -253,11 +258,11 @@ function mapShiprocketStatus(currentStatus = '', statusCode = null) {
   };
 }
 
-function extractTrackingData(data) {
+export function extractTrackingData(data) {
   const trackingData = Array.isArray(data) ? data[0]?.tracking_data : data?.tracking_data;
   const shipmentTrack = trackingData?.shipment_track?.[0] || {};
   const statusCode = trackingData?.shipment_status ?? shipmentTrack?.sr_status ?? null;
-  const currentStatus = shipmentTrack?.current_status || trackingData?.current_status || '';
+  const currentStatus = shipmentTrack?.current_status || trackingData?.current_status || trackingData?.error || '';
   const awbCode = shipmentTrack?.awb_code ? String(shipmentTrack.awb_code) : '';
   const trackingUrl = trackingData?.track_url || getTrackingUrl(awbCode);
   const status = mapShiprocketStatus(currentStatus, statusCode);

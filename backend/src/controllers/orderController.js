@@ -205,6 +205,23 @@ export async function createOrderShipment(req, res, next) {
       return next(createHttpError(409, 'Shipment is already created for this order.'));
     }
 
+    const referencesCancelledAttempt = order.shipmentAttempts.some((attempt) =>
+      Boolean(
+        attempt.shiprocketOrderId &&
+        attempt.shiprocketOrderId === order.shipping.shiprocketOrderId,
+      ),
+    );
+
+    if (referencesCancelledAttempt && !order.shipping.awbCode) {
+      order.shipping.status = 'not_created';
+      order.shipping.shiprocketOrderId = '';
+      order.shipping.shipmentId = '';
+      order.shipping.courierName = '';
+      order.shipping.trackingUrl = '';
+      order.shipping.currentStatus = 'Ready to create replacement shipment';
+      await order.save();
+    }
+
     if (order.shipping.shiprocketOrderId && !order.shipping.shipmentId) {
       return next(createHttpError(409, 'The Shiprocket order exists but has no shipment ID. Check it in Shiprocket before retrying.'));
     }

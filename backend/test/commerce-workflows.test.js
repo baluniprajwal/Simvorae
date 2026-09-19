@@ -11,7 +11,11 @@ import {
   releaseCheckoutReservation,
   releaseExpiredCheckoutReservations,
 } from '../src/services/orderService.js';
-import { extractShiprocketWebhookTracking } from '../src/services/shiprocketService.js';
+import {
+  extractShiprocketWebhookTracking,
+  extractTrackingData,
+  getShiprocketChannelOrderId,
+} from '../src/services/shiprocketService.js';
 import {
   applyShiprocketTrackingUpdate,
   sendShipmentTrackingBestEffort,
@@ -218,6 +222,31 @@ test('Shiprocket webhook payload maps directly without a tracking API request', 
     shippedAt: tracking.shippedAt,
   });
   assert.ok(tracking.shippedAt instanceof Date);
+});
+
+test('Shiprocket cancelled-AWB error maps to a cancelled shipment', () => {
+  const tracking = extractTrackingData({
+    tracking_data: {
+      shipment_status: 0,
+      shipment_track: [{ current_status: '', awb_code: '' }],
+      track_url: '',
+      error: 'Ohh! This AWB has been cancelled.',
+    },
+  });
+
+  assert.equal(tracking.currentStatus, 'Ohh! This AWB has been cancelled.');
+  assert.equal(tracking.shippingStatus, 'cancelled');
+});
+
+test('replacement shipment uses a unique Shiprocket channel order ID', () => {
+  assert.equal(
+    getShiprocketChannelOrderId({ orderNumber: 'SIM-TEST-1', shipmentAttempts: [] }),
+    'SIM-TEST-1',
+  );
+  assert.equal(
+    getShiprocketChannelOrderId({ orderNumber: 'SIM-TEST-1', shipmentAttempts: [{}] }),
+    'SIM-TEST-1-R2',
+  );
 });
 
 test('reservation release restores stock exactly once', async (t) => {
