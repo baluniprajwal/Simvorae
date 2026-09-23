@@ -103,15 +103,19 @@ async function deleteProductImageKeys(keys) {
   const uniqueKeys = [...new Set(keys.filter(Boolean))];
 
   if (uniqueKeys.length === 0) {
-    return;
+    return [];
   }
 
   const results = await Promise.allSettled(uniqueKeys.map((key) => deleteImageObject(key)));
-  const failedCount = results.filter((result) => result.status === 'rejected').length;
+  const failedKeys = results
+    .map((result, index) => (result.status === 'rejected' ? uniqueKeys[index] : ''))
+    .filter(Boolean);
 
-  if (failedCount > 0) {
-    console.error(`Failed to delete ${failedCount} product image(s) from S3.`);
+  if (failedKeys.length > 0) {
+    console.error('Failed to delete product image(s) from S3:', failedKeys);
   }
+
+  return failedKeys;
 }
 
 function getRemovedProductImageKeys(previousImages, nextImages) {
@@ -277,7 +281,7 @@ export async function updateProduct(req, res, next) {
     );
 
     const removedImageKeys = getRemovedProductImageKeys(existingProduct.images, payload.images);
-    deleteProductImageKeys(removedImageKeys);
+    await deleteProductImageKeys(removedImageKeys);
 
     return res.status(200).json({
       success: true,
@@ -303,7 +307,7 @@ export async function deleteProduct(req, res, next) {
       return next(createHttpError(404, 'Product not found.'));
     }
 
-    deleteProductImageKeys(product.images.map((image) => getProductImageKey(image.url)));
+    await deleteProductImageKeys(product.images.map((image) => getProductImageKey(image.url)));
 
     return res.status(200).json({
       success: true,
