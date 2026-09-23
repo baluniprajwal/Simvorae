@@ -6,10 +6,12 @@ export const CUSTOMER_CSRF_COOKIE = 'simvorae_customer_csrf';
 export const ADMIN_CSRF_COOKIE = 'simvorae_admin_csrf';
 
 function cookieOptions(maxAge, httpOnly) {
+  const isProduction = process.env.NODE_ENV === 'production';
+
   return {
     httpOnly,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     path: httpOnly ? '/api' : '/',
     maxAge: maxAge * 1000,
   };
