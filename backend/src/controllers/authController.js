@@ -6,7 +6,7 @@ import { hashPassword, verifyPassword } from '../utils/password.js';
 import { getAdminTokenExpirySeconds, getCustomerTokenExpirySeconds, signToken } from '../utils/token.js';
 import { isValidEmail, isValidIndianPhone, isValidIndianPostalCode, normalizePhone } from '../utils/validators.js';
 import { sendEmailVerification, sendPasswordResetEmail } from '../services/emailService.js';
-import { clearAuthCookies, setAuthCookies } from '../utils/authCookies.js';
+import { clearAuthCookies, getCsrfToken, setAuthCookies } from '../utils/authCookies.js';
 
 const verificationTokenExpiresInMs = 1000 * 60 * 60 * 24;
 const passwordResetExpiresInMs = 1000 * 60 * 30;
@@ -203,11 +203,12 @@ export async function login(req, res, next) {
       },
       expiresIn,
     );
-    setAuthCookies(res, { role: user.role, token, expiresIn });
+    const csrfToken = setAuthCookies(res, { role: user.role, token, expiresIn });
 
     return res.status(200).json({
       success: true,
       expiresIn,
+      csrfToken,
       user: sanitizeUser(user),
     });
   } catch (error) {
@@ -223,6 +224,7 @@ export function logout(req, res) {
 export function getMe(req, res) {
   return res.status(200).json({
     success: true,
+    csrfToken: getCsrfToken(req, req.user.role),
     user: sanitizeUser(req.user),
   });
 }

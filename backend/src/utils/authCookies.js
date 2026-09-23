@@ -44,6 +44,12 @@ export function setAuthCookies(res, { role, token, expiresIn }) {
 
   res.cookie(sessionName, token, cookieOptions(expiresIn, true));
   res.cookie(csrfName, csrfToken, cookieOptions(expiresIn, false));
+  return csrfToken;
+}
+
+export function getCsrfToken(req, role) {
+  const cookieName = role === 'admin' ? ADMIN_CSRF_COOKIE : CUSTOMER_CSRF_COOKIE;
+  return parseCookies(req)[cookieName] || null;
 }
 
 export function clearAuthCookies(res, role) {

@@ -1,6 +1,8 @@
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const CUSTOMER_CSRF_STORAGE = 'simvorae_customer_csrf';
+const ADMIN_CSRF_STORAGE = 'simvorae_admin_csrf';
 
 window.localStorage.removeItem('simvorae_customer_token');
 window.localStorage.removeItem('simvorae_admin_token');
@@ -17,26 +19,37 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const isAdminPage = window.location.pathname.startsWith('/admin');
   const csrfCookie = isAdminPage ? 'simvorae_admin_csrf' : 'simvorae_customer_csrf';
-  const csrfToken = document.cookie
+  const cookieToken = document.cookie
     .split('; ')
     .find((cookie) => cookie.startsWith(`${csrfCookie}=`))
     ?.split('=')
     .slice(1)
     .join('=');
+  const csrfToken = cookieToken
+    ? decodeURIComponent(cookieToken)
+    : window.sessionStorage.getItem(isAdminPage ? ADMIN_CSRF_STORAGE : CUSTOMER_CSRF_STORAGE);
 
   if (csrfToken && !['get', 'head', 'options'].includes(String(config.method).toLowerCase())) {
-    config.headers['X-CSRF-Token'] = decodeURIComponent(csrfToken);
+    config.headers['X-CSRF-Token'] = csrfToken;
   }
 
   return config;
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const csrfToken = response.data?.csrfToken;
+    const role = response.data?.user?.role;
+    if (typeof csrfToken === 'string' && (role === 'admin' || role === 'customer')) {
+      window.sessionStorage.setItem(role === 'admin' ? ADMIN_CSRF_STORAGE : CUSTOMER_CSRF_STORAGE, csrfToken);
+    }
+
+    return response;
+  },
   (error) => {
     if (
       axios.isAxiosError(error) &&
-      [401, 403].includes(error.response?.status || 0) &&
+      error.response?.status === 401 &&
       window.location.pathname.startsWith('/admin') &&
       window.location.pathname !== '/admin/login'
     ) {
