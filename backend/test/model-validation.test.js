@@ -5,6 +5,7 @@ import { CheckoutAttempt } from '../src/models/CheckoutAttempt.js';
 import { Order } from '../src/models/Order.js';
 import { PendingUser } from '../src/models/PendingUser.js';
 import { Product } from '../src/models/Product.js';
+import { HomepageConfig } from '../src/models/HomepageConfig.js';
 import { User } from '../src/models/User.js';
 
 const objectId = () => new mongoose.Types.ObjectId();
@@ -64,6 +65,25 @@ test('product schema rejects missing images and invalid package dimensions', asy
   await assert.rejects(product.validate(), (error) => {
     assert.ok(error.errors.images);
     assert.ok(error.errors['packageDetails.lengthCm']);
+    return true;
+  });
+});
+
+test('homepage configuration supplies storefront copy defaults and validates text limits', async () => {
+  const config = new HomepageConfig({
+    signatureSilhouettes: Array.from({ length: 5 }, objectId),
+    artisanCrafted: Array.from({ length: 3 }, objectId),
+    everydayCarry: Array.from({ length: 4 }, objectId),
+  });
+  await config.validate();
+  assert.equal(config.key, 'homepage');
+  assert.equal(config.sectionSettings.signatureSilhouettes.enabled, true);
+  assert.equal(config.sectionSettings.signatureSilhouettes.title, 'Signature');
+  assert.equal(config.sectionSettings.everydayCarry.subtitle, 'Carry.');
+
+  config.sectionSettings.artisanCrafted.description = 'x'.repeat(241);
+  await assert.rejects(config.validate(), (error) => {
+    assert.ok(error.errors['sectionSettings.artisanCrafted.description']);
     return true;
   });
 });

@@ -2,11 +2,14 @@ import { Router } from 'express';
 import {
   createProduct,
   deleteProduct,
+  getAdminHomepageConfig,
   getAdminProductCategoryStats,
   getAdminProducts,
+  getHomepageProducts,
   getProductById,
   getProductFilters,
   getProducts,
+  updateAdminHomepageConfig,
   updateProduct,
 } from '../controllers/productController.js';
 import { createProductImageUploadUrl } from '../controllers/uploadController.js';
@@ -20,7 +23,10 @@ import {
 const router = Router();
 
 router.get('/', validateProductQuery, getProducts);
+router.get('/homepage', getHomepageProducts);
 router.get('/admin/category-stats', protectAdmin, requireAdmin, getAdminProductCategoryStats);
+router.get('/admin/homepage', protectAdmin, requireAdmin, getAdminHomepageConfig);
+router.put('/admin/homepage', protectAdmin, requireAdmin, verifyCsrf, updateAdminHomepageConfig);
 router.get('/admin', protectAdmin, requireAdmin, getAdminProducts);
 router.post('/admin', protectAdmin, requireAdmin, verifyCsrf, validateAdminProductBody, createProduct);
 router.patch('/admin/:id', protectAdmin, requireAdmin, verifyCsrf, validateAdminProductBody, updateProduct);

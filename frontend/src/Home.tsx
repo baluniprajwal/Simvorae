@@ -7,15 +7,72 @@ import { ArrowUpRight, Play, ChevronDown } from 'lucide-react';
 import { useCartStore } from './store/cartStore';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import { fetchJson } from './lib/api';
+import type { Product } from './types/product';
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
+
+type HomepageSections = {
+  signatureSilhouettes: Product[];
+  artisanCrafted: Product[];
+  everydayCarry: Product[];
+};
+
+type HomepageSettings = Record<keyof HomepageSections, {
+  enabled: boolean;
+  title: string;
+  subtitle: string;
+  description: string;
+}>;
+
+const emptyHomepageSections = (): HomepageSections => ({
+  signatureSilhouettes: [],
+  artisanCrafted: [],
+  everydayCarry: [],
+});
+
+const defaultHomepageSettings = (): HomepageSettings => ({
+  signatureSilhouettes: { enabled: true, title: 'Signature', subtitle: 'Silhouettes.', description: 'Discover iconic handbags that blend premium leatherwork with contemporary architectural forms.' },
+  artisanCrafted: { enabled: true, title: 'Artisan', subtitle: 'Crafted.', description: 'A continuous study of premium leather and structural utility. Discover handbags designed to develop character and outlast passing seasons.' },
+  everydayCarry: { enabled: true, title: 'Everyday', subtitle: 'Carry.', description: 'Foundation bags engineered to safely hold your essentials. From spacious totes to compact crossbodys.' },
+});
+
+const formatPrice = (price: number) => new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  maximumFractionDigits: 0,
+}).format(price);
 
 export default function Home() {
   const container = useRef<HTMLDivElement>(null);
   
   const [isLoaded, setIsLoaded] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [homepageSections, setHomepageSections] = useState<HomepageSections>(emptyHomepageSections());
+  const [homepageSettings, setHomepageSettings] = useState<HomepageSettings>(defaultHomepageSettings());
   const { toggleCart, getCartCount } = useCartStore();
+  const signatureProducts = homepageSections.signatureSilhouettes;
+  const artisanProducts = homepageSections.artisanCrafted;
+  const carryProducts = homepageSections.everydayCarry;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetchJson<{ sections: HomepageSections; settings: HomepageSettings }>('/api/products/homepage')
+      .then(({ sections, settings }) => {
+        if (isMounted) {
+          setHomepageSections(sections);
+          setHomepageSettings(settings);
+        }
+      })
+      .catch(() => {
+        // Keep the editorial page usable even if merchandising data is temporarily unavailable.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Fake Loading Progress
   useEffect(() => {
@@ -354,106 +411,107 @@ const splitWords = (text: string) => {
       </section>
 
       {/* SIGNATURE SILHOUETTES */}
+      {homepageSettings.signatureSilhouettes.enabled && (
       <section className="py-24 md:py-32 px-4 md:px-12 max-w-[1800px] mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-end mb-16 md:mb-24 gap-8 px-2 md:px-6">
           <h2 className="font-serif text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-[0.9] tracking-tighter">
-            Signature <br/>
-            <span className="italic text-stone-400 font-light ml-0 md:ml-16 block mt-2">Silhouettes.</span>
+            {homepageSettings.signatureSilhouettes.title} <br/>
+            <span className="italic text-stone-400 font-light ml-0 md:ml-16 block mt-2">{homepageSettings.signatureSilhouettes.subtitle}</span>
           </h2>
           <p className="font-sans text-[11px] tracking-[0.2em] uppercase mb-4 max-w-[300px] md:text-right text-stone-500 leading-loose">
-            Discover iconic handbags that blend premium leatherwork with contemporary architectural forms.
+            {homepageSettings.signatureSilhouettes.description}
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12 lg:items-stretch">
           {/* Main Featured Item */}
           <div className="collection-item group lg:col-span-6 flex flex-col relative cursor-pointer h-full">
-            <Link to="/product/1" className="w-full flex-1 flex flex-col relative outline-none block h-full">
+            <Link to={signatureProducts[0] ? `/product/${signatureProducts[0].slug}` : '/shop'} className="w-full flex-1 flex flex-col relative outline-none block h-full">
                 <div className="overflow-hidden rounded-[1.5rem] relative bg-stone-100 flex-1 aspect-[4/5] lg:aspect-auto">
                   <img 
-                    src="https://images.unsplash.com/photo-1590874103328-eac38a683ce7?q=80&w=1200&auto=format&fit=crop" 
-                    alt="Classic Tote" 
+                    src={signatureProducts[0]?.image || "https://images.unsplash.com/photo-1590874103328-eac38a683ce7?q=80&w=1200&auto=format&fit=crop"}
+                    alt={signatureProducts[0]?.name || 'Classic Tote'}
                     className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                 </div>
                 <div className="flex justify-between items-start font-sans mt-6 px-2 lg:mt-8 pb-4 lg:pb-0">
                   <div>
-                    <p className="text-[10px] tracking-[0.25em] uppercase mb-2 text-stone-500">01 &mdash; Classic Tote</p>
-                    <h3 className="text-3xl font-serif tracking-tight text-[#1a1a1a]">The Drape Tote</h3>
+                    <p className="text-[10px] tracking-[0.25em] uppercase mb-2 text-stone-500">01 &mdash; {signatureProducts[0]?.category || 'Classic Tote'}</p>
+                    <h3 className="text-3xl font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[0]?.name || 'The Drape Tote'}</h3>
                   </div>
-                  <span className="text-sm font-light mt-1 text-[#1a1a1a]">₹68,000</span>
+                  <span className="text-sm font-light mt-1 text-[#1a1a1a]">{signatureProducts[0] ? formatPrice(signatureProducts[0].price) : '₹68,000'}</span>
                 </div>
             </Link>
           </div>
 
           {/* Right Side 2x2 Grid */}
           <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-8 md:gap-12 h-full">
-            <Link to="/product/2" className="collection-item group flex flex-col h-full cursor-pointer">
+            <Link to={signatureProducts[1] ? `/product/${signatureProducts[1].slug}` : '/shop'} className="collection-item group flex flex-col h-full cursor-pointer">
                 <div className="overflow-hidden rounded-[1.5rem] relative flex-1 aspect-[4/5] bg-stone-100">
                     <img 
-                        src="https://images.unsplash.com/photo-1548036328-c928907cfcb7?q=80&w=1200&auto=format&fit=crop" 
-                        alt="Hobo Shoulder Bag" 
+                        src={signatureProducts[1]?.image || "https://images.unsplash.com/photo-1548036328-c928907cfcb7?q=80&w=1200&auto=format&fit=crop"}
+                        alt={signatureProducts[1]?.name || 'Hobo Shoulder Bag'}
                         className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                     />
                 </div>
                 <div className="flex justify-between items-start font-sans mt-4 px-2 pb-4 lg:pb-0">
                    <div>
-                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">Hobo Shoulder Bag</p>
-                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">Structured Hobo</h3>
+                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[1]?.category || 'Hobo Shoulder Bag'}</p>
+                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[1]?.name || 'Structured Hobo'}</h3>
                    </div>
-                   <span className="text-sm font-light text-[#1a1a1a]">₹33,600</span>
+                   <span className="text-sm font-light text-[#1a1a1a]">{signatureProducts[1] ? formatPrice(signatureProducts[1].price) : '₹33,600'}</span>
                 </div>
             </Link>
 
-            <Link to="/product/3" className="collection-item group flex flex-col h-full cursor-pointer">
+            <Link to={signatureProducts[2] ? `/product/${signatureProducts[2].slug}` : '/shop'} className="collection-item group flex flex-col h-full cursor-pointer">
                 <div className="overflow-hidden rounded-[1.5rem] relative flex-1 aspect-[4/5] bg-stone-100">
                     <img 
-                        src="https://images.unsplash.com/photo-1591561954557-26941169b49e?q=80&w=1600&auto=format&fit=crop" 
-                        alt="Crossbody Bag" 
+                        src={signatureProducts[2]?.image || "https://images.unsplash.com/photo-1591561954557-26941169b49e?q=80&w=1600&auto=format&fit=crop"}
+                        alt={signatureProducts[2]?.name || 'Crossbody Bag'}
                         className="w-full h-full absolute inset-0 object-cover object-[center_30%] transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                     />
                 </div>
                 <div className="flex justify-between items-start font-sans mt-4 px-2 pb-4 lg:pb-0">
                    <div>
-                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">Crossbody Bag</p>
-                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">Woven Crossbody</h3>
+                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[2]?.category || 'Crossbody Bag'}</p>
+                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[2]?.name || 'Woven Crossbody'}</h3>
                    </div>
-                   <span className="text-sm font-light text-[#1a1a1a]">₹48,000</span>
+                   <span className="text-sm font-light text-[#1a1a1a]">{signatureProducts[2] ? formatPrice(signatureProducts[2].price) : '₹48,000'}</span>
                 </div>
             </Link>
 
-            <Link to="/product/10" className="collection-item group flex flex-col h-full cursor-pointer">
+            <Link to={signatureProducts[3] ? `/product/${signatureProducts[3].slug}` : '/shop'} className="collection-item group flex flex-col h-full cursor-pointer">
                 <div className="overflow-hidden rounded-[1.5rem] relative flex-1 aspect-[4/5] bg-stone-100">
                     <img 
-                        src="https://images.unsplash.com/photo-1581605405669-fcdf81165afa?q=80&w=800&auto=format&fit=crop" 
-                        alt="Top Handle Bag" 
+                        src={signatureProducts[3]?.image || "https://images.unsplash.com/photo-1581605405669-fcdf81165afa?q=80&w=800&auto=format&fit=crop"}
+                        alt={signatureProducts[3]?.name || 'Top Handle Bag'}
                         className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                     />
                 </div>
                 <div className="flex justify-between items-start font-sans mt-4 px-2 pb-4 lg:pb-0">
                    <div>
-                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">Top Handle Bag</p>
-                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">Mono Top-Handle</h3>
+                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[3]?.category || 'Top Handle Bag'}</p>
+                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[3]?.name || 'Mono Top-Handle'}</h3>
                    </div>
-                   <span className="text-sm font-light text-[#1a1a1a]">₹2,56,000</span>
+                   <span className="text-sm font-light text-[#1a1a1a]">{signatureProducts[3] ? formatPrice(signatureProducts[3].price) : '₹2,56,000'}</span>
                 </div>
             </Link>
 
-            <Link to="/product/4" className="collection-item group flex flex-col h-full cursor-pointer">
+            <Link to={signatureProducts[4] ? `/product/${signatureProducts[4].slug}` : '/shop'} className="collection-item group flex flex-col h-full cursor-pointer">
                 <div className="overflow-hidden rounded-[1.5rem] relative flex-1 aspect-[4/5] bg-stone-100">
                     <img 
-                        src="https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?q=80&w=1200&auto=format&fit=crop" 
-                        alt="Chain Clutch" 
+                        src={signatureProducts[4]?.image || "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?q=80&w=1200&auto=format&fit=crop"}
+                        alt={signatureProducts[4]?.name || 'Chain Clutch'}
                         className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                     />
                 </div>
                 <div className="flex justify-between items-start font-sans mt-4 px-2 pb-4 lg:pb-0">
                    <div>
-                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">Chain Clutch</p>
-                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">Classic Box Clutch</h3>
+                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[4]?.category || 'Chain Clutch'}</p>
+                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[4]?.name || 'Classic Box Clutch'}</h3>
                    </div>
-                   <span className="text-sm font-light text-[#1a1a1a]">₹96,000</span>
+                   <span className="text-sm font-light text-[#1a1a1a]">{signatureProducts[4] ? formatPrice(signatureProducts[4].price) : '₹96,000'}</span>
                 </div>
             </Link>
           </div>
@@ -466,8 +524,10 @@ const splitWords = (text: string) => {
           </Link>
         </div>
       </section>
+      )}
 
       {/* THE ARCHIVE - EDITORIAL GRID */}
+      {homepageSettings.artisanCrafted.enabled && (
       <section className="py-24 md:py-32 px-4 md:px-12 max-w-[1800px] mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start mb-16 md:mb-24 gap-8">
             <div className="md:w-1/2">
@@ -476,12 +536,12 @@ const splitWords = (text: string) => {
                     <p className="font-sans text-[10px] tracking-[0.25em] uppercase font-semibold">The Archive</p>
                 </div>
                 <h2 className="font-serif text-5xl md:text-6xl lg:text-7xl leading-[0.9] tracking-tighter">
-                   Artisan<br/><span className="italic font-light text-stone-500">Crafted.</span>
+                   {homepageSettings.artisanCrafted.title}<br/><span className="italic font-light text-stone-500">{homepageSettings.artisanCrafted.subtitle}</span>
                 </h2>
             </div>
             <div className="md:w-1/3 md:pt-12">
                 <p className="font-sans text-[11px] tracking-[0.2em] uppercase text-stone-500 leading-loose">
-                   A continuous study of premium leather and structural utility. Discover handbags designed to develop character and outlast passing seasons.
+                   {homepageSettings.artisanCrafted.description}
                 </p>
             </div>
         </div>
@@ -489,18 +549,18 @@ const splitWords = (text: string) => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 lg:gap-12">
             {/* Left Column */}
             <div className="lg:col-span-4 flex flex-col">
-                <Link to="/product/4" className="collection-item group block h-full flex flex-col cursor-pointer">
+                <Link to={artisanProducts[0] ? `/product/${artisanProducts[0].slug}` : '/shop'} className="collection-item group block h-full flex flex-col cursor-pointer">
                     <div className="overflow-hidden rounded-[1.5rem] relative aspect-[3/4] sm:aspect-square lg:aspect-auto flex-1 bg-stone-100 mb-6">
                         <img 
-                            src="https://images.unsplash.com/photo-1596755094514-f87e34085b2c?q=80&w=1200&auto=format&fit=crop" 
-                            alt="Soft Calfskin Pouch" 
+                            src={artisanProducts[0]?.image || "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?q=80&w=1200&auto=format&fit=crop"}
+                            alt={artisanProducts[0]?.name || 'Soft Calfskin Pouch'}
                             className="w-full h-full absolute inset-0 object-cover transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                         />
                     </div>
                     <div className="flex justify-between items-start font-sans px-2 pb-6 lg:pb-0">
                        <div>
                            <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">Archive &mdash; 01</p>
-                           <h3 className="text-xl font-serif tracking-tight text-[#1a1a1a]">Soft Calfskin Pouch</h3>
+                           <h3 className="text-xl font-serif tracking-tight text-[#1a1a1a]">{artisanProducts[0]?.name || 'Soft Calfskin Pouch'}</h3>
                        </div>
                     </div>
                 </Link>
@@ -509,18 +569,18 @@ const splitWords = (text: string) => {
             {/* Right Column */}
             <div className="lg:col-span-8 flex flex-col gap-6 md:gap-8 lg:gap-12">
                 {/* Top Wide Image */}
-                <Link to="/product/7" className="collection-item group block cursor-pointer">
+                <Link to={artisanProducts[1] ? `/product/${artisanProducts[1].slug}` : '/shop'} className="collection-item group block cursor-pointer">
                     <div className="overflow-hidden rounded-[1.5rem] relative aspect-[4/3] md:aspect-[21/9] bg-stone-100 mb-6">
                         <img 
-                            src="https://images.unsplash.com/photo-1551028719-00167b16eac5?q=80&w=1600&auto=format&fit=crop" 
-                            alt="Calfskin Weekend" 
+                            src={artisanProducts[1]?.image || "https://images.unsplash.com/photo-1551028719-00167b16eac5?q=80&w=1600&auto=format&fit=crop"}
+                            alt={artisanProducts[1]?.name || 'Calfskin Weekend'}
                             className="w-full h-full absolute inset-0 object-cover object-[center_30%] transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                         />
                     </div>
                     <div className="flex justify-between items-start font-sans px-2">
                        <div>
                            <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">Archive &mdash; 02</p>
-                           <h3 className="text-xl font-serif tracking-tight text-[#1a1a1a]">Calfskin Weekend</h3>
+                           <h3 className="text-xl font-serif tracking-tight text-[#1a1a1a]">{artisanProducts[1]?.name || 'Calfskin Weekend'}</h3>
                        </div>
                     </div>
                 </Link>
@@ -528,18 +588,18 @@ const splitWords = (text: string) => {
                 {/* Bottom Row inside Right Column */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 md:gap-8 lg:gap-12 flex-1">
                     {/* Item 3 */}
-                    <Link to="/product/8" className="collection-item group block flex flex-col h-full cursor-pointer">
+                    <Link to={artisanProducts[2] ? `/product/${artisanProducts[2].slug}` : '/shop'} className="collection-item group block flex flex-col h-full cursor-pointer">
                         <div className="overflow-hidden rounded-[1.5rem] relative aspect-square bg-stone-100 mb-6 flex-1">
                             <img 
-                                src="https://images.unsplash.com/photo-1511499767150-a48a237f0083?q=80&w=800&auto=format&fit=crop" 
-                                alt="Acetate Chain Mini" 
+                                src={artisanProducts[2]?.image || "https://images.unsplash.com/photo-1511499767150-a48a237f0083?q=80&w=800&auto=format&fit=crop"}
+                                alt={artisanProducts[2]?.name || 'Acetate Chain Mini'}
                                 className="w-full h-full absolute inset-0 object-cover transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                             />
                         </div>
                         <div className="flex justify-between items-start font-sans px-2 pb-6 sm:pb-0">
                            <div>
                                <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">Archive &mdash; 03</p>
-                               <h3 className="text-xl font-serif tracking-tight text-[#1a1a1a]">Acetate Chain Mini</h3>
+                               <h3 className="text-xl font-serif tracking-tight text-[#1a1a1a]">{artisanProducts[2]?.name || 'Acetate Chain Mini'}</h3>
                            </div>
                         </div>
                     </Link>
@@ -559,6 +619,7 @@ const splitWords = (text: string) => {
             </div>
         </div>
       </section>
+      )}
 
       {/* CAMPAIGN SECTION */}
       <section className="campaign-section relative h-screen w-full overflow-hidden flex items-center justify-center p-4">
@@ -579,6 +640,7 @@ const splitWords = (text: string) => {
       </section>
 
       {/* PERMANENT COLLECTION (EDITORIAL GRID) */}
+      {homepageSettings.everydayCarry.enabled && (
       <section className="py-24 md:py-32 bg-[#1a1a1a] text-[#fcfbf9] rounded-b-[2rem] md:rounded-b-[3rem]">
         <div className="px-4 md:px-12 max-w-[1800px] mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 md:mb-24 gap-8">
@@ -588,24 +650,24 @@ const splitWords = (text: string) => {
                        <p className="font-sans text-[10px] tracking-[0.25em] uppercase font-semibold text-[#fcfbf9]">Permanent Collection</p>
                    </div>
                    <h2 className="font-serif text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-[0.9] tracking-tighter">
-                       Everyday <span className="italic font-light text-stone-400">Carry.</span>
+                       {homepageSettings.everydayCarry.title} <span className="italic font-light text-stone-400">{homepageSettings.everydayCarry.subtitle}</span>
                    </h2>
                 </div>
                 <div className="max-w-[280px]">
                     <p className="font-sans text-[11px] tracking-[0.2em] uppercase text-stone-400 leading-loose">
-                        Foundation bags engineered to safely hold your essentials. From spacious totes to compact crossbodys.
+                        {homepageSettings.everydayCarry.description}
                     </p>
                 </div>
             </div>
 
             <div className="flex flex-col lg:flex-row gap-6 md:gap-8 xl:h-[80vh]">
                {/* Left Big Item */}
-               <Link to="/product/5" className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 w-full lg:w-5/12 h-[52vh] md:h-[60vh] xl:h-full cursor-pointer">
-                  <img src="https://images.unsplash.com/photo-1485231183945-fd66023fd5ca?q=80&w=1200&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt="Leather Carryall" />
+               <Link to={carryProducts[0] ? `/product/${carryProducts[0].slug}` : '/shop'} className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 w-full lg:w-5/12 h-[52vh] md:h-[60vh] xl:h-full cursor-pointer">
+                  <img src={carryProducts[0]?.image || "https://images.unsplash.com/photo-1485231183945-fd66023fd5ca?q=80&w=1200&auto=format&fit=crop"} className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[0]?.name || "Leather Carryall"} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 transition-opacity group-hover:opacity-60"></div>
                   
                   <div className="absolute top-0 w-full p-6 lg:p-8 flex justify-between items-start z-10">
-                     <span className="bg-[#fcfbf9] text-[#1a1a1a] text-[9px] uppercase tracking-widest px-4 py-2 rounded-full font-bold shadow-sm">Classic Tote</span>
+                     <span className="bg-[#fcfbf9] text-[#1a1a1a] text-[9px] uppercase tracking-widest px-4 py-2 rounded-full font-bold shadow-sm">{carryProducts[0]?.category || 'Classic Tote'}</span>
                      <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center -translate-y-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500">
                         <ArrowUpRight size={16} className="text-white" />
                      </div>
@@ -614,9 +676,9 @@ const splitWords = (text: string) => {
                   <div className="absolute bottom-0 w-full p-6 lg:p-8 z-10 flex flex-col md:flex-row md:justify-between md:items-end gap-2">
                      <div>
                         <p className="font-sans text-[10px] tracking-[0.25em] uppercase mb-2 text-stone-300">C-01</p>
-                        <h3 className="font-serif text-3xl lg:text-4xl tracking-tight text-white mb-1">Leather Carryall</h3>
+                        <h3 className="font-serif text-3xl lg:text-4xl tracking-tight text-white mb-1">{carryProducts[0]?.name || 'Leather Carryall'}</h3>
                      </div>
-                     <p className="font-sans text-sm text-stone-300 font-light pb-1 md:pb-2">₹36,000</p>
+                     <p className="font-sans text-sm text-stone-300 font-light pb-1 md:pb-2">{carryProducts[0] ? formatPrice(carryProducts[0].price) : '₹36,000'}</p>
                   </div>
                </Link>
 
@@ -624,47 +686,47 @@ const splitWords = (text: string) => {
                <div className="w-full lg:w-7/12 flex flex-col gap-6 md:gap-8 h-full">
                    
                    {/* Top Wide Item */}
-                   <Link to="/product/2" className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 min-h-[40vh] md:min-h-[45vh] xl:min-h-0 cursor-pointer">
-                       <img src="https://images.unsplash.com/photo-1539109136881-3be0616acf4b?q=80&w=1600&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover object-[center_30%] opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt="Structured Hobo" />
+                   <Link to={carryProducts[1] ? `/product/${carryProducts[1].slug}` : '/shop'} className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 min-h-[40vh] md:min-h-[45vh] xl:min-h-0 cursor-pointer">
+                       <img src={carryProducts[1]?.image || "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?q=80&w=1600&auto=format&fit=crop"} className="absolute inset-0 w-full h-full object-cover object-[center_30%] opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[1]?.name || "Structured Hobo"} />
                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 transition-opacity group-hover:opacity-60"></div>
                        
                        <div className="absolute top-0 w-full p-6 flex justify-between items-start z-10">
-                         <span className="bg-[#fcfbf9]/10 backdrop-blur-md text-white text-[9px] uppercase tracking-widest px-4 py-2 rounded-full font-medium shadow-sm border border-white/10">Hobo Shoulder Bag</span>
+                         <span className="bg-[#fcfbf9]/10 backdrop-blur-md text-white text-[9px] uppercase tracking-widest px-4 py-2 rounded-full font-medium shadow-sm border border-white/10">{carryProducts[1]?.category || 'Hobo Shoulder Bag'}</span>
                        </div>
 
                        <div className="absolute bottom-0 w-full p-6 z-10 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-2">
                          <div>
                             <p className="font-sans text-[10px] tracking-[0.25em] uppercase mb-2 text-stone-300">C-02</p>
-                            <h3 className="font-serif text-2xl lg:text-3xl tracking-tight text-white mb-1">Structured Hobo</h3>
+                            <h3 className="font-serif text-2xl lg:text-3xl tracking-tight text-white mb-1">{carryProducts[1]?.name || 'Structured Hobo'}</h3>
                          </div>
-                         <p className="font-sans text-sm text-stone-300 font-light sm:pb-1">₹33,600</p>
+                         <p className="font-sans text-sm text-stone-300 font-light sm:pb-1">{carryProducts[1] ? formatPrice(carryProducts[1].price) : '₹33,600'}</p>
                        </div>
                    </Link>
 
                    {/* Bottom Split Items */}
                    <div className="flex flex-col sm:flex-row gap-6 md:gap-8 flex-1 min-h-[40vh] md:min-h-[45vh] xl:min-h-0">
-                       <Link to="/product/6" className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 aspect-square sm:aspect-auto cursor-pointer">
-                           <img src="https://images.unsplash.com/photo-1596755094514-f87e34085b2c?q=80&w=1200&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover object-center opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt="Soft Calfskin Pouch" />
+                       <Link to={carryProducts[2] ? `/product/${carryProducts[2].slug}` : '/shop'} className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 aspect-square sm:aspect-auto cursor-pointer">
+                           <img src={carryProducts[2]?.image || "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?q=80&w=1200&auto=format&fit=crop"} className="absolute inset-0 w-full h-full object-cover object-center opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[2]?.name || "Soft Calfskin Pouch"} />
                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 z-0 transition-opacity group-hover:opacity-60"></div>
                            
                            <div className="absolute bottom-0 w-full p-5 md:p-6 z-10">
-                              <p className="font-sans text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-300">Hobo Shoulder Bag</p>
+                              <p className="font-sans text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-300">{carryProducts[2]?.category || 'Hobo Shoulder Bag'}</p>
                               <div className="flex justify-between items-end">
-                                  <h3 className="font-serif text-xl lg:text-3xl tracking-tight text-white pr-2">Soft Calfskin</h3>
-                                  <p className="font-sans text-sm text-stone-300 font-light whitespace-nowrap mb-1">₹25,600</p>
+                                  <h3 className="font-serif text-xl lg:text-3xl tracking-tight text-white pr-2">{carryProducts[2]?.name || 'Soft Calfskin'}</h3>
+                                  <p className="font-sans text-sm text-stone-300 font-light whitespace-nowrap mb-1">{carryProducts[2] ? formatPrice(carryProducts[2].price) : '₹25,600'}</p>
                               </div>
                            </div>
                        </Link>
 
-                       <Link to="/product/11" className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 aspect-square sm:aspect-auto cursor-pointer">
-                           <img src="https://images.unsplash.com/photo-1611591437281-460bfbe1220a?q=80&w=1200&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover object-center opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt="Brutalist Minaudiere" />
+                       <Link to={carryProducts[3] ? `/product/${carryProducts[3].slug}` : '/shop'} className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 aspect-square sm:aspect-auto cursor-pointer">
+                           <img src={carryProducts[3]?.image || "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?q=80&w=1200&auto=format&fit=crop"} className="absolute inset-0 w-full h-full object-cover object-center opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[3]?.name || "Brutalist Minaudiere"} />
                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 z-0 transition-opacity group-hover:opacity-60"></div>
                            
                            <div className="absolute bottom-0 w-full p-5 md:p-6 z-10">
-                              <p className="font-sans text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-300">Chain Clutch</p>
+                              <p className="font-sans text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-300">{carryProducts[3]?.category || 'Chain Clutch'}</p>
                               <div className="flex justify-between items-end">
-                                  <h3 className="font-serif text-xl lg:text-3xl tracking-tight text-white pr-2">Minaudiere</h3>
-                                  <p className="font-sans text-sm text-stone-300 font-light whitespace-nowrap mb-1">₹17,600</p>
+                                  <h3 className="font-serif text-xl lg:text-3xl tracking-tight text-white pr-2">{carryProducts[3]?.name || 'Minaudiere'}</h3>
+                                  <p className="font-sans text-sm text-stone-300 font-light whitespace-nowrap mb-1">{carryProducts[3] ? formatPrice(carryProducts[3].price) : '₹17,600'}</p>
                               </div>
                            </div>
                        </Link>
@@ -682,6 +744,7 @@ const splitWords = (text: string) => {
             </div>
         </div>
       </section>
+      )}
 
       {/* BACK TO TOP */}
       <button 

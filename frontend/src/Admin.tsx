@@ -18,6 +18,7 @@ import {
   Mail,
   MapPin,
   Package,
+  PanelsTopLeft,
   Phone,
   Plus,
   RotateCcw,
@@ -33,8 +34,9 @@ import { type Order, type OrderStatus, useOrderStore } from './store/orderStore'
 import { type ProductStoreItem, useProductStore } from './store/productStore';
 import { useToast } from './contexts/ToastContext';
 import { useAdminAuthStore } from './lib/adminAuth';
+import HomepageTab from './components/HomepageTab';
 
-type AdminTab = 'OVERVIEW' | 'CATALOG' | 'ORDERS' | 'CUSTOMERS';
+type AdminTab = 'OVERVIEW' | 'HOMEPAGE' | 'CATALOG' | 'ORDERS' | 'CUSTOMERS';
 type DashboardRange = 'week' | 'month' | 'year' | 'all' | 'custom';
 type OrderQueue = 'all' | 'newPaid' | 'toPack' | 'readyToShip' | 'inTransit' | 'delivered' | 'problems';
 
@@ -101,12 +103,17 @@ const customerPageSize = 8;
 
 const adminTabRoutes: Record<AdminTab, string> = {
   OVERVIEW: '/admin/overview',
+  HOMEPAGE: '/admin/homepage',
   CATALOG: '/admin/catalog',
   ORDERS: '/admin/orders',
   CUSTOMERS: '/admin/customers',
 };
 
 const adminPathToTab = (pathname: string): AdminTab => {
+  if (pathname.startsWith('/admin/homepage')) {
+    return 'HOMEPAGE';
+  }
+
   if (pathname.startsWith('/admin/catalog')) {
     return 'CATALOG';
   }
@@ -2262,6 +2269,7 @@ export default function Admin() {
             { id: 'ORDERS' as const, label: `Orders (${orders.length})`, icon: FileText },
             { id: 'CATALOG' as const, label: `Products (${products.length})`, icon: ShoppingBag },
             { id: 'CUSTOMERS' as const, label: `Customers (${customers.length})`, icon: User },
+            { id: 'HOMEPAGE' as const, label: 'Homepage Settings', icon: PanelsTopLeft },
           ].map((item) => {
             const isActive = activeTab === item.id;
             return (
@@ -2769,6 +2777,10 @@ export default function Admin() {
                 )}
               </div>
             </div>
+          )}
+
+          {activeTab === 'HOMEPAGE' && (
+            <HomepageTab products={products} onAddProduct={openAddModal} />
           )}
 
           {activeTab === 'ORDERS' && (

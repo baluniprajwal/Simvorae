@@ -1,4 +1,5 @@
 import { Product } from '../models/Product.js';
+import { HomepageConfig } from '../models/HomepageConfig.js';
 import { deleteImageObject } from '../services/s3Service.js';
 import { createHttpError } from '../utils/createHttpError.js';
 
@@ -124,6 +125,187 @@ function getRemovedProductImageKeys(previousImages, nextImages) {
   return previousImages
     .map((image) => getProductImageKey(image.url))
     .filter((key) => key && !nextKeys.has(key));
+}
+
+const homepageSections = {
+  signatureSilhouettes: 5,
+  artisanCrafted: 3,
+  everydayCarry: 4,
+};
+
+const defaultHomepageSettings = {
+  signatureSilhouettes: {
+    enabled: true,
+    title: 'Signature',
+    subtitle: 'Silhouettes.',
+    description: 'Discover iconic handbags that blend premium leatherwork with contemporary architectural forms.',
+  },
+  artisanCrafted: {
+    enabled: true,
+    title: 'Artisan',
+    subtitle: 'Crafted.',
+    description: 'A continuous study of premium leather and structural utility. Discover handbags designed to develop character and outlast passing seasons.',
+  },
+  everydayCarry: {
+    enabled: true,
+    title: 'Everyday',
+    subtitle: 'Carry.',
+    description: 'Foundation bags engineered to safely hold your essentials. From spacious totes to compact crossbodys.',
+  },
+};
+
+function normalizeHomepageSettings(value = {}) {
+  return Object.fromEntries(Object.keys(homepageSections).map((section) => {
+    const defaults = defaultHomepageSettings[section];
+    const settings = value?.[section] || {};
+    const title = String(settings.title ?? defaults.title).trim();
+    const subtitle = String(settings.subtitle ?? defaults.subtitle).trim();
+    const description = String(settings.description ?? defaults.description).trim();
+
+    if (!title || !subtitle || !description) {
+      throw createHttpError(400, 'Homepage section headings and descriptions cannot be empty.');
+    }
+    if (title.length > 80 || subtitle.length > 80 || description.length > 240) {
+      throw createHttpError(400, 'Homepage section text is too long.');
+    }
+
+    return [section, {
+      enabled: settings.enabled !== false,
+      title,
+      subtitle,
+      description,
+    }];
+  }));
+}
+
+function serializeHomepageSettings(config) {
+  return Object.fromEntries(Object.keys(homepageSections).map((section) => [
+    section,
+    {
+      ...defaultHomepageSettings[section],
+      ...(config?.sectionSettings?.[section]?.toObject?.() || config?.sectionSettings?.[section] || {}),
+    },
+  ]));
+}
+
+function normalizeHomepageSelection(value, limit) {
+  if (!Array.isArray(value)) {
+    throw createHttpError(400, `Select exactly ${limit} products for this homepage section.`);
+  }
+
+  const productIds = value.map((id) => String(id || '').trim()).filter(Boolean);
+  if (productIds.length !== limit) {
+    throw createHttpError(400, `Select exactly ${limit} products for this homepage section.`);
+  }
+
+  if (productIds.some((id) => !/^[a-f\d]{24}$/i.test(id))) {
+    throw createHttpError(400, 'One or more selected homepage products are invalid.');
+  }
+
+  if (new Set(productIds).size !== productIds.length) {
+    throw createHttpError(400, 'A product can only appear once within a homepage section.');
+  }
+
+  return productIds;
+}
+
+function serializeHomepageConfig(config) {
+  return Object.fromEntries(
+    Object.keys(homepageSections).map((section) => [
+      section,
+      (config?.[section] || []).map((product) => String(product?._id || product)),
+    ]),
+  );
+}
+
+async function getHomepageFallback() {
+  const products = await Product.find({ isActive: true })
+    .sort({ featured: -1, createdAt: -1 })
+    .limit(12);
+
+  return {
+    signatureSilhouettes: products.slice(0, 5),
+    artisanCrafted: products.slice(0, 3),
+    everydayCarry: products.slice(0, 4),
+  };
+}
+
+async function fillPublicHomepageSections(config) {
+  const fallback = await getHomepageFallback();
+
+  return Object.fromEntries(Object.entries(homepageSections).map(([section, limit]) => {
+    const configured = (config[section] || []).filter(Boolean);
+    const usedIds = new Set(configured.map((product) => String(product._id)));
+    const replacements = fallback[section].filter((product) => !usedIds.has(String(product._id)));
+    return [section, [...configured, ...replacements].slice(0, limit)];
+  }));
+}
+
+export async function getHomepageProducts(_req, res, next) {
+  try {
+    const config = await HomepageConfig.findOne({ key: 'homepage' }).populate(
+      Object.keys(homepageSections).map((path) => ({ path, match: { isActive: true } })),
+    );
+    const sections = config ? await fillPublicHomepageSections(config) : await getHomepageFallback();
+
+    return res.status(200).json({
+      success: true,
+      sections,
+      settings: serializeHomepageSettings(config),
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function getAdminHomepageConfig(_req, res, next) {
+  try {
+    const config = await HomepageConfig.findOne({ key: 'homepage' });
+    const sections = config ? serializeHomepageConfig(config) : serializeHomepageConfig(await getHomepageFallback());
+    return res.status(200).json({
+      success: true,
+      sections,
+      settings: serializeHomepageSettings(config),
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function updateAdminHomepageConfig(req, res, next) {
+  try {
+    const sections = Object.fromEntries(
+      Object.entries(homepageSections).map(([section, limit]) => [
+        section,
+        normalizeHomepageSelection(req.body?.sections?.[section] ?? [], limit),
+      ]),
+    );
+    const selectedIds = [...new Set(Object.values(sections).flat())];
+    const settings = normalizeHomepageSettings(req.body?.settings);
+    const existingCount = await Product.countDocuments({
+      _id: { $in: selectedIds },
+      isActive: true,
+    });
+
+    if (existingCount !== selectedIds.length) {
+      return next(createHttpError(400, 'One or more selected products are hidden or no longer exist.'));
+    }
+
+    const config = await HomepageConfig.findOneAndUpdate(
+      { key: 'homepage' },
+      { $set: { ...sections, sectionSettings: settings }, $setOnInsert: { key: 'homepage' } },
+      { new: true, upsert: true, runValidators: true },
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Homepage products updated successfully.',
+      sections: serializeHomepageConfig(config),
+      settings: serializeHomepageSettings(config),
+    });
+  } catch (error) {
+    return next(error);
+  }
 }
 
 export async function getProducts(req, res, next) {
@@ -308,6 +490,10 @@ export async function deleteProduct(req, res, next) {
     }
 
     await deleteProductImageKeys(product.images.map((image) => getProductImageKey(image.url)));
+    await HomepageConfig.updateOne(
+      { key: 'homepage' },
+      { $pull: Object.fromEntries(Object.keys(homepageSections).map((section) => [section, product._id])) },
+    );
 
     return res.status(200).json({
       success: true,
