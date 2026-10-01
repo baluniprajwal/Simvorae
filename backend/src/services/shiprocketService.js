@@ -21,15 +21,37 @@ function shouldRequestPickup() {
   return process.env.SHIPROCKET_AUTO_REQUEST_PICKUP === 'true';
 }
 
+// Shiprocket expects India time; cloud servers usually run in UTC, which shifts late-evening
+// orders to the wrong date.
 function formatShiprocketDate(date) {
-  const value = new Date(date);
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, '0');
-  const day = String(value.getDate()).padStart(2, '0');
-  const hours = String(value.getHours()).padStart(2, '0');
-  const minutes = String(value.getMinutes()).padStart(2, '0');
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(new Date(date))
+      .map(({ type, value }) => [type, value]),
+  );
 
-  return `${year}-${month}-${day} ${hours}:${minutes}`;
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+}
+
+// Shiprocket occasionally answers with an HTML error page; surface that as a clear 502.
+function parseShiprocketBody(text) {
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw createHttpError(502, 'Shiprocket returned an unexpected response. Please try again shortly.');
+  }
 }
 
 async function getShiprocketToken() {
@@ -51,7 +73,7 @@ async function getShiprocketToken() {
       password: process.env.SHIPROCKET_PASSWORD,
     }),
   });
-  const data = await response.json();
+  const data = parseShiprocketBody(await response.text());
 
   if (!response.ok || !data.token) {
     throw createHttpError(502, data.message || 'Failed to authenticate with Shiprocket.');
@@ -63,7 +85,7 @@ async function getShiprocketToken() {
   return cachedToken;
 }
 
-async function shiprocketRequest(path, options = {}) {
+async function shiprocketRequest(path, options = {}, { isRetry = false } = {}) {
   const token = await getShiprocketToken();
 
   if (!token) {
@@ -78,8 +100,17 @@ async function shiprocketRequest(path, options = {}) {
       ...(options.headers || {}),
     },
   });
+
+  // The cached token can be revoked before its expiry (e.g. a password change). Log in again once
+  // instead of failing every shipment call until the server restarts.
+  if (response.status === 401 && !isRetry) {
+    cachedToken = null;
+    cachedTokenExpiresAt = 0;
+    return shiprocketRequest(path, options, { isRetry: true });
+  }
+
   const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
+  const data = parseShiprocketBody(text);
 
   if (!response.ok) {
     const shiprocketMessage = data.message || data.error || data.errors || text || 'Shiprocket API request failed.';
@@ -189,9 +220,12 @@ function getTrackingUrl(awbCode, fallback = '') {
 
 function mapShiprocketStatus(currentStatus = '', statusCode = null) {
   const normalized = currentStatus.toLowerCase();
+  const code = Number(statusCode);
   const deliveredCodes = new Set([7]);
   const inTransitCodes = new Set([6, 17, 18, 22, 42]);
-  const failedCodes = new Set([8, 21, 71, 72, 76, 77]);
+  const failedCodes = new Set([12, 21, 24, 25, 71, 72, 76, 77]);
+  // Return-to-origin: the parcel is coming back to you, so it must never count as delivered.
+  const rtoCodes = new Set([9, 10, 14, 40, 41, 46, 75, 78]);
   const cancellationRejected = normalized.includes('cancel') && (
     normalized.includes('reject') ||
     normalized.includes('denied') ||
@@ -208,6 +242,17 @@ function mapShiprocketStatus(currentStatus = '', statusCode = null) {
     };
   }
 
+  // Only a request so far; the shipment is live until Shiprocket confirms the cancellation.
+  if (code === 16 || normalized.includes('cancellation requested')) {
+    return {
+      shippingStatus: 'cancellation_pending',
+      orderStatus: null,
+      deliveredAt: null,
+      shippedAt: null,
+      cancellationRejected: false,
+    };
+  }
+
   if (normalized.includes('cancel')) {
     return {
       shippingStatus: 'cancelled',
@@ -218,7 +263,16 @@ function mapShiprocketStatus(currentStatus = '', statusCode = null) {
     };
   }
 
-  if (deliveredCodes.has(Number(statusCode)) || normalized.includes('delivered')) {
+  const isReturnToOrigin = rtoCodes.has(code) || /\brto\b/.test(normalized);
+  const isUndelivered = normalized.includes('undelivered') || normalized.includes('not delivered');
+  const isPartialDelivery = code === 23 || normalized.includes('partial');
+
+  if (
+    !isReturnToOrigin &&
+    !isUndelivered &&
+    !isPartialDelivery &&
+    (deliveredCodes.has(code) || /\bdelivered\b/.test(normalized))
+  ) {
     return {
       shippingStatus: 'delivered',
       orderStatus: 'delivered',
@@ -227,7 +281,16 @@ function mapShiprocketStatus(currentStatus = '', statusCode = null) {
     };
   }
 
-  if (failedCodes.has(Number(statusCode)) || normalized.includes('exception') || normalized.includes('failed')) {
+  if (
+    isReturnToOrigin ||
+    isUndelivered ||
+    isPartialDelivery ||
+    failedCodes.has(code) ||
+    normalized.includes('exception') ||
+    normalized.includes('failed') ||
+    normalized.includes('lost') ||
+    normalized.includes('damaged')
+  ) {
     return {
       shippingStatus: 'failed',
       orderStatus: null,
@@ -237,8 +300,8 @@ function mapShiprocketStatus(currentStatus = '', statusCode = null) {
   }
 
   if (
-    inTransitCodes.has(Number(statusCode)) ||
-    normalized.includes('picked') ||
+    inTransitCodes.has(code) ||
+    (normalized.includes('picked') && !normalized.includes('not picked')) ||
     normalized.includes('transit') ||
     normalized.includes('shipped')
   ) {

@@ -4,12 +4,33 @@ import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from './contexts/ToastContext';
 import { useCurrency } from './contexts/CurrencyContext';
+import { fetchJson } from './lib/api';
+import type { ProductsResponse } from './types/product';
 
 export default function Cart() {
   const { items, isOpen, toggleCart, removeItem, updateQuantity, getCartTotal, getCartCount } = useCartStore();
   const navigate = useNavigate();
   const { showError } = useToast();
   const { formatPrice, isEstimated } = useCurrency();
+
+  // Refresh a saved bag against the live catalog once per page load.
+  useEffect(() => {
+    if (useCartStore.getState().items.length === 0) return;
+    let isMounted = true;
+
+    fetchJson<ProductsResponse>('/api/products')
+      .then(({ products }) => {
+        if (!isMounted) return;
+        useCartStore.getState().syncWithCatalog(products).forEach(showError);
+      })
+      .catch(() => {
+        // Keep the saved bag; checkout re-validates prices and stock on the server.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [showError]);
 
   // Prevent scrolling when cart is open
   useEffect(() => {

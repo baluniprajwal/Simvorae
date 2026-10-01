@@ -9,8 +9,10 @@ function getVerificationErrorMessage(error: unknown) {
   if (axios.isAxiosError(error)) {
     const message = error.response?.data?.message || error.message;
 
+    // A used link looks the same as an expired one to the server, and second clicks are common
+    // (double clicks, mail apps opening links), so do not assume the account is gone.
     if (message.toLowerCase().includes('expired') || message.toLowerCase().includes('invalid')) {
-      return 'Verification link is invalid or expired. Please create your account again.';
+      return 'This link has already been used or has expired. Try signing in; if that fails, create your account again.';
     }
 
     if (message.toLowerCase().includes('already exists')) {
@@ -20,6 +22,10 @@ function getVerificationErrorMessage(error: unknown) {
 
   return 'Email verification failed. Please try again.';
 }
+
+// Each link is single-use on the server. React development mode runs effects twice, which would
+// spend the token on the first run and report the second as a failure.
+const tokensInFlight = new Map<string, ReturnType<ReturnType<typeof useAuthStore.getState>['verifyEmail']>>();
 
 export default function VerifyEmail() {
   const navigate = useNavigate();
@@ -39,7 +45,10 @@ export default function VerifyEmail() {
       }
 
       try {
-        await verifyEmail(token);
+        if (!tokensInFlight.has(token)) {
+          tokensInFlight.set(token, verifyEmail(token));
+        }
+        await tokensInFlight.get(token);
 
         if (!isMounted) {
           return;

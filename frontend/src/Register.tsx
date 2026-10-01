@@ -75,8 +75,12 @@ export default function Register() {
       showSuccess('Verification email sent. Please check your inbox.');
       setPassword('');
     } catch (registerError) {
-      const message = getErrorMessage(registerError);
-      showError(message.toLowerCase().includes('already') ? 'An account already exists with this email.' : 'Could not create your account right now. Please try again.');
+      // The server's 400/409/429 messages (invalid email, existing account, pending signup,
+      // rate limit) tell the customer what to do next; anything else stays generic.
+      const status = axios.isAxiosError(registerError) ? registerError.response?.status : undefined;
+      showError(status === 400 || status === 409 || status === 429
+        ? getErrorMessage(registerError)
+        : 'Could not create your account right now. Please try again.');
     }
   };
 

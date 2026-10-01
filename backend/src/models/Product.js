@@ -121,7 +121,7 @@ const productSchema = new mongoose.Schema(
     },
     shippingReturns: {
       type: String,
-      default: 'Complimentary express shipping on all orders. Returns are accepted within 30 days of delivery in their original condition.',
+      default: 'Complimentary shipping across India. Eligible pieces may be returned or exchanged within 7 days of delivery in their original condition.',
       trim: true,
     },
     moreInformation: {

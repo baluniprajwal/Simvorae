@@ -10,6 +10,7 @@ import Footer from './components/Footer';
 import { fetchJson } from './lib/api';
 import type { Product } from './types/product';
 import { useCurrency } from './contexts/CurrencyContext';
+import { usePageTitle } from './lib/usePageTitle';
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -38,10 +39,21 @@ const defaultHomepageSettings = (): HomepageSettings => ({
   everydayCarry: { enabled: true, title: 'Everyday', subtitle: 'Carry.', description: 'Foundation bags engineered to safely hold your essentials. From spacious totes to compact crossbodys.' },
 });
 
+const INTRO_SEEN_KEY = 'simvorae_intro_seen';
+
 export default function Home() {
+  usePageTitle();
   const container = useRef<HTMLDivElement>(null);
   
-  const [isLoaded, setIsLoaded] = useState(false);
+  // The intro loader plays once per browser session; repeat visits go straight to the page.
+  const [skipIntro] = useState(() => {
+    try {
+      return window.sessionStorage.getItem(INTRO_SEEN_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [isLoaded, setIsLoaded] = useState(skipIntro);
   const [progress, setProgress] = useState(0);
   const [homepageSections, setHomepageSections] = useState<HomepageSections>(emptyHomepageSections());
   const [homepageSettings, setHomepageSettings] = useState<HomepageSettings>(defaultHomepageSettings());
@@ -72,18 +84,26 @@ export default function Home() {
 
   // Fake Loading Progress
   useEffect(() => {
+    if (skipIntro) return;
     let currentProgress = 0;
     const interval = setInterval(() => {
       currentProgress += Math.floor(Math.random() * 15) + 5;
       if (currentProgress >= 100) {
         currentProgress = 100;
         clearInterval(interval);
-        setTimeout(() => setIsLoaded(true), 400); // slight delay when at 100 before leaving
+        setTimeout(() => {
+          setIsLoaded(true);
+          try {
+            window.sessionStorage.setItem(INTRO_SEEN_KEY, '1');
+          } catch {
+            // Without storage the intro simply plays again next time.
+          }
+        }, 400); // slight delay when at 100 before leaving
       }
       setProgress(currentProgress);
     }, 120);
     return () => clearInterval(interval);
-  }, []);
+  }, [skipIntro]);
 
   // Main Animations
   useGSAP(() => {
@@ -92,11 +112,13 @@ export default function Home() {
     const tl = gsap.timeline();
 
     // 1. Preloader out
-    tl.to('.preloader', {
-      duration: 1.2,
-      clipPath: 'polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)',
-      ease: 'power4.inOut',
-    });
+    if (!skipIntro) {
+      tl.to('.preloader', {
+        duration: 1.2,
+        clipPath: 'polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)',
+        ease: 'power4.inOut',
+      });
+    }
 
     // 2. Hero Image Reveal
     tl.fromTo('.hero-img-inner',
@@ -228,6 +250,7 @@ export default function Home() {
       <div className="pointer-events-none fixed inset-0 z-40 h-full w-full opacity-[0.035]" style={{backgroundImage: 'url("https://www.transparenttextures.com/patterns/stardust.png")'}}></div>
 
       {/* PRELOADER */}
+      {!skipIntro && (
       <div className="preloader fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#1a1a1a] text-[#fcfbf9]">
         <div className="overflow-hidden mb-4">
           <div className="font-serif text-5xl md:text-7xl italic tracking-wider font-light" style={{ transform: isLoaded ? 'translateY(100%)' : 'translateY(0)', transition: 'transform 0.8s cubic-bezier(0.2,1,0.2,1)' }}>
@@ -241,6 +264,7 @@ export default function Home() {
           {progress.toString().padStart(3, '0')}%
         </div>
       </div>
+      )}
 
       <Navbar />
 
@@ -514,7 +538,7 @@ export default function Home() {
                             "The archive represents our commitment to timeless proportion and unrelenting quality."
                         </p>
                         <div>
-                            <Link to="/archive" className="font-sans text-[10px] tracking-[0.2em] uppercase border-b border-stone-300 pb-1 hover:border-[#1a1a1a] transition-colors inline-block font-semibold">
+                            <Link to="/shop" className="font-sans text-[10px] tracking-[0.2em] uppercase border-b border-stone-300 pb-1 hover:border-[#1a1a1a] transition-colors inline-block font-semibold">
                                 View Complete Archive
                             </Link>
                         </div>

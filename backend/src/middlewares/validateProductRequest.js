@@ -161,6 +161,11 @@ export function validateAdminProductBody(req, _res, next) {
     return next(createValidationError('stock must be a non-negative integer.'));
   }
 
+  const { stockBaseline } = req.body;
+  if (stockBaseline !== undefined && (!Number.isInteger(stockBaseline) || stockBaseline < 0)) {
+    return next(createValidationError('stockBaseline must be a non-negative integer.'));
+  }
+
   const parsedLowStockThreshold = Number(lowStockThreshold ?? 3);
   if (!Number.isInteger(parsedLowStockThreshold) || parsedLowStockThreshold < 0) {
     return next(createValidationError('lowStockThreshold must be a non-negative integer.'));

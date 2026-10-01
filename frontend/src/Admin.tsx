@@ -163,18 +163,20 @@ const getDateRangeLabel = (range: DashboardRange, customStartDate: string, custo
   return labels[range];
 };
 
+// Factual fields start empty: a pre-filled material, colour or feature list (e.g. "fits a
+// laptop") would be published as a false product claim if the admin forgot to change it.
 const createEmptyForm = (): ProductFormState => ({
   name: '',
   price: 35000,
-  category: 'Classic Tote',
-  material: 'Calfskin',
-  color: 'Black',
+  category: '',
+  material: '',
+  color: '',
   images: [],
   description: '',
-  keyFeaturesText: 'Fits 15\" Laptop\nMultiple Functional Pockets\nZipper Closure',
+  keyFeaturesText: '',
   whyLoveIt: 'Designed with meticulous attention to detail, this piece seamlessly blends elevated aesthetics with everyday utility. The refined craftsmanship ensures it will become a staple in your collection.',
   dimensions: '',
-  shippingReturns: 'Complimentary express shipping on all orders. Returns are accepted within 30 days of delivery in their original condition.',
+  shippingReturns: 'Complimentary shipping across India. Eligible pieces may be returned or exchanged within 7 days of delivery in their original condition.',
   moreInformation: 'Each item is crafted in limited numbers to preserve its exclusivity. Contact our concierge for personalized styling advice.',
   packageLengthCm: 20,
   packageBreadthCm: 15,
@@ -628,6 +630,7 @@ export default function Admin() {
     updateProduct,
     deleteProduct,
   } = useProductStore();
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
   const { orders, isLoading, error, fetchOrders, markPacked, cancelOrder, createShipment, syncShipment, cancelShipment } = useOrderStore();
 
   const activeTab = adminPathToTab(location.pathname);
@@ -1234,7 +1237,8 @@ export default function Admin() {
 
   const handleProductSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!productForm.name.trim()) {
+    // Saving mid-upload would drop the images still uploading; a second click would create a duplicate.
+    if (!productForm.name.trim() || isSavingProduct || isProductImageUploading) {
       return;
     }
 
@@ -1254,9 +1258,10 @@ export default function Admin() {
       },
     };
 
+    setIsSavingProduct(true);
     try {
       if (editingProduct) {
-        await updateProduct(editingProduct.id, payload);
+        await updateProduct(editingProduct.id, payload, editingProduct.stockQuantity);
         showSuccess(`${productForm.name} updated.`);
       } else {
         await addProduct(payload);
@@ -1266,6 +1271,8 @@ export default function Admin() {
       closeModal();
     } catch (error) {
       showError(getFriendlyAdminErrorMessage(error, 'Product could not be saved. Please check the details and try again.'));
+    } finally {
+      setIsSavingProduct(false);
     }
   };
 
@@ -2437,6 +2444,7 @@ export default function Admin() {
           onImageFilesAdd={handleImageFilesAdd}
           onImageRemove={handleImageRemove}
           isUploading={isProductImageUploading}
+          isSaving={isSavingProduct}
         />
       )}
 

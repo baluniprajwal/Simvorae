@@ -11,6 +11,7 @@ export default function ProductModal({
   onImageFilesAdd,
   onImageRemove,
   isUploading,
+  isSaving,
 }: {
   mode: 'add' | 'edit';
   form: ProductFormState;
@@ -20,6 +21,7 @@ export default function ProductModal({
   onImageFilesAdd: (files: FileList) => void;
   onImageRemove: (index: number) => void;
   isUploading: boolean;
+  isSaving: boolean;
 }) {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -239,8 +241,13 @@ export default function ProductModal({
           <button type="button" onClick={onClose} className="cursor-pointer border border-stone-200 px-6 py-3 text-[9px] uppercase tracking-widest text-[#1a1a1a] transition-colors hover:bg-stone-50">
             Cancel
           </button>
-          <button form="productForm" type="submit" className="cursor-pointer bg-[#1a1a1a] px-6 py-3 text-[9px] uppercase tracking-widest text-white transition-colors hover:bg-stone-800">
-            {mode === 'add' ? 'Publish Product' : 'Save Changes'}
+          <button
+            form="productForm"
+            type="submit"
+            disabled={isSaving || isUploading}
+            className="cursor-pointer bg-[#1a1a1a] px-6 py-3 text-[9px] uppercase tracking-widest text-white transition-colors hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isUploading ? 'Uploading Images...' : isSaving ? 'Saving...' : mode === 'add' ? 'Publish Product' : 'Save Changes'}
           </button>
         </div>
       </div>

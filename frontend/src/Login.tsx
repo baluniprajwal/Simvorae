@@ -1,17 +1,9 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { motion } from 'motion/react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { useToast } from './contexts/ToastContext';
-
-function getErrorMessage(error: unknown) {
-  if (axios.isAxiosError(error)) {
-    return error.response?.data?.message || error.message;
-  }
-
-  return error instanceof Error ? error.message : 'Request failed.';
-}
+import { getLoginErrorMessage, getPostLoginPath } from './lib/authFlow';
 
 function UnderlineField({
   label,
@@ -51,6 +43,7 @@ function UnderlineField({
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, isLoading } = useAuthStore();
   const { showError, showSuccess } = useToast();
   const [email, setEmail] = useState('');
@@ -62,10 +55,10 @@ export default function Login() {
     try {
       await login({ email: email.trim(), password });
       showSuccess('Logged in successfully.');
-      navigate('/', { replace: true });
+      // Return to the page that asked for sign-in (e.g. an order link from an email).
+      navigate(getPostLoginPath(location.state), { replace: true });
     } catch (loginError) {
-      const message = getErrorMessage(loginError);
-      showError(message.toLowerCase().includes('invalid') ? 'Invalid credentials. Please check your email and password.' : 'Could not sign in right now. Please try again.');
+      showError(getLoginErrorMessage(loginError));
     }
   };
 

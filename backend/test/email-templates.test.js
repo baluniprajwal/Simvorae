@@ -4,6 +4,7 @@ import {
   buildEmailVerificationHtml,
   buildOrderEmailHtml,
   buildPasswordResetHtml,
+  buildExpiredCheckoutRefundHtml,
   buildRefundEmailHtml,
   buildShipmentEmailHtml,
 } from '../src/services/emailService.js';
@@ -78,4 +79,15 @@ test('verification and reset emails use the complete atelier security styling', 
   assert.match(resetHtml, /CLIENT SECURITY \/ ACCESS RECOVERY/i);
   assert.match(resetHtml, /30 minutes/i);
   assert.match(resetHtml, /Security notice/i);
+});
+
+test('expired checkout refund email explains why no order was placed', () => {
+  const html = buildExpiredCheckoutRefundHtml(createOrder(), { id: 'rfnd_late_1', amount: 1500000 });
+
+  assert.match(html, /Your payment is being refunded/);
+  assert.match(html, /no order was placed/);
+  assert.match(html, /rfnd_late_1/);
+  assert.match(html, /15,000/);
+  assert.match(html, /The Drape Tote/);
+  assert.match(html, /Customer &lt;Name&gt;/);
 });

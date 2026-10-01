@@ -27,6 +27,9 @@ import {
 } from '../src/utils/validators.js';
 import { validateImageUploadRequest } from '../src/services/s3Service.js';
 import { User } from '../src/models/User.js';
+import { createHttpError } from '../src/utils/createHttpError.js';
+import { forgotPassword, resetPassword } from '../src/controllers/authController.js';
+import { getProductionConfigProblems } from '../src/config/env.js';
 import {
   verifyRazorpaySignature,
   verifyRazorpayWebhookSignature,
@@ -54,7 +57,7 @@ function validProductBody() {
 }
 
 test('customer input validators normalize and validate common Indian details', () => {
-  assert.equal(normalizePhone('+91 98765-43210'), '919876543210');
+  assert.equal(normalizePhone('+91 98765-43210'), '9876543210');
   assert.equal(isValidIndianPhone('98765 43210'), true);
   assert.equal(isValidIndianPhone('12345'), false);
   assert.equal(isValidEmail(' customer@example.com '), true);
@@ -140,6 +143,67 @@ test('customer authentication loads a verified portal user from a signed cookie'
     if (previousSecret === undefined) delete process.env.JWT_SECRET;
     else process.env.JWT_SECRET = previousSecret;
   }
+});
+
+test('a password reset signs out sessions created with the old password', async (t) => {
+  const previousSecret = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = 'middleware-test-secret';
+  const user = { _id: 'user-1', role: 'customer', isPortalEnabled: true, emailVerifiedAt: new Date(), sessionVersion: 0 };
+  t.mock.method(User, 'findById', async () => user);
+  try {
+    const oldToken = signToken({ userId: 'user-1', sessionVersion: 0 }, 60);
+    const legacyToken = signToken({ userId: 'user-1' }, 60);
+    const oldRequest = () => ({ headers: { cookie: `simvorae_customer_session=${oldToken}` } });
+
+    assert.equal(await runMiddleware(protect, oldRequest()), undefined);
+    assert.equal(
+      await runMiddleware(protect, { headers: { cookie: `simvorae_customer_session=${legacyToken}` } }),
+      undefined,
+      'tokens issued before session versioning must keep working until the first reset',
+    );
+
+    user.sessionVersion = 1;
+    assert.equal((await runMiddleware(protect, oldRequest())).statusCode, 401);
+
+    const newToken = signToken({ userId: 'user-1', sessionVersion: 1 }, 60);
+    assert.equal(await runMiddleware(protect, { headers: { cookie: `simvorae_customer_session=${newToken}` } }), undefined);
+  } finally {
+    if (previousSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = previousSecret;
+  }
+});
+
+test('resetting a password bumps the session version and clears the reset token', async (t) => {
+  const user = {
+    sessionVersion: 2,
+    passwordHash: 'old-hash',
+    passwordResetTokenHash: 'hash',
+    passwordResetExpiresAt: new Date(Date.now() + 60_000),
+    save: t.mock.fn(async () => {}),
+  };
+  t.mock.method(User, 'findOne', () => ({ select: async () => user }));
+  let statusCode;
+  const res = {
+    status(code) {
+      statusCode = code;
+      return this;
+    },
+    json() {
+      return this;
+    },
+  };
+  let error;
+
+  await resetPassword({ body: { token: 'reset-token', password: 'new-password-123' } }, res, (err) => {
+    error = err;
+  });
+
+  assert.equal(error, undefined);
+  assert.equal(statusCode, 200);
+  assert.equal(user.sessionVersion, 3);
+  assert.equal(user.passwordResetTokenHash, '');
+  assert.notEqual(user.passwordHash, 'old-hash');
+  assert.equal(user.save.mock.callCount(), 1);
 });
 
 test('authentication blocks disabled or unverified customer accounts', async (t) => {
@@ -267,6 +331,43 @@ test('rate limiting emits standard headers and blocks excess requests per client
   assert.equal(headers['RateLimit-Remaining'], '0');
 });
 
+test('production errors hide unexpected internal details but keep intended messages', (t) => {
+  const previousEnvironment = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  t.mock.method(console, 'error', () => {});
+  const send = (error) => {
+    const response = {
+      status(code) { this.statusCode = code; return this; },
+      json(body) { this.body = body; return this; },
+    };
+    errorHandler(error, { method: 'POST', originalUrl: '/api/checkout' }, response, () => {});
+    return response;
+  };
+
+  try {
+    const internal = send(new Error('E11000 duplicate key error collection: simvorae.orders index: orderNumber_1'));
+    assert.equal(internal.statusCode, 500);
+    assert.equal(internal.body.message, 'Something went wrong. Please try again.');
+    assert.equal('error' in internal.body, false);
+
+    const intended = send(createHttpError(500, 'Razorpay credentials are not configured.'));
+    assert.equal(intended.body.message, 'Razorpay credentials are not configured.');
+
+    const validation = new Error('Product validation failed: price: Path `price` (-5) is less than minimum allowed value (0).');
+    validation.name = 'ValidationError';
+    const validationResponse = send(validation);
+    assert.equal(validationResponse.statusCode, 400);
+    assert.match(validationResponse.body.message, /price/);
+
+    const clientError = send(createHttpError(409, 'Your stock reservation expired.'));
+    assert.equal(clientError.statusCode, 409);
+    assert.equal(clientError.body.message, 'Your stock reservation expired.');
+  } finally {
+    if (previousEnvironment === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousEnvironment;
+  }
+});
+
 test('not-found and error middleware return consistent API errors', () => {
   let missingError;
   notFound({ method: 'GET', originalUrl: '/missing' }, {}, (error) => { missingError = error; });
@@ -284,4 +385,63 @@ test('not-found and error middleware return consistent API errors', () => {
   assert.equal('error' in response.body, false);
   if (previousEnvironment === undefined) delete process.env.NODE_ENV;
   else process.env.NODE_ENV = previousEnvironment;
+});
+
+test('production refuses to start with missing or unsafe settings and names each one', () => {
+  const complete = {
+    MONGODB_URI: 'mongodb+srv://db', JWT_SECRET: 'x'.repeat(48), FRONTEND_URL: 'https://simvorae.com',
+    PUBLIC_API_URL: 'https://api.simvorae.com', RAZORPAY_KEY_ID: 'rzp', RAZORPAY_KEY_SECRET: 's',
+    RAZORPAY_WEBHOOK_SECRET: 'w', RESEND_API_KEY: 're', EMAIL_FROM: 'Simvorae <orders@simvorae.com>',
+    AWS_REGION: 'ap-south-1', AWS_S3_BUCKET: 'b', AWS_ACCESS_KEY_ID: 'a', AWS_SECRET_ACCESS_KEY: 'k',
+  };
+  assert.deepEqual(getProductionConfigProblems(complete), []);
+
+  const problems = getProductionConfigProblems({
+    ...complete,
+    RESEND_API_KEY: '',
+    JWT_SECRET: 'short',
+    FRONTEND_URL: 'http://localhost:3000',
+  });
+  assert.deepEqual(problems, [
+    'RESEND_API_KEY is not set',
+    'JWT_SECRET must be at least 32 characters',
+    'FRONTEND_URL points at localhost',
+  ]);
+});
+
+test('forgot password answers the same way when sending the email fails', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  // Simulate the email provider being unreachable without calling it.
+  const emailRequest = t.mock.method(globalThis, 'fetch', async () => {
+    throw new Error('network down');
+  });
+  const previousKey = process.env.RESEND_API_KEY;
+  process.env.RESEND_API_KEY = 're_test_invalid';
+  const user = { email: 'real@example.com', name: 'Real', save: async () => {} };
+  t.mock.method(User, 'findOne', () => ({ select: async () => user }));
+  let body;
+  let error;
+
+  try {
+    await forgotPassword(
+      { body: { email: 'real@example.com' } },
+      { status() { return this; }, json(payload) { body = payload; return this; } },
+      (err) => { error = err; },
+    );
+  } finally {
+    if (previousKey === undefined) delete process.env.RESEND_API_KEY;
+    else process.env.RESEND_API_KEY = previousKey;
+  }
+
+  assert.ok(emailRequest.mock.callCount() > 0, 'the reset email send must have been attempted');
+  assert.equal(error, undefined);
+  assert.match(body.message, /If an account exists/);
+});
+
+test('phone numbers with +91 or a leading 0 normalise to the same 10 digits', () => {
+  assert.equal(normalizePhone('+91 98765 43210'), '9876543210');
+  assert.equal(normalizePhone('09876543210'), '9876543210');
+  assert.equal(normalizePhone('98765-43210'), '9876543210');
+  assert.equal(isValidIndianPhone('+91 98765 43210'), true);
+  assert.equal(isValidIndianPhone('9198765432'), true, 'a genuine 10-digit number starting 91 stays valid');
 });

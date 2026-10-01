@@ -14,6 +14,7 @@ import type {
   ProductsResponse,
 } from './types/product';
 import { useCurrency } from './contexts/CurrencyContext';
+import { usePageTitle } from './lib/usePageTitle';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -302,11 +303,12 @@ function MoreCategoriesDropdown({
 }
 
 export default function Shop() {
+  usePageTitle('Shop');
   const { formatPrice } = useCurrency();
   const container = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const searchQuery = searchParams.get('q') || '';
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -354,6 +356,8 @@ export default function Shop() {
   );
 
   const clearFilters = () => {
+    // A search with no results is otherwise a dead end: clearing filters alone keeps the query.
+    if (searchQuery) setSearchParams({}, { replace: true });
     setActiveCategory('All');
     setMinimumPrice(0);
     setMaximumPrice(null);
@@ -674,6 +678,25 @@ export default function Shop() {
             </div>
 
             <div>
+              <h4 className="font-sans text-[10px] tracking-widest uppercase font-semibold text-stone-500 mb-4">Material</h4>
+              <div className="flex flex-wrap gap-2">
+                {materials.map((material) => (
+                  <button
+                    key={material}
+                    onClick={() => setActiveMaterial(material)}
+                    className={`px-4 py-2 border rounded-full text-xs transition-colors ${
+                      activeMaterial === material
+                        ? 'border-[#1a1a1a] bg-[#1a1a1a] text-white'
+                        : 'border-stone-300 text-stone-600'
+                    }`}
+                  >
+                    {material}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
               <h4 className="font-sans text-[10px] tracking-widest uppercase font-semibold text-stone-500 mb-4">Sort By</h4>
               <div className="flex flex-col gap-2">
                 {sortOptions.map((order) => (
@@ -737,6 +760,11 @@ export default function Shop() {
                     alt={product.name}
                     className="w-full h-full object-cover transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                   />
+                  {product.stock <= 0 && (
+                    <span className="absolute top-4 left-4 z-20 rounded-full bg-[#fcfbf9] px-3 py-1.5 text-[8px] font-bold uppercase tracking-[0.2em] text-[#1a1a1a]">
+                      Sold Out
+                    </span>
+                  )}
                   <div className="absolute inset-0 bg-[#1a1a1a]/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all duration-700 pointer-events-none z-10 mix-blend-multiply" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700 pointer-events-none z-10" />
 

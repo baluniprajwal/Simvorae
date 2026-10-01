@@ -10,6 +10,7 @@ vi.mock('../lib/api', () => ({ default: apiMock }));
 
 import { useAuthStore } from './authStore';
 import { useAdminAuthStore } from '../lib/adminAuth';
+import { useOrderStore } from './orderStore';
 
 const customer = {
   id: 'customer-1',
@@ -80,5 +81,23 @@ describe('authentication stores', () => {
     await useAdminAuthStore.getState().logout();
     expect(apiMock.post).toHaveBeenCalledWith('/api/auth/admin/logout');
     expect(useAdminAuthStore.getState().user).toBeNull();
+  });
+
+  it('clears loaded orders from the previous person when signing out or in on a shared device', async () => {
+    const someoneElsesOrder = { id: 'SIM-PREVIOUS' } as never;
+    useOrderStore.setState({ orders: [someoneElsesOrder], ordersScope: 'customer' });
+    apiMock.post.mockResolvedValue({ data: { success: true } });
+
+    await useAuthStore.getState().logout();
+    expect(useOrderStore.getState().orders).toEqual([]);
+
+    useOrderStore.setState({ orders: [someoneElsesOrder], ordersScope: 'customer' });
+    apiMock.post.mockResolvedValue({ data: { success: true, user: customer } });
+    await useAuthStore.getState().login({ email: customer.email, password: 'password123' });
+    expect(useOrderStore.getState().orders).toEqual([]);
+
+    useOrderStore.setState({ orders: [someoneElsesOrder], ordersScope: 'admin' });
+    useAdminAuthStore.getState().setUser(admin);
+    expect(useOrderStore.getState().orders).toEqual([]);
   });
 });

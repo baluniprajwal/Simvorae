@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { socialLinks } from '../lib/socialLinks';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -67,18 +68,12 @@ export default function Footer() {
           <div className="flex flex-wrap gap-x-8 gap-y-3 relative z-10 w-full md:w-auto justify-between md:justify-end">
             <Link to="/terms" className="hover:text-white transition-colors cursor-pointer">Terms</Link>
             <Link to="/privacy" className="hover:text-white transition-colors cursor-pointer">Privacy</Link>
-            <a href="#" className="hover:text-white transition-colors relative group overflow-hidden cursor-pointer">
-              <span className="inline-block group-hover:-translate-y-full transition-transform duration-300">Instagram</span>
-              <span className="inline-block absolute left-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300">Instagram</span>
-            </a>
-            <a href="#" className="hover:text-white transition-colors relative group overflow-hidden cursor-pointer">
-              <span className="inline-block group-hover:-translate-y-full transition-transform duration-300">Pinterest</span>
-              <span className="inline-block absolute left-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300">Pinterest</span>
-            </a>
-            <a href="#" className="hover:text-white transition-colors relative group overflow-hidden cursor-pointer">
-              <span className="inline-block group-hover:-translate-y-full transition-transform duration-300">Spotify</span>
-              <span className="inline-block absolute left-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300">Spotify</span>
-            </a>
+            {socialLinks.map((link) => (
+              <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors relative group overflow-hidden cursor-pointer">
+                <span className="inline-block group-hover:-translate-y-full transition-transform duration-300">{link.label}</span>
+                <span className="inline-block absolute left-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300">{link.label}</span>
+              </a>
+            ))}
           </div>
         </div>
       </div>

@@ -95,6 +95,12 @@ const userSchema = new mongoose.Schema(
       select: false,
       default: null,
     },
+    // Bumped whenever existing sessions must stop working (e.g. after a password reset).
+    sessionVersion: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     source: {
       type: String,
       enum: ['direct', 'admin'],

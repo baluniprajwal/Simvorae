@@ -7,6 +7,7 @@ import Footer from './components/Footer';
 import { useOrderStore } from './store/orderStore';
 import { useAuthStore } from './store/authStore';
 import { useToast } from './contexts/ToastContext';
+import { toIndianMobileDigits } from './lib/phone';
 
 type Tab = 'profile' | 'orders' | 'addresses';
 
@@ -93,7 +94,7 @@ export default function Account() {
   }, [ordersError, showError]);
 
   useEffect(() => {
-    setPhone((user?.phone || defaultAddress?.phone || '').replace(/\D/g, '').slice(0, 10));
+    setPhone(toIndianMobileDigits(user?.phone || defaultAddress?.phone || ''));
     setFormData({
       addressLine1: defaultAddress?.addressLine1 || '',
       city: defaultAddress?.city || '',
@@ -241,7 +242,7 @@ export default function Account() {
                   <UnderlineInput
                     label="Phone Number"
                     value={phone}
-                    onChange={(value) => setPhone(value.replace(/\D/g, '').slice(0, 10))}
+                    onChange={(value) => setPhone(toIndianMobileDigits(value))}
                     placeholder="10-digit mobile number"
                     type="tel"
                   />
@@ -408,7 +409,7 @@ export default function Account() {
                       <UnderlineInput
                         label="Phone Number"
                         value={phone}
-                        onChange={(value) => setPhone(value.replace(/\D/g, '').slice(0, 10))}
+                        onChange={(value) => setPhone(toIndianMobileDigits(value))}
                         placeholder="10-digit mobile number"
                         type="tel"
                       />

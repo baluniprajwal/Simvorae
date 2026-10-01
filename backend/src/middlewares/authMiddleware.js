@@ -26,6 +26,11 @@ async function authenticate(req, next, { admin = false } = {}) {
       return next(createHttpError(401, 'User account is not available.'));
     }
 
+    // Tokens issued before the last password reset carry an older version and are rejected.
+    if ((payload.sessionVersion || 0) !== (user.sessionVersion || 0)) {
+      return next(createHttpError(401, 'Your session has ended. Please sign in again.'));
+    }
+
     if (user.role === 'customer' && !user.emailVerifiedAt) {
       return next(createHttpError(403, 'Please verify your email before continuing.'));
     }

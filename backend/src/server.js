@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import { connectDB } from './config/db.js';
+import { getProductionConfigProblems } from './config/env.js';
 import authRoutes from './routes/authRoutes.js';
 import checkoutRoutes from './routes/checkoutRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
@@ -22,9 +23,15 @@ if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
+// FRONTEND_URL may list several origins separated by commas, e.g. the apex and www domains.
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: allowedOrigins,
     credentials: true,
   }),
 );
@@ -55,6 +62,16 @@ app.use(notFound);
 app.use(errorHandler);
 
 async function startServer() {
+  // A missing key otherwise only shows up when a customer hits it (e.g. registration emails
+  // silently not sending), so refuse to start and say exactly what is missing.
+  if (process.env.NODE_ENV === 'production') {
+    const problems = getProductionConfigProblems();
+    if (problems.length > 0) {
+      console.error(`Refusing to start: fix these environment settings:\n- ${problems.join('\n- ')}`);
+      process.exit(1);
+    }
+  }
+
   try {
     await connectDB();
 

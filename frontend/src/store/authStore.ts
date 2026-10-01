@@ -1,5 +1,9 @@
 import { create } from 'zustand';
 import api from '../lib/api';
+import { useOrderStore } from './orderStore';
+
+// Orders loaded for one person must never be shown to the next person on a shared device.
+const clearLoadedOrders = () => useOrderStore.setState({ orders: [], ordersScope: null });
 
 type CustomerAddress = {
   label?: string;
@@ -72,6 +76,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     try {
       const { data } = await api.post<AuthResponse>('/api/auth/login', { ...payload, portal: 'customer' });
+      clearLoadedOrders();
 
       if (data.user) {
         set({ user: data.user, isInitialized: true });
@@ -148,6 +153,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    clearLoadedOrders();
     try {
       await api.post('/api/auth/logout');
     } finally {

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import api from './api';
+import { useOrderStore } from '../store/orderStore';
 
 export type AdminUser = {
   id: string;
@@ -28,8 +29,13 @@ export const useAdminAuthStore = create<AdminAuthState>((set, get) => ({
       set({ user: null, isInitialized: true });
     }
   },
-  setUser: (user) => set({ user, isInitialized: true }),
+  setUser: (user) => {
+    useOrderStore.setState({ orders: [], ordersScope: null });
+    set({ user, isInitialized: true });
+  },
   logout: async () => {
+    // Leave no customer data from the dashboard in memory after signing out.
+    useOrderStore.setState({ orders: [], ordersScope: null });
     try {
       await api.post('/api/auth/admin/logout');
     } finally {

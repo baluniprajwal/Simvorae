@@ -34,14 +34,18 @@ function createPasswordResetToken() {
   return createSecureToken(passwordResetExpiresInMs);
 }
 
+// FRONTEND_URL can list several origins (see server.js); email links use the first one.
+function getFrontendUrl() {
+  const [primary] = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',');
+  return primary.trim().replace(/\/$/, '');
+}
+
 function buildVerificationUrl(token) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-  return `${frontendUrl.replace(/\/$/, '')}/verify-email?token=${encodeURIComponent(token)}`;
+  return `${getFrontendUrl()}/verify-email?token=${encodeURIComponent(token)}`;
 }
 
 function buildPasswordResetUrl(token) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-  return `${frontendUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token)}`;
+  return `${getFrontendUrl()}/reset-password?token=${encodeURIComponent(token)}`;
 }
 
 function sanitizeUser(user) {
@@ -200,6 +204,7 @@ export async function login(req, res, next) {
       {
         userId: user._id.toString(),
         role: user.role,
+        sessionVersion: user.sessionVersion || 0,
       },
       expiresIn,
     );
@@ -329,11 +334,17 @@ export async function forgotPassword(req, res, next) {
       user.passwordResetExpiresAt = reset.expiresAt;
       await user.save();
 
-      await sendPasswordResetEmail({
-        to: user.email,
-        name: user.name,
-        resetUrl: buildPasswordResetUrl(reset.token),
-      });
+      // Answer the same way whether or not the email exists; an error only for real accounts
+      // would reveal who has one.
+      try {
+        await sendPasswordResetEmail({
+          to: user.email,
+          name: user.name,
+          resetUrl: buildPasswordResetUrl(reset.token),
+        });
+      } catch (error) {
+        console.error(`Password reset email failed for ${user.email}: ${error.message}`);
+      }
     }
 
     return res.status(200).json({
@@ -369,6 +380,8 @@ export async function resetPassword(req, res, next) {
     user.passwordHash = await hashPassword(password);
     user.passwordResetTokenHash = '';
     user.passwordResetExpiresAt = null;
+    // Sign out every device that was logged in with the old password.
+    user.sessionVersion = (user.sessionVersion || 0) + 1;
     await user.save();
 
     return res.status(200).json({

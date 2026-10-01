@@ -40,7 +40,10 @@ export async function createCheckout(req, res, next) {
     });
   } catch (error) {
     if (error.code === 11000) {
-      return next(createHttpError(409, 'Order number already exists. Please try again.'));
+      const message = error.keyPattern?.orderNumber
+        ? 'Order number already exists. Please try again.'
+        : 'Checkout could not be started. Please try again.';
+      return next(createHttpError(409, message));
     }
 
     return next(error);

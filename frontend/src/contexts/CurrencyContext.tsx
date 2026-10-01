@@ -42,6 +42,31 @@ type CurrencyContextValue = {
 
 const CurrencyContext = createContext<CurrencyContextValue | undefined>(undefined);
 
+// Storage can be blocked (strict privacy settings); the provider wraps the whole app, so it must not throw.
+const storage = {
+  get(key: string) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set(key: string, value: string) {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // Preference just will not be remembered.
+    }
+  },
+  remove(key: string) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Nothing to clean up.
+    }
+  },
+};
+
 function formatAmount(amount: number, currency: DisplayCurrency) {
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
@@ -56,7 +81,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [isRateReady, setIsRateReady] = useState(true);
 
   useEffect(() => {
-    const savedCurrency = window.localStorage.getItem(CURRENCY_STORAGE_KEY) as DisplayCurrency | null;
+    const savedCurrency = storage.get(CURRENCY_STORAGE_KEY) as DisplayCurrency | null;
     if (CURRENCY_OPTIONS.some((option) => option.code === savedCurrency)) {
       setCurrencyState(savedCurrency as DisplayCurrency);
       return;
@@ -86,7 +111,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     }
 
     const cacheKey = `${RATE_CACHE_PREFIX}${currency}`;
-    const cachedRate = window.localStorage.getItem(cacheKey);
+    const cachedRate = storage.get(cacheKey);
     if (cachedRate) {
       try {
         const parsed = JSON.parse(cachedRate) as { rate: number; fetchedAt: number };
@@ -96,7 +121,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
           return;
         }
       } catch {
-        window.localStorage.removeItem(cacheKey);
+        storage.remove(cacheKey);
       }
     }
 
@@ -110,22 +135,23 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         if (!Number.isFinite(result.rate) || !result.rate) throw new Error('Invalid exchange rate.');
         setRate(result.rate);
         setIsRateReady(true);
-        window.localStorage.setItem(cacheKey, JSON.stringify({
+        storage.set(cacheKey, JSON.stringify({
           rate: result.rate,
           fetchedAt: Date.now(),
         }));
       })
       .catch(() => {
+        // Show INR for this visit but keep the saved preference: rate outages are usually temporary,
+        // and the next visit retries the visitor's chosen currency.
         setCurrencyState('INR');
         setRate(1);
         setIsRateReady(true);
-        window.localStorage.removeItem(CURRENCY_STORAGE_KEY);
       });
   }, [currency]);
 
   const setCurrency = (nextCurrency: DisplayCurrency) => {
     setCurrencyState(nextCurrency);
-    window.localStorage.setItem(CURRENCY_STORAGE_KEY, nextCurrency);
+    storage.set(CURRENCY_STORAGE_KEY, nextCurrency);
   };
 
   const formatInr = (inrAmount: number) => formatAmount(inrAmount, 'INR');

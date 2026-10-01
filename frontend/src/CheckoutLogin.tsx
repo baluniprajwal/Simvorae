@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
 import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, ChevronLeft, Eye, EyeOff, Lock, ShieldCheck, ShoppingBag, Truck } from 'lucide-react';
@@ -7,13 +6,7 @@ import { useAuthStore } from './store/authStore';
 import { useCartStore } from './store/cartStore';
 import { useToast } from './contexts/ToastContext';
 import { useCurrency } from './contexts/CurrencyContext';
-
-function getErrorMessage(error: unknown) {
-  if (axios.isAxiosError(error)) {
-    return error.response?.data?.message || error.message;
-  }
-  return error instanceof Error ? error.message : 'Request failed.';
-}
+import { getLoginErrorMessage } from './lib/authFlow';
 
 export default function CheckoutLogin() {
   const navigate = useNavigate();
@@ -36,10 +29,7 @@ export default function CheckoutLogin() {
       showSuccess('Signed in. Proceeding to checkout.');
       navigate('/checkout', { replace: true });
     } catch (loginError) {
-      const message = getErrorMessage(loginError);
-      showError(message.toLowerCase().includes('invalid')
-        ? 'Invalid credentials. Please check your email and password.'
-        : 'Could not sign in right now. Please try again.');
+      showError(getLoginErrorMessage(loginError));
     }
   };
 

@@ -77,19 +77,35 @@ function getDeliveryState(order: Order) {
 
 export default function OrderDetail() {
   const { orderNumber = '' } = useParams();
-  const { fetchMyOrder, isLoading, error } = useOrderStore();
+  const { fetchMyOrder, error } = useOrderStore();
   const [order, setOrder] = useState<Order | null>(null);
+  // Local flag: the shared store flag is still false on the first render, which flashed "Order not found".
+  const [isLoading, setIsLoading] = useState(Boolean(orderNumber));
 
   useEffect(() => {
     window.scrollTo(0, 0);
 
     if (!orderNumber) {
+      setIsLoading(false);
       return;
     }
 
+    let isCurrent = true;
+    setIsLoading(true);
     fetchMyOrder(orderNumber)
-      .then(setOrder)
-      .catch(() => setOrder(null));
+      .then((loadedOrder) => {
+        if (isCurrent) setOrder(loadedOrder);
+      })
+      .catch(() => {
+        if (isCurrent) setOrder(null);
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [fetchMyOrder, orderNumber]);
 
   if (isLoading) {

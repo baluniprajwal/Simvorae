@@ -6,6 +6,7 @@ import api from './lib/api';
 import { useAuthStore } from './store/authStore';
 import { useCartStore } from './store/cartStore';
 import { useToast } from './contexts/ToastContext';
+import { toIndianMobileDigits } from './lib/phone';
 import { useCurrency } from './contexts/CurrencyContext';
 
 type CheckoutStep = 'ADDRESS' | 'PAYMENT';
@@ -109,8 +110,8 @@ export default function Checkout() {
 
     const defaultAddress = user.addresses?.find((address) => address.isDefault) || user.addresses?.[0];
 
-    if (user.phone) {
-      setPhone(user.phone.replace(/\D/g, '').slice(0, 10));
+    if (user.phone || defaultAddress?.phone) {
+      setPhone(toIndianMobileDigits(user.phone || defaultAddress?.phone || ''));
     }
 
     if (defaultAddress) {
@@ -253,11 +254,16 @@ export default function Checkout() {
               razorpaySignature: response.razorpay_signature,
             });
 
-            window.sessionStorage.setItem('simvorae_last_order', JSON.stringify({
-              orderNumber,
-              total,
-              email: user?.email || '',
-            }));
+            // The payment is already verified here, so a storage failure must not block the success page.
+            try {
+              window.sessionStorage.setItem('simvorae_last_order', JSON.stringify({
+                orderNumber,
+                total,
+                email: user?.email || '',
+              }));
+            } catch {
+              // The success page falls back to the order number in the URL.
+            }
             clearCart();
             navigate(`/order-success?order=${encodeURIComponent(orderNumber)}`, { replace: true });
           } catch (verifyError) {
@@ -350,7 +356,7 @@ export default function Checkout() {
 
               <div className="grid grid-cols-2 gap-3">
                 <FieldError className="col-span-2" error={fieldErrors.phone}>
-                  <input type="tel" value={phone} placeholder="10-digit Mobile Number" onChange={(event) => { setFieldErrors((current) => ({ ...current, phone: '' })); setPhone(event.target.value.replace(/\D/g, '').slice(0, 10)); }} className="w-full px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />
+                  <input type="tel" value={phone} placeholder="10-digit Mobile Number" onChange={(event) => { setFieldErrors((current) => ({ ...current, phone: '' })); setPhone(toIndianMobileDigits(event.target.value)); }} className="w-full px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />
                 </FieldError>
                 <FieldError className="col-span-2" error={fieldErrors.address}>
                   <input type="text" name="address" value={formData.address} placeholder="Complete Delivery Address" onChange={handleInputChange} className="w-full px-4 py-3 md:py-3.5 bg-transparent border border-[#1a1a1a]/20 rounded-md focus:border-[#1a1a1a] font-light text-sm outline-none" />

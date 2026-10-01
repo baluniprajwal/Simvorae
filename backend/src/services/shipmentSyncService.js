@@ -103,6 +103,12 @@ export async function syncShiprocketOrder(order) {
 }
 
 export async function applyShiprocketTrackingUpdate(order, tracking, { notifyTracking = false } = {}) {
+  // Shiprocket webhooks can arrive late or out of order. Delivery is final: an older
+  // "in transit" or "picked up" update must not move a delivered order backwards.
+  if (order.shipping.status === 'delivered' && tracking.shippingStatus !== 'delivered') {
+    return order;
+  }
+
   const wasCancellationPending = order.shipping.status === 'cancellation_pending';
   const pendingCancellationStatus = order.shipping.currentStatus;
 

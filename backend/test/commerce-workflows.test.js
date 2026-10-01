@@ -7,7 +7,9 @@ import { Product } from '../src/models/Product.js';
 import { User } from '../src/models/User.js';
 import {
   createOrderFromCheckoutAttempt,
+  createCheckoutAttempt,
   finalizeRefundedOrder,
+  releaseAbandonedCheckoutReservations,
   releaseCheckoutReservation,
   releaseExpiredCheckoutReservations,
 } from '../src/services/orderService.js';
@@ -137,6 +139,30 @@ test('concurrent order cancellation must win an atomic refund claim', async (t) 
   assert.equal(claimFilter['payment.razorpayPaymentId'], 'pay-1');
   assert.equal(responseError.statusCode, 409);
   assert.match(responseError.message, /already being processed/i);
+});
+
+test('a cancelled or refunded order cannot be moved back to processing', async (t) => {
+  const order = {
+    orderNumber: 'SIM-TEST-9',
+    orderStatus: 'cancelled',
+    payment: { status: 'refunded' },
+    shipping: { status: 'not_created' },
+    save: t.mock.fn(async () => {}),
+  };
+  t.mock.method(Order, 'findOne', async () => order);
+  let responseError;
+
+  await updateOrderStatus(
+    { body: { status: 'processing' }, params: { orderNumber: order.orderNumber } },
+    {},
+    (error) => {
+      responseError = error;
+    },
+  );
+
+  assert.equal(responseError.statusCode, 409);
+  assert.equal(order.orderStatus, 'cancelled');
+  assert.equal(order.save.mock.callCount(), 0);
 });
 
 test('admin and customer order queries retain refund states', async (t) => {
@@ -293,6 +319,45 @@ test('reservation release restores stock exactly once', async (t) => {
   assert.ok(attempt.stockReleasedAt instanceof Date);
   assert.ok(attempt.purgeAt instanceof Date);
   assert.ok(attempt.purgeAt > attempt.stockReleasedAt);
+});
+
+test('starting a new checkout releases the same customer abandoned reservations', async (t) => {
+  mockSession(t);
+  const abandonedAttempt = {
+    _id: 'attempt-old',
+    stockReserved: true,
+    items: [createItem(1)],
+    save: t.mock.fn(async () => {}),
+  };
+  let findFilter;
+  const restocked = [];
+
+  t.mock.method(CheckoutAttempt, 'find', (filter) => {
+    findFilter = filter;
+    return { select: async () => [{ _id: 'attempt-old' }] };
+  });
+  t.mock.method(CheckoutAttempt, 'findById', () => queryResult(abandonedAttempt));
+  t.mock.method(Product, 'bulkWrite', async (operations) => {
+    restocked.push(operations[0].updateOne.update.$inc.stock);
+  });
+
+  await releaseAbandonedCheckoutReservations('user-1');
+
+  assert.equal(findFilter.user, 'user-1');
+  assert.equal(findFilter.stockReserved, true);
+  assert.deepEqual(findFilter['payment.status'], { $ne: 'authorized' });
+  assert.deepEqual(restocked, [1]);
+  assert.equal(abandonedAttempt.stockReserved, false);
+});
+
+test('guest checkout has no abandoned reservations to release', async (t) => {
+  const find = t.mock.method(CheckoutAttempt, 'find', () => {
+    throw new Error('Guests must not trigger a reservation lookup.');
+  });
+
+  await releaseAbandonedCheckoutReservations(undefined);
+
+  assert.equal(find.mock.callCount(), 0);
 });
 
 test('expired checkout cleanup removes only old released attempts', async (t) => {
@@ -455,4 +520,43 @@ test('shipment cancellation remains pending until Shiprocket confirms it', async
   assert.equal(order.shipping.status, 'not_created');
   assert.equal(order.shipping.awbCode, '');
   assert.equal(order.shipmentAttempts.length, 1);
+});
+
+test('checkout still works when the phone number already belongs to another account', async (t) => {
+  mockSession(t);
+  const product = {
+    _id: { toString: () => '64b000000000000000000001' },
+    slug: 'the-drape-tote',
+    name: 'The Drape Tote',
+    category: 'Tote',
+    color: 'Black',
+    material: 'Calfskin',
+    images: [{ url: '/a.jpg', isPrimary: true }],
+    price: 25000,
+    stock: 3,
+    packageDetails: { lengthCm: 30, breadthCm: 20, heightCm: 10, weightKg: 1 },
+  };
+  const productQuery = () => ({
+    select: () => ({ session: async () => [product] }),
+    then: (resolve) => resolve([product]),
+  });
+  t.mock.method(Product, 'find', productQuery);
+  t.mock.method(Product, 'bulkWrite', async () => ({ modifiedCount: 1 }));
+  t.mock.method(CheckoutAttempt, 'find', () => ({ select: async () => [] }));
+  t.mock.method(CheckoutAttempt, 'create', async ([data]) => [{ ...data, _id: 'attempt-1', $session: () => {} }]);
+  t.mock.method(User, 'exists', async () => ({ _id: 'someone-else' }));
+  const user = { _id: 'user-1', email: 'buyer@example.com', phone: '9000000000', addresses: [], save: t.mock.fn(async () => {}) };
+
+  const attempt = await createCheckoutAttempt({
+    user,
+    payload: {
+      customer: { name: 'Buyer', phone: '9876543210' },
+      shippingAddress: { addressLine1: '1 Test Street', city: 'Noida', state: 'UP', postalCode: '201318' },
+      items: [{ productId: '64b000000000000000000001', quantity: 1 }],
+    },
+  });
+
+  assert.equal(attempt.customer.phone, '9876543210', 'the order keeps the phone given at checkout');
+  assert.equal(user.phone, '9000000000', 'the profile phone is not changed to one owned by another account');
+  assert.equal(user.save.mock.callCount(), 1);
 });

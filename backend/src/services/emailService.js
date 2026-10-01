@@ -262,6 +262,31 @@ export function buildRefundEmailHtml(order) {
   });
 }
 
+export function buildExpiredCheckoutRefundHtml(checkout, refund) {
+  const refundAmount = Number(refund?.amount) > 0
+    ? Number(refund.amount) / 100
+    : Number(checkout.totals.total || 0);
+
+  return buildEmailShell({
+    subtitle: 'Client concierge / Payment notice',
+    icon: '&#8635;',
+    eyebrow: 'Refund initiated &middot; Razorpay',
+    heading: 'Your payment is being refunded',
+    intro: `Dear ${checkout.customer.name}, your payment for checkout ${checkout.orderNumber} arrived after the pieces we were holding for you were released, so no order was placed and we have refunded you in full.`,
+    footer: 'You are welcome to place the order again while the pieces are available. Our concierge is happy to help.',
+    children: `
+      ${buildTwoColumnInfo(
+        buildInfoBlock('Refund Amount', [formatCurrency(refundAmount), 'Returning to your original payment method']),
+        buildInfoBlock('Reference', [`Refund ID: ${refund?.id || 'Not available'}`]),
+      )}
+      ${buildItemsTable(checkout, { showTotals: false })}
+      <p style="color:#78716c;line-height:1.8;font-size:13px;margin:24px 0 0;">
+        Your bank may take 5-7 business days to show the amount in the original payment method.
+      </p>
+    `,
+  });
+}
+
 export function buildEmailVerificationHtml({ name, verificationUrl }) {
   return buildEmailShell({
     subtitle: 'Client admission / Identity verification',
@@ -381,5 +406,13 @@ export async function sendPasswordResetEmail({ to, name, resetUrl }) {
     to,
     subject: 'Reset your Simvorae password',
     html: buildPasswordResetHtml({ name, resetUrl }),
+  });
+}
+
+export async function sendExpiredCheckoutRefundEmail(checkout, refund) {
+  return sendEmail({
+    to: checkout.customer.email,
+    subject: `Your payment for Simvorae checkout ${checkout.orderNumber} is being refunded`,
+    html: buildExpiredCheckoutRefundHtml(checkout, refund),
   });
 }

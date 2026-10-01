@@ -33,7 +33,7 @@ describe('order store', () => {
     apiMock.get.mockReset();
     apiMock.patch.mockReset();
     apiMock.post.mockReset();
-    useOrderStore.setState({ orders: [], isLoading: false, error: '' });
+    useOrderStore.setState({ orders: [], ordersScope: null, isLoading: false, error: '' });
   });
 
   it('maps backend orders into the admin/customer display model', async () => {
@@ -82,5 +82,31 @@ describe('order store', () => {
 
     expect(useOrderStore.getState().orders).toHaveLength(1);
     expect(useOrderStore.getState().orders[0].status).toBe('Shipped');
+  });
+
+  it('never shows admin-loaded orders on the customer account page', async () => {
+    apiMock.get.mockResolvedValueOnce({ data: { orders: [backendOrder, { ...backendOrder, orderNumber: 'SIM-OTHER' }] } });
+    await useOrderStore.getState().fetchOrders();
+    expect(useOrderStore.getState().orders).toHaveLength(2);
+
+    let resolveMine: (value: unknown) => void = () => {};
+    apiMock.get.mockReturnValueOnce(new Promise((resolve) => { resolveMine = resolve; }));
+    const loading = useOrderStore.getState().fetchMyOrders();
+
+    // While "my orders" is loading, the admin list must already be gone.
+    expect(useOrderStore.getState().orders).toEqual([]);
+    resolveMine({ data: { orders: [backendOrder] } });
+    await loading;
+    expect(useOrderStore.getState().orders.map((order) => order.id)).toEqual(['SIM-1001']);
+  });
+
+  it('keeps the current list visible while refreshing the same view', async () => {
+    apiMock.get.mockResolvedValue({ data: { orders: [backendOrder] } });
+    await useOrderStore.getState().fetchOrders();
+
+    apiMock.get.mockReturnValueOnce(new Promise(() => {}));
+    void useOrderStore.getState().fetchOrders();
+
+    expect(useOrderStore.getState().orders).toHaveLength(1);
   });
 });

@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Search, X, ShoppingBag, Menu, User } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
+import { socialLinks } from '../lib/socialLinks';
 import { CURRENCY_OPTIONS, type DisplayCurrency, useCurrency } from '../contexts/CurrencyContext';
 
 export default function Navbar() {
@@ -190,9 +191,13 @@ export default function Navbar() {
                Logout
              </button>
            )}
-           <div className="flex gap-8 text-[10px] uppercase tracking-widest text-stone-500">
-             <a href="#">Instagram</a>
-           </div>
+           {socialLinks.length > 0 && (
+             <div className="flex gap-8 text-[10px] uppercase tracking-widest text-stone-500">
+               {socialLinks.map((link) => (
+                 <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer">{link.label}</a>
+               ))}
+             </div>
+           )}
         </div>
       </div>
     </>

@@ -358,7 +358,28 @@ async function buildCheckoutData({ payload, user }) {
   };
 }
 
+// A customer who closes the Razorpay window and clicks Pay again would otherwise be blocked
+// by their own earlier reservation, which matters for pieces with only one or two units left.
+// Authorized attempts are left alone because money for them is already in flight; if a stale
+// abandoned attempt is paid later anyway, the capture is refunded as an expired reservation.
+export async function releaseAbandonedCheckoutReservations(userId) {
+  if (!userId) {
+    return;
+  }
+
+  const abandonedAttempts = await CheckoutAttempt.find({
+    user: userId,
+    stockReserved: true,
+    'payment.status': { $ne: 'authorized' },
+  }).select('_id');
+
+  for (const attempt of abandonedAttempts) {
+    await releaseCheckoutReservation(attempt._id);
+  }
+}
+
 export async function createCheckoutAttempt({ payload, user }) {
+  await releaseAbandonedCheckoutReservations(user?._id);
   const checkoutData = await buildCheckoutData({ payload, user });
   const session = await mongoose.startSession();
   let attempt;
@@ -402,7 +423,15 @@ export async function createCheckoutAttempt({ payload, user }) {
 
   try {
     if (user) {
-      user.phone = checkoutData.checkoutPhone;
+      // Phone numbers are unique per account. When this one belongs to another account (e.g. a
+      // family member), keep the profile's phone as is; the order still records the checkout phone.
+      const phoneTakenByAnotherAccount = await User.exists({
+        phone: checkoutData.checkoutPhone,
+        _id: { $ne: user._id },
+      });
+      if (!phoneTakenByAnotherAccount) {
+        user.phone = checkoutData.checkoutPhone;
+      }
       saveCheckoutAddressToUser({
         user,
         customerName: checkoutData.customer.name,

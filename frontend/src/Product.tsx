@@ -10,6 +10,7 @@ import { fetchJson } from './lib/api';
 import type { Product as ProductType, ProductDetailResponse } from './types/product';
 import { useToast } from './contexts/ToastContext';
 import { useCurrency } from './contexts/CurrencyContext';
+import { usePageTitle } from './lib/usePageTitle';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -56,6 +57,7 @@ export default function Product() {
   const navigate = useNavigate();
 
   const [product, setProduct] = useState<ProductType | null>(null);
+  usePageTitle(product?.name);
   const [similarProducts, setSimilarProducts] = useState<ProductType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdded, setIsAdded] = useState(false);
@@ -69,9 +71,8 @@ export default function Product() {
   const imageRef = useRef<HTMLImageElement>(null);
 
   const productImages = product?.images?.length ? product.images.map((image) => image.url) : [];
-  const keyFeatures = product?.keyFeatures?.length
-    ? product.keyFeatures
-    : ['Fits 15" Laptop', 'Multiple Functional Pockets', 'Zipper Closure'];
+  // Never show placeholder features: generic claims like "fits a laptop" would be false for many pieces.
+  const keyFeatures = product?.keyFeatures ?? [];
 
   useEffect(() => {
     let ignore = false;
@@ -301,18 +302,20 @@ export default function Product() {
                 {product.stock <= 0 ? 'Out of Stock' : isAdded ? 'Added to Bag' : 'Add to Bag'}
               </button>
               <p className="text-[9px] uppercase tracking-widest text-stone-400 text-center mt-3">
-                {product.stock <= 0 ? 'This piece is currently unavailable.' : 'Free worldwide shipping and returns.'}
+                {product.stock <= 0 ? 'This piece is currently unavailable.' : 'Complimentary shipping across India. 7-day returns.'}
               </p>
             </div>
 
-            <div className="reveal-text mb-12">
-              <h3 className="text-[16px] md:text-[18px] font-medium mb-6">Key Features</h3>
-              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6 text-sm font-light text-[#1a1a1a] list-disc pl-5">
-                {keyFeatures.map((feature) => (
-                  <li key={feature} className="pl-2">{feature}</li>
-                ))}
-              </ul>
-            </div>
+            {keyFeatures.length > 0 && (
+              <div className="reveal-text mb-12">
+                <h3 className="text-[16px] md:text-[18px] font-medium mb-6">Key Features</h3>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6 text-sm font-light text-[#1a1a1a] list-disc pl-5">
+                  {keyFeatures.map((feature) => (
+                    <li key={feature} className="pl-2">{feature}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="reveal-text spec-grid font-sans border-t border-[#1a1a1a]/10 mb-16 max-w-xl">
               <AccordionItem title="Why You'll Love It?" defaultOpen={true}>
@@ -363,7 +366,7 @@ export default function Product() {
                 </div>
               </AccordionItem>
               <AccordionItem title="Shipping and Returns">
-                <p>{product.shippingReturns || 'Complimentary express shipping on all orders. Returns are accepted within 30 days of delivery in their original condition.'}</p>
+                <p>{product.shippingReturns || 'Complimentary shipping across India. Eligible pieces may be returned or exchanged within 7 days of delivery in their original condition.'}</p>
               </AccordionItem>
               <AccordionItem title="More Information">
                 <p>{product.moreInformation || 'Each item is crafted in limited numbers to preserve its exclusivity. Contact our concierge for personalized styling advice.'}</p>

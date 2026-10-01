@@ -62,6 +62,7 @@ export interface Order {
 
 interface OrderStore {
   orders: Order[];
+  ordersScope: 'admin' | 'customer' | null;
   isLoading: boolean;
   error: string;
   fetchOrders: () => Promise<void>;
@@ -212,11 +213,17 @@ const mapBackendOrder = (order: BackendOrder): Order => ({
 
 export const useOrderStore = create<OrderStore>((set) => ({
   orders: [],
+  ordersScope: null,
   isLoading: false,
   error: '',
   fetchOrders: async () => {
     try {
-      set({ isLoading: true, error: '' });
+      // Admin and customer views share this list; never show one scope's orders in the other.
+      set((state) => ({
+        isLoading: true,
+        error: '',
+        ...(state.ordersScope !== 'admin' && { orders: [], ordersScope: 'admin' as const }),
+      }));
       const response = await api.get<OrdersResponse>('/api/orders');
       set({ orders: response.data.orders.map(mapBackendOrder), isLoading: false });
     } catch (error) {
@@ -228,7 +235,11 @@ export const useOrderStore = create<OrderStore>((set) => ({
   },
   fetchMyOrders: async () => {
     try {
-      set({ isLoading: true, error: '' });
+      set((state) => ({
+        isLoading: true,
+        error: '',
+        ...(state.ordersScope !== 'customer' && { orders: [], ordersScope: 'customer' as const }),
+      }));
       const response = await api.get<OrdersResponse>('/api/orders/my-orders');
       set({ orders: response.data.orders.map(mapBackendOrder), isLoading: false });
     } catch (error) {

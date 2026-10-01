@@ -1,3 +1,5 @@
+import { CheckoutAttempt } from '../models/CheckoutAttempt.js';
+import { Order } from '../models/Order.js';
 import { Product } from '../models/Product.js';
 import { HomepageConfig } from '../models/HomepageConfig.js';
 import { deleteImageObject } from '../services/s3Service.js';
@@ -119,12 +121,34 @@ async function deleteProductImageKeys(keys) {
   return failedKeys;
 }
 
-function getRemovedProductImageKeys(previousImages, nextImages) {
+function getRemovedProductImages(previousImages, nextImages) {
   const nextKeys = new Set(nextImages.map((image) => getProductImageKey(image.url)));
 
-  return previousImages
-    .map((image) => getProductImageKey(image.url))
-    .filter((key) => key && !nextKeys.has(key));
+  return previousImages.filter((image) => {
+    const key = getProductImageKey(image.url);
+    return key && !nextKeys.has(key);
+  });
+}
+
+// Orders and in-progress checkouts keep a snapshot of the product image URL, which order
+// history and emails keep showing. Only delete files that no order or checkout points at.
+export async function deleteUnreferencedProductImages(images) {
+  const urls = [...new Set(images.map((image) => image.url).filter(Boolean))];
+
+  if (urls.length === 0) {
+    return [];
+  }
+
+  const filter = { 'items.productSnapshot.image': { $in: urls } };
+  const [orderUrls, checkoutUrls] = await Promise.all([
+    Order.distinct('items.productSnapshot.image', filter),
+    CheckoutAttempt.distinct('items.productSnapshot.image', filter),
+  ]);
+  const referencedUrls = new Set([...orderUrls, ...checkoutUrls]);
+
+  return deleteProductImageKeys(
+    urls.filter((url) => !referencedUrls.has(url)).map((url) => getProductImageKey(url)),
+  );
 }
 
 const homepageSections = {
@@ -190,12 +214,14 @@ function serializeHomepageSettings(config) {
 
 function normalizeHomepageSelection(value, limit) {
   if (!Array.isArray(value)) {
-    throw createHttpError(400, `Select exactly ${limit} products for this homepage section.`);
+    throw createHttpError(400, `Select up to ${limit} products for this homepage section.`);
   }
 
+  // Empty slots are allowed: the public homepage fills them with featured products. Requiring a
+  // full selection blocked every homepage save on a small catalog or after a product was removed.
   const productIds = value.map((id) => String(id || '').trim()).filter(Boolean);
-  if (productIds.length !== limit) {
-    throw createHttpError(400, `Select exactly ${limit} products for this homepage section.`);
+  if (productIds.length > limit) {
+    throw createHttpError(400, `Select at most ${limit} products for this homepage section.`);
   }
 
   if (productIds.some((id) => !/^[a-f\d]{24}$/i.test(id))) {
@@ -453,8 +479,27 @@ export async function updateProduct(req, res, next) {
       return next(createHttpError(404, 'Product not found.'));
     }
 
+    // Renaming must not change the URL: shared links and search results point at the slug.
+    if (!req.body.slug) {
+      payload.slug = existingProduct.slug;
+    }
+
+    // Checkout reserves stock by decrementing it, so the number the admin form loaded can be
+    // stale. Leave stock alone unless the admin changed it, and only apply a change if nobody
+    // else has moved stock since the form was opened.
+    const filter = getProductIdentityQuery(req.params.id);
+    const { stockBaseline } = req.body;
+
+    if (stockBaseline !== undefined) {
+      if (payload.stock === Number(stockBaseline)) {
+        delete payload.stock;
+      } else {
+        filter.stock = Number(stockBaseline);
+      }
+    }
+
     const product = await Product.findOneAndUpdate(
-      getProductIdentityQuery(req.params.id),
+      filter,
       payload,
       {
         new: true,
@@ -462,8 +507,15 @@ export async function updateProduct(req, res, next) {
       },
     );
 
-    const removedImageKeys = getRemovedProductImageKeys(existingProduct.images, payload.images);
-    await deleteProductImageKeys(removedImageKeys);
+    if (!product) {
+      const current = await Product.findOne(getProductIdentityQuery(req.params.id)).select('stock');
+      return next(createHttpError(
+        409,
+        `Stock changed while you were editing (now ${current?.stock ?? 'unknown'}), usually because of a customer checkout. Reopen the product and set the stock again.`,
+      ));
+    }
+
+    await deleteUnreferencedProductImages(getRemovedProductImages(existingProduct.images, product.images));
 
     return res.status(200).json({
       success: true,
@@ -489,7 +541,7 @@ export async function deleteProduct(req, res, next) {
       return next(createHttpError(404, 'Product not found.'));
     }
 
-    await deleteProductImageKeys(product.images.map((image) => getProductImageKey(image.url)));
+    await deleteUnreferencedProductImages(product.images);
     await HomepageConfig.updateOne(
       { key: 'homepage' },
       { $pull: Object.fromEntries(Object.keys(homepageSections).map((section) => [section, product._id])) },

@@ -16,6 +16,11 @@ import { createHttpError } from '../utils/createHttpError.js';
 const ADMIN_ORDER_STATUSES = ['processing', 'cancelled'];
 const VISIBLE_ORDER_PAYMENT_STATUSES = ['paid', 'refund_pending', 'refunded'];
 
+// Two "Create shipment" requests for the same order (double click, two tabs) would each book a
+// courier in Shiprocket. The API runs as a single process (see ecosystem.config.cjs), so an
+// in-memory set is enough to let only one run at a time per order.
+const shipmentCreationsInProgress = new Set();
+
 export async function getOrders(req, res, next) {
   try {
     const orders = await Order.find({
@@ -174,6 +179,11 @@ export async function updateOrderStatus(req, res, next) {
       });
     }
 
+    // Only a live, paid order can move into processing; cancelled or refunded orders must stay closed.
+    if (order.payment.status !== 'paid' || order.orderStatus === 'cancelled') {
+      return next(createHttpError(409, 'Only paid, active orders can be marked as processing.'));
+    }
+
     order.orderStatus = status;
     await order.save();
 
@@ -188,8 +198,16 @@ export async function updateOrderStatus(req, res, next) {
 }
 
 export async function createOrderShipment(req, res, next) {
+  const { orderNumber } = req.params;
+
+  if (shipmentCreationsInProgress.has(orderNumber)) {
+    return next(createHttpError(409, 'A shipment is already being created for this order. Please wait a moment.'));
+  }
+
+  shipmentCreationsInProgress.add(orderNumber);
+
   try {
-    const order = await Order.findOne({ orderNumber: req.params.orderNumber });
+    const order = await Order.findOne({ orderNumber });
 
     if (!order) {
       return next(createHttpError(404, 'Order not found.'));
@@ -275,6 +293,8 @@ export async function createOrderShipment(req, res, next) {
     });
   } catch (error) {
     return next(error);
+  } finally {
+    shipmentCreationsInProgress.delete(orderNumber);
   }
 }
 

@@ -52,4 +52,34 @@ describe('currency display', () => {
     expect(screen.getByTestId('estimated')).toHaveTextContent('false');
     expect(screen.getByTestId('display-price')).toHaveTextContent('15,000');
   });
+
+  it('shows INR during a rate outage but keeps the saved currency for the next visit', async () => {
+    window.localStorage.setItem('simvorae_display_currency', 'USD');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('rate service down')));
+
+    render(<CurrencyProvider><CurrencyProbe /></CurrencyProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('currency')).toHaveTextContent('INR'));
+    expect(screen.getByTestId('display-price')).toHaveTextContent('15,000');
+    expect(window.localStorage.getItem('simvorae_display_currency')).toBe('USD');
+  });
+
+  it('still renders prices when the browser blocks storage', async () => {
+    const blocked = () => {
+      throw new DOMException('Storage is disabled', 'SecurityError');
+    };
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(blocked);
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/json' },
+      json: async () => ({ country: 'IN' }),
+    }));
+
+    render(<CurrencyProvider><CurrencyProbe /></CurrencyProvider>);
+
+    expect(screen.getByTestId('display-price')).toHaveTextContent('15,000');
+    fireEvent.click(screen.getByRole('button', { name: 'Use INR' }));
+    await waitFor(() => expect(screen.getByTestId('currency')).toHaveTextContent('INR'));
+  });
 });

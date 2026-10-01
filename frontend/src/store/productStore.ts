@@ -77,11 +77,12 @@ interface ProductStore {
   categoryStatsTotal: number;
   isLoading: boolean;
   isUploading: boolean;
+  uploadsInFlight: number;
   error: string;
   fetchProducts: () => Promise<void>;
   uploadProductImage: (file: File) => Promise<string>;
   addProduct: (product: ProductInput) => Promise<void>;
-  updateProduct: (id: string, product: ProductInput) => Promise<void>;
+  updateProduct: (id: string, product: ProductInput, stockBaseline: number) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   resetProducts: () => void;
 }
@@ -143,12 +144,13 @@ const fetchCategoryStats = async () => {
   return response.data;
 };
 
-export const useProductStore = create<ProductStore>((set) => ({
+export const useProductStore = create<ProductStore>((set, get) => ({
   products: [],
   categoryStats: [],
   categoryStatsTotal: 0,
   isLoading: false,
   isUploading: false,
+  uploadsInFlight: 0,
   error: '',
   fetchProducts: async () => {
     try {
@@ -170,9 +172,10 @@ export const useProductStore = create<ProductStore>((set) => ({
       });
     }
   },
+  // Several images upload in parallel; a counter keeps isUploading true until the last one finishes.
   uploadProductImage: async (file) => {
+    set((state) => ({ uploadsInFlight: state.uploadsInFlight + 1, isUploading: true, error: '' }));
     try {
-      set({ isUploading: true, error: '' });
       const response = await api.post<UploadResponse>('/api/products/image-upload', {
         contentType: file.type,
         size: file.size,
@@ -195,12 +198,16 @@ export const useProductStore = create<ProductStore>((set) => ({
         throw new Error(s3Error || 'Image upload failed.');
       }
 
-      set({ isUploading: false });
       return response.data.url;
     } catch (error) {
       const message = getErrorMessage(error, 'Failed to upload product image.');
-      set({ error: message, isUploading: false });
+      set({ error: message });
       throw new Error(message);
+    } finally {
+      set((state) => {
+        const uploadsInFlight = Math.max(0, state.uploadsInFlight - 1);
+        return { uploadsInFlight, isUploading: uploadsInFlight > 0 };
+      });
     }
   },
   addProduct: async (product) => {
@@ -220,10 +227,15 @@ export const useProductStore = create<ProductStore>((set) => ({
       throw new Error(message);
     }
   },
-  updateProduct: async (id, product) => {
+  updateProduct: async (id, product, stockBaseline) => {
     try {
       set({ error: '' });
-      const response = await api.patch<ProductResponse>(`/api/products/admin/${id}`, toProductPayload(product));
+      // stockBaseline is the stock the form was opened with, so the server can tell whether
+      // checkouts changed it in the meantime instead of silently overwriting it.
+      const response = await api.patch<ProductResponse>(`/api/products/admin/${id}`, {
+        ...toProductPayload(product),
+        stockBaseline,
+      });
       const updatedProduct = mapBackendProduct(response.data.product);
       const stats = await fetchCategoryStats();
       set((state) => ({
@@ -234,6 +246,10 @@ export const useProductStore = create<ProductStore>((set) => ({
     } catch (error) {
       const message = getErrorMessage(error, 'Failed to update product.');
       set({ error: message });
+      // A stock conflict means the list is stale; reload it so reopening shows current stock.
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        void get().fetchProducts();
+      }
       throw new Error(message);
     }
   },
