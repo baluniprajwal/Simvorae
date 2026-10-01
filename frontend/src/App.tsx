@@ -17,6 +17,7 @@ import Login from './Login';
 import Register from './Register';
 import ResetPassword from './ResetPassword';
 import VerifyEmail from './VerifyEmail';
+import About from './About';
 import {
   CancellationReturnsPolicy,
   ContactGrievancePolicy,
@@ -122,6 +123,7 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/shop" element={<Shop />} />
+        <Route path="/about" element={<About />} />
         <Route path="/contact" element={<ContactGrievancePolicy />} />
         <Route path="/shipping-delivery" element={<ShippingDeliveryPolicy />} />
         <Route path="/cancellation-returns-refunds" element={<CancellationReturnsPolicy />} />

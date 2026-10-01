@@ -617,6 +617,7 @@ export default function Admin() {
   const location = useLocation();
   const { showError, showSuccess } = useToast();
   const logoutAdmin = useAdminAuthStore((state) => state.logout);
+  const adminUser = useAdminAuthStore((state) => state.user);
   const {
     products,
     categoryStats,
@@ -1497,11 +1498,11 @@ export default function Admin() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1a1a1a] font-serif text-sm text-white">
-                A
+                {(adminUser?.name || 'A').charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0">
-                <div className="truncate font-sans text-[10px] font-semibold uppercase tracking-widest">Admin User</div>
-                <div className="mt-0.5 truncate font-sans text-[9px] text-stone-400">admin@simvorae.com</div>
+                <div className="truncate font-sans text-[10px] font-semibold uppercase tracking-widest">{adminUser?.name || 'Admin'}</div>
+                <div className="mt-0.5 truncate font-sans text-[9px] text-stone-400">{adminUser?.email || ''}</div>
               </div>
             </div>
             <button

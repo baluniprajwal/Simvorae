@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { socialLinks } from '../lib/socialLinks';
+import { BUSINESS } from '../lib/business';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -30,18 +31,14 @@ export default function Footer() {
             <div>
               <h2 className="font-serif text-5xl md:text-6xl italic tracking-wider mb-8 font-light">Simvorae</h2>
               <p className="font-sans text-[13px] tracking-wide text-stone-400 max-w-sm leading-loose">
-                Elevating the everyday through meticulous craftsmanship and timeless design. Subscribe for early access to our next release.
+                Elevating the everyday through meticulous craftsmanship and timeless design.
               </p>
             </div>
-            <div className="mt-16 flex gap-0 max-w-md w-full relative">
-              <input 
-                type="email" 
-                placeholder="EMAIL ADDRESS" 
-                className="bg-transparent border-b border-stone-600 pb-4 flex-1 outline-none font-sans text-xs tracking-[0.2em] focus:border-white transition-colors"
-              />
-              <button className="absolute right-0 bottom-4 font-sans text-[10px] tracking-[0.2em] uppercase hover:text-stone-400 transition-colors cursor-pointer">
-                Submit
-              </button>
+            {/* Business identity in the footer: Razorpay reviewers look for it on every page. */}
+            <div className="mt-16 font-sans text-[11px] leading-loose tracking-wide text-stone-500">
+              <p>{BUSINESS.legalName}</p>
+              <p>{BUSINESS.address}</p>
+              <p>{BUSINESS.careEmail}</p>
             </div>
           </div>
           
@@ -49,15 +46,17 @@ export default function Footer() {
             <h4 className="font-sans text-[9px] tracking-[0.2em] uppercase mb-8 md:mb-12 text-stone-600">Navigation</h4>
             <ul className="flex flex-col gap-5 md:gap-6 font-serif text-xl md:text-2xl font-light">
               <li><Link to="/shop" className="hover:italic hover:text-stone-300 transition-all inline-block hover:translate-x-2 cursor-pointer">Shop</Link></li>
+              <li><Link to="/about" className="hover:italic hover:text-stone-300 transition-all inline-block hover:translate-x-2 cursor-pointer">About Us</Link></li>
             </ul>
           </div>
           
           <div className="md:col-span-2 md:col-start-11">
             <h4 className="font-sans text-[9px] tracking-[0.2em] uppercase mb-8 md:mb-12 text-stone-600">Support</h4>
             <ul className="flex flex-col gap-5 md:gap-6 font-serif text-xl md:text-2xl font-light">
-              <li><Link to="/contact" className="hover:italic hover:text-stone-300 transition-all inline-block hover:translate-x-2 cursor-pointer">Contact</Link></li>
-              <li><Link to="/shipping-delivery" className="hover:italic hover:text-stone-300 transition-all inline-block hover:translate-x-2 cursor-pointer">Shipping</Link></li>
-              <li><Link to="/cancellation-returns-refunds" className="hover:italic hover:text-stone-300 transition-all inline-block hover:translate-x-2 cursor-pointer">Returns and Refunds</Link></li>
+              <li><Link to="/contact" className="hover:italic hover:text-stone-300 transition-all inline-block hover:translate-x-2 cursor-pointer">Contact Us</Link></li>
+              <li><Link to="/shipping-delivery" className="hover:italic hover:text-stone-300 transition-all inline-block hover:translate-x-2 cursor-pointer">Shipping and Delivery</Link></li>
+              <li><Link to="/cancellation-returns-refunds" className="hover:italic hover:text-stone-300 transition-all inline-block hover:translate-x-2 cursor-pointer">Cancellation and Refunds</Link></li>
+              <li><Link to="/contact" className="hover:italic hover:text-stone-300 transition-all inline-block hover:translate-x-2 cursor-pointer">Grievance Redressal</Link></li>
             </ul>
           </div>
         </div>
@@ -66,8 +65,8 @@ export default function Footer() {
           <p>&copy; {new Date().getFullYear()} Simvorae Fashion. <br className="md:hidden"/>All rights reserved.</p>
           
           <div className="flex flex-wrap gap-x-8 gap-y-3 relative z-10 w-full md:w-auto justify-between md:justify-end">
-            <Link to="/terms" className="hover:text-white transition-colors cursor-pointer">Terms</Link>
-            <Link to="/privacy" className="hover:text-white transition-colors cursor-pointer">Privacy</Link>
+            <Link to="/terms" className="hover:text-white transition-colors cursor-pointer">Terms and Conditions</Link>
+            <Link to="/privacy" className="hover:text-white transition-colors cursor-pointer">Privacy Policy</Link>
             {socialLinks.map((link) => (
               <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors relative group overflow-hidden cursor-pointer">
                 <span className="inline-block group-hover:-translate-y-full transition-transform duration-300">{link.label}</span>
