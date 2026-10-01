@@ -6,6 +6,7 @@ import api from './lib/api';
 import { useAuthStore } from './store/authStore';
 import { useCartStore } from './store/cartStore';
 import { useToast } from './contexts/ToastContext';
+import { useCurrency } from './contexts/CurrencyContext';
 
 type CheckoutStep = 'ADDRESS' | 'PAYMENT';
 
@@ -75,6 +76,7 @@ function FieldError({
 }
 
 export default function Checkout() {
+  const { formatPrice, isEstimated } = useCurrency();
   const { items, getCartTotal, clearCart } = useCartStore();
   const user = useAuthStore((state) => state.user);
   const refreshMe = useAuthStore((state) => state.refreshMe);
@@ -399,6 +401,11 @@ export default function Checkout() {
                 <p className="text-sm font-light text-stone-600 mb-6 md:mb-8 border border-[#1a1a1a]/10 p-4 md:p-6 rounded-[1rem] bg-[#fcfbf9]">
                   After clicking "Pay with Razorpay", complete your purchase securely using UPI, Card, Netbanking, or Wallet.
                 </p>
+                {isEstimated && (
+                  <p className="mb-6 border border-stone-200 bg-stone-50 p-4 text-[11px] leading-relaxed text-stone-600">
+                    Your local total is approximately {formatPrice(total)}. Razorpay will charge INR {total.toLocaleString('en-IN')}; your card issuer determines the final conversion rate and any fees.
+                  </p>
+                )}
 
                 <button disabled={isPaying} onClick={handlePayment} className="w-full py-4 md:py-5 bg-[#1a1a1a] text-[#fcfbf9] text-[10px] tracking-[0.2em] uppercase font-bold hover:bg-black transition-colors flex items-center justify-center gap-2 rounded-full disabled:cursor-not-allowed disabled:opacity-60">
                   <ShieldCheck className="w-4 h-4" />
@@ -452,6 +459,7 @@ export default function Checkout() {
                 <span className="text-2xl md:text-3xl font-serif tracking-tight">{total.toLocaleString('en-IN')}</span>
               </div>
             </div>
+            {isEstimated && <p className="mt-3 text-right text-[10px] text-stone-500">Approx. {formatPrice(total)} for display only</p>}
           </div>
         </div>
       </div>

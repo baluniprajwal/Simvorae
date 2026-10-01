@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Lenis from 'lenis';
 import Admin from './Admin';
@@ -17,23 +17,21 @@ import Login from './Login';
 import Register from './Register';
 import ResetPassword from './ResetPassword';
 import VerifyEmail from './VerifyEmail';
-import About from './About';
-import Contact from './Contact';
+import {
+  CancellationReturnsPolicy,
+  ContactGrievancePolicy,
+  PrivacyPolicy,
+  ShippingDeliveryPolicy,
+  TermsConditionsPolicy,
+} from './Policies';
 import { useAuthStore } from './store/authStore';
 import { ToastProvider } from './contexts/ToastContext';
 import { useAdminAuthStore } from './lib/adminAuth';
 
-function ScrollToTop() {
-  const { pathname, search } = useLocation();
-
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname, search]);
-
-  return null;
-}
-
 function SmoothScroll() {
+  const { key, pathname, search } = useLocation();
+  const lenisRef = useRef<Lenis | null>(null);
+
   useEffect(() => {
     const lenis = new Lenis({
       duration: 1.2,
@@ -43,6 +41,9 @@ function SmoothScroll() {
       smoothWheel: true,
       wheelMultiplier: 1,
     });
+    lenisRef.current = lenis;
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
 
     let animationFrameId = 0;
     const updateScrollLock = () => {
@@ -52,7 +53,6 @@ function SmoothScroll() {
         lenis.start();
       }
     };
-
     function raf(time: number) {
       lenis.raf(time);
       animationFrameId = requestAnimationFrame(raf);
@@ -66,8 +66,37 @@ function SmoothScroll() {
       window.removeEventListener('simvorae-scroll-lock-change', updateScrollLock);
       cancelAnimationFrame(animationFrameId);
       lenis.destroy();
+      lenisRef.current = null;
+      window.history.scrollRestoration = previousScrollRestoration;
     };
   }, []);
+
+  useEffect(() => {
+    const lenis = lenisRef.current;
+    lenis?.stop();
+
+    const resetScroll = () => {
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      lenis?.resize();
+      lenis?.scrollTo(0, { immediate: true, force: true, lock: true });
+    };
+
+    resetScroll();
+    const animationFrameId = requestAnimationFrame(resetScroll);
+    const settleTimeoutId = window.setTimeout(resetScroll, 100);
+    const resumeTimeoutId = window.setTimeout(() => {
+      resetScroll();
+      if (document.documentElement.dataset.scrollLocked !== 'true') lenis?.start();
+    }, 250);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      window.clearTimeout(settleTimeoutId);
+      window.clearTimeout(resumeTimeoutId);
+    };
+  }, [key, pathname, search]);
 
   return null;
 }
@@ -89,13 +118,15 @@ function AppContent() {
   return (
     <>
       <SmoothScroll />
-      <ScrollToTop />
       {!isAdminRoute && <Cart />}
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/shop" element={<Shop />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/contact" element={<Contact />} />
+        <Route path="/contact" element={<ContactGrievancePolicy />} />
+        <Route path="/shipping-delivery" element={<ShippingDeliveryPolicy />} />
+        <Route path="/cancellation-returns-refunds" element={<CancellationReturnsPolicy />} />
+        <Route path="/terms" element={<TermsConditionsPolicy />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/product/:id" element={<Product />} />
         <Route path="/checkout" element={<ProtectedCheckoutRoute />} />
         <Route path="/checkout/login" element={<CheckoutLogin />} />

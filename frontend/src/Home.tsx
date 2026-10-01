@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { ArrowUpRight, Play, ChevronDown } from 'lucide-react';
+import { ArrowUpRight, Play } from 'lucide-react';
 import { useCartStore } from './store/cartStore';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { fetchJson } from './lib/api';
 import type { Product } from './types/product';
+import { useCurrency } from './contexts/CurrencyContext';
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -37,12 +38,6 @@ const defaultHomepageSettings = (): HomepageSettings => ({
   everydayCarry: { enabled: true, title: 'Everyday', subtitle: 'Carry.', description: 'Foundation bags engineered to safely hold your essentials. From spacious totes to compact crossbodys.' },
 });
 
-const formatPrice = (price: number) => new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-  maximumFractionDigits: 0,
-}).format(price);
-
 export default function Home() {
   const container = useRef<HTMLDivElement>(null);
   
@@ -51,6 +46,7 @@ export default function Home() {
   const [homepageSections, setHomepageSections] = useState<HomepageSections>(emptyHomepageSections());
   const [homepageSettings, setHomepageSettings] = useState<HomepageSettings>(defaultHomepageSettings());
   const { toggleCart, getCartCount } = useCartStore();
+  const { formatPrice } = useCurrency();
   const signatureProducts = homepageSections.signatureSilhouettes;
   const artisanProducts = homepageSections.artisanCrafted;
   const carryProducts = homepageSections.everydayCarry;
@@ -160,41 +156,6 @@ export default function Home() {
       repeat: -1,
     });
 
-    // About Statement Reveal
-    const aboutLines = gsap.utils.toArray('.about-line');
-    aboutLines.forEach((line: any) => {
-      gsap.from(line.querySelectorAll('span'), {
-        scrollTrigger: {
-          trigger: line,
-          start: 'top 85%',
-        },
-        yPercent: 120,
-        opacity: 0,
-        rotationZ: 4,
-        duration: 1.4,
-        stagger: 0.04,
-        ease: 'power4.out'
-      });
-    });
-
-    // Collection Cards Inner Image Parallax
-    const collectionImgs = gsap.utils.toArray('.collection-img-parallax');
-    collectionImgs.forEach((img: any) => {
-      gsap.fromTo(img, 
-        { yPercent: -5 },
-        {
-          scrollTrigger: {
-            trigger: img.parentElement,
-            start: 'top bottom',
-            end: 'bottom top',
-            scrub: true,
-          },
-          yPercent: 5,
-          ease: 'none'
-        }
-      );
-    });
-
     // Featured Collection Reveals
     const items = gsap.utils.toArray('.collection-item');
     items.forEach((item: any, i) => {
@@ -256,14 +217,6 @@ export default function Home() {
     return text.split('').map((char, i) => (
       <span key={i} className="inline-block whitespace-pre">
         {char === ' ' ? '&nbsp;' : char}
-      </span>
-    ));
-  };
-  
-const splitWords = (text: string) => {
-    return text.split(' ').map((word, i) => (
-      <span key={i} className="inline-block overflow-hidden mr-4 pb-2">
-        <span className="inline-block">{word}</span>
       </span>
     ));
   };
@@ -339,55 +292,6 @@ const splitWords = (text: string) => {
         </div>
       </section>
 
-      {/* PHILOSOPHY SECTION */}
-      <section className="py-24 md:py-32 px-4 md:px-12 max-w-[1800px] mx-auto flex items-center min-h-[80vh]">
-        <div className="w-full grid grid-cols-1 md:grid-cols-12 gap-16 md:gap-12 items-center">
-          <div className="md:col-span-7 lg:col-span-7">
-            <div className="flex items-center gap-6 mb-12 opacity-60">
-              <div className="w-12 h-[1px] bg-[#1a1a1a]"></div>
-              <p className="font-sans text-[10px] tracking-[0.25em] uppercase font-semibold">The Atelier</p>
-            </div>
-            
-            <div className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-[4.5rem] leading-[1.05] tracking-tight mb-8">
-              <div className="about-line overflow-hidden pb-1">{splitWords("We believe in the quiet power")}</div>
-              <div className="about-line overflow-hidden pb-1">{splitWords("of exceptional craftsmanship.")}</div>
-              <div className="about-line overflow-hidden pb-1 sm:indent-8 md:indent-12 lg:indent-[3rem]">
-                 {splitWords("Our collection is meticulously")}
-              </div>
-              <div className="about-line overflow-hidden pb-1 sm:indent-16 md:indent-24 lg:indent-[6rem]">
-                 {splitWords("structured to carry your world,")}
-              </div>
-              <div className="about-line overflow-hidden pb-1">
-                 {splitWords("striking a balance between ")}
-                 <i className="text-stone-400 mr-2 md:mr-3 font-light">sculptural</i>
-              </div>
-              <div className="about-line overflow-hidden pb-1">
-                 {splitWords("silhouettes and effortless utility.")}
-              </div>
-            </div>
-            
-
-          </div>
-
-          <div className="md:col-span-5 lg:col-span-5 lg:pl-12 mt-8 md:mt-0 relative">
-            <div className="aspect-[4/5] overflow-hidden rounded-[1.5rem] relative bg-stone-200">
-              <img 
-                src="https://images.unsplash.com/photo-1584916201218-f4242ceb4809?q=80&w=1200&auto=format&fit=crop" 
-                alt="Leather Craftsmanship Detail" 
-                className="collection-img-parallax w-full h-[120%] -top-[10%] left-0 absolute object-cover object-center transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)]"
-              />
-            </div>
-            
-            <div className="absolute -bottom-6 -left-6 md:-bottom-12 md:-left-12 bg-[#fcfbf9] p-6 lg:p-8 rounded-[1rem] shadow-xl border border-stone-100 max-w-[280px]">
-              <div className="w-6 h-[1px] bg-stone-300 mb-4"></div>
-              <p className="font-sans text-[10px] tracking-[0.2em] uppercase text-stone-500 leading-loose">
-                "Every stitch is a conscious decision. Every silhouette is an intention."
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* MARQUEE SECTION */}
       <section className="py-16 md:py-24 overflow-hidden border-y border-[#1a1a1a]/10 bg-stone-100">
         <div className="marquee-track flex whitespace-nowrap font-serif text-6xl md:text-[6rem] opacity-70 text-stone-900">
@@ -440,7 +344,7 @@ const splitWords = (text: string) => {
                     <p className="text-[10px] tracking-[0.25em] uppercase mb-2 text-stone-500">01 &mdash; {signatureProducts[0]?.category || 'Classic Tote'}</p>
                     <h3 className="text-3xl font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[0]?.name || 'The Drape Tote'}</h3>
                   </div>
-                  <span className="text-sm font-light mt-1 text-[#1a1a1a]">{signatureProducts[0] ? formatPrice(signatureProducts[0].price) : '₹68,000'}</span>
+                  <span className="text-sm font-light mt-1 text-[#1a1a1a]">{formatPrice(signatureProducts[0]?.price ?? 68000)}</span>
                 </div>
             </Link>
           </div>
@@ -460,7 +364,7 @@ const splitWords = (text: string) => {
                        <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[1]?.category || 'Hobo Shoulder Bag'}</p>
                        <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[1]?.name || 'Structured Hobo'}</h3>
                    </div>
-                   <span className="text-sm font-light text-[#1a1a1a]">{signatureProducts[1] ? formatPrice(signatureProducts[1].price) : '₹33,600'}</span>
+                   <span className="text-sm font-light text-[#1a1a1a]">{formatPrice(signatureProducts[1]?.price ?? 33600)}</span>
                 </div>
             </Link>
 
@@ -477,7 +381,7 @@ const splitWords = (text: string) => {
                        <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[2]?.category || 'Crossbody Bag'}</p>
                        <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[2]?.name || 'Woven Crossbody'}</h3>
                    </div>
-                   <span className="text-sm font-light text-[#1a1a1a]">{signatureProducts[2] ? formatPrice(signatureProducts[2].price) : '₹48,000'}</span>
+                   <span className="text-sm font-light text-[#1a1a1a]">{formatPrice(signatureProducts[2]?.price ?? 48000)}</span>
                 </div>
             </Link>
 
@@ -494,7 +398,7 @@ const splitWords = (text: string) => {
                        <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[3]?.category || 'Top Handle Bag'}</p>
                        <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[3]?.name || 'Mono Top-Handle'}</h3>
                    </div>
-                   <span className="text-sm font-light text-[#1a1a1a]">{signatureProducts[3] ? formatPrice(signatureProducts[3].price) : '₹2,56,000'}</span>
+                   <span className="text-sm font-light text-[#1a1a1a]">{formatPrice(signatureProducts[3]?.price ?? 256000)}</span>
                 </div>
             </Link>
 
@@ -511,7 +415,7 @@ const splitWords = (text: string) => {
                        <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[4]?.category || 'Chain Clutch'}</p>
                        <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[4]?.name || 'Classic Box Clutch'}</h3>
                    </div>
-                   <span className="text-sm font-light text-[#1a1a1a]">{signatureProducts[4] ? formatPrice(signatureProducts[4].price) : '₹96,000'}</span>
+                   <span className="text-sm font-light text-[#1a1a1a]">{formatPrice(signatureProducts[4]?.price ?? 96000)}</span>
                 </div>
             </Link>
           </div>
@@ -632,7 +536,6 @@ const splitWords = (text: string) => {
           <div className="absolute inset-0 bg-black/40 mix-blend-multiply"></div>
         </div>
         <div className="relative z-10 text-center text-[#fcfbf9] w-full px-6 flex flex-col items-center pointer-events-none">
-          <p className="font-sans text-[10px] tracking-[0.3em] uppercase mb-8 md:mb-12 opacity-80 backdrop-blur-sm border border-white/20 rounded-full px-6 py-2">Campaign 01</p>
           <h2 className="font-serif text-[clamp(3.25rem,10vw,7rem)] xl:text-[8rem] leading-[0.85] tracking-tighter md:max-w-4xl mx-auto break-words">
             DRESS<br/><span className="italic font-light">FOR THE</span><br/>LIFE YOU WANT.
           </h2>
@@ -678,7 +581,7 @@ const splitWords = (text: string) => {
                         <p className="font-sans text-[10px] tracking-[0.25em] uppercase mb-2 text-stone-300">C-01</p>
                         <h3 className="font-serif text-3xl lg:text-4xl tracking-tight text-white mb-1">{carryProducts[0]?.name || 'Leather Carryall'}</h3>
                      </div>
-                     <p className="font-sans text-sm text-stone-300 font-light pb-1 md:pb-2">{carryProducts[0] ? formatPrice(carryProducts[0].price) : '₹36,000'}</p>
+                     <p className="font-sans text-sm text-stone-300 font-light pb-1 md:pb-2">{formatPrice(carryProducts[0]?.price ?? 36000)}</p>
                   </div>
                </Link>
 
@@ -699,7 +602,7 @@ const splitWords = (text: string) => {
                             <p className="font-sans text-[10px] tracking-[0.25em] uppercase mb-2 text-stone-300">C-02</p>
                             <h3 className="font-serif text-2xl lg:text-3xl tracking-tight text-white mb-1">{carryProducts[1]?.name || 'Structured Hobo'}</h3>
                          </div>
-                         <p className="font-sans text-sm text-stone-300 font-light sm:pb-1">{carryProducts[1] ? formatPrice(carryProducts[1].price) : '₹33,600'}</p>
+                         <p className="font-sans text-sm text-stone-300 font-light sm:pb-1">{formatPrice(carryProducts[1]?.price ?? 33600)}</p>
                        </div>
                    </Link>
 
@@ -713,7 +616,7 @@ const splitWords = (text: string) => {
                               <p className="font-sans text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-300">{carryProducts[2]?.category || 'Hobo Shoulder Bag'}</p>
                               <div className="flex justify-between items-end">
                                   <h3 className="font-serif text-xl lg:text-3xl tracking-tight text-white pr-2">{carryProducts[2]?.name || 'Soft Calfskin'}</h3>
-                                  <p className="font-sans text-sm text-stone-300 font-light whitespace-nowrap mb-1">{carryProducts[2] ? formatPrice(carryProducts[2].price) : '₹25,600'}</p>
+                                  <p className="font-sans text-sm text-stone-300 font-light whitespace-nowrap mb-1">{formatPrice(carryProducts[2]?.price ?? 25600)}</p>
                               </div>
                            </div>
                        </Link>
@@ -726,7 +629,7 @@ const splitWords = (text: string) => {
                               <p className="font-sans text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-300">{carryProducts[3]?.category || 'Chain Clutch'}</p>
                               <div className="flex justify-between items-end">
                                   <h3 className="font-serif text-xl lg:text-3xl tracking-tight text-white pr-2">{carryProducts[3]?.name || 'Minaudiere'}</h3>
-                                  <p className="font-sans text-sm text-stone-300 font-light whitespace-nowrap mb-1">{carryProducts[3] ? formatPrice(carryProducts[3].price) : '₹17,600'}</p>
+                                  <p className="font-sans text-sm text-stone-300 font-light whitespace-nowrap mb-1">{formatPrice(carryProducts[3]?.price ?? 17600)}</p>
                               </div>
                            </div>
                        </Link>
@@ -745,15 +648,6 @@ const splitWords = (text: string) => {
         </div>
       </section>
       )}
-
-      {/* BACK TO TOP */}
-      <button 
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className="fixed bottom-8 right-8 z-[60] w-12 h-12 bg-white border border-stone-200 rounded-full flex items-center justify-center shadow-lg hover:border-[#1a1a1a] transition-all duration-300 group active:scale-95"
-        aria-label="Back to top"
-      >
-        <ChevronDown size={20} className="rotate-180 transition-transform group-hover:-translate-y-1" />
-      </button>
 
       <Footer />
     </div>

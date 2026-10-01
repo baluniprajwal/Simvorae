@@ -13,11 +13,13 @@ import type {
   ProductFiltersResponse,
   ProductsResponse,
 } from './types/product';
+import { useCurrency } from './contexts/CurrencyContext';
 
 gsap.registerPlugin(ScrollTrigger);
 
-const prices = ['All', 'Under Rs. 40,000', 'Rs. 40,000 - Rs. 80,000', 'Over Rs. 80,000'];
 const sortOptions = ['Featured', 'Price: Low to High', 'Price: High to Low'];
+const MAX_VISIBLE_CATEGORIES = 5;
+const PRICE_STEP = 1000;
 
 const splitWords = (text: string) => {
   return text.split(' ').map((word, index) => (
@@ -32,11 +34,15 @@ function FilterDropdown({
   options,
   value,
   onChange,
+  formatOption = (option) => option,
+  showRadio = false,
 }: {
   label: string;
   options: string[];
   value: string;
   onChange: (val: string) => void;
+  formatOption?: (option: string) => string;
+  showRadio?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -49,7 +55,7 @@ function FilterDropdown({
         onMouseEnter={() => setIsOpen(true)}
       >
         <span className="relative z-10 flex items-center gap-1">
-          {label}: <span className="text-[#1a1a1a]">{value}</span>
+          {label}: <span className="text-[#1a1a1a]">{formatOption(value)}</span>
           <ChevronDown
             size={12}
             strokeWidth={2}
@@ -59,34 +65,244 @@ function FilterDropdown({
       </button>
 
       <div
-        className={`absolute top-full left-0 mt-2 w-48 origin-top-left rounded-[1rem] bg-[#fcfbf9] border border-stone-200 shadow-xl transition-all duration-300 overflow-hidden ${
+        className={`absolute left-0 top-[calc(100%-1px)] w-48 origin-top-left rounded-[1rem] bg-[#fcfbf9] border border-stone-200 shadow-xl transition-all duration-300 overflow-hidden ${
           isOpen
             ? 'opacity-100 translate-y-0 pointer-events-auto'
             : 'opacity-0 -translate-y-2 pointer-events-none'
         }`}
       >
         <div className="py-2 flex flex-col max-h-64 overflow-y-auto">
-          {options.map((option) => (
-            <button
-              key={option}
-              onClick={() => {
-                onChange(option);
-                setIsOpen(false);
-              }}
-              className={`text-left px-5 py-3 text-[9px] uppercase tracking-widest transition-colors hover:bg-stone-100 ${
-                value === option ? 'text-[#1a1a1a] font-bold bg-stone-50' : 'text-stone-500'
-              }`}
-            >
-              {option}
-            </button>
-          ))}
+          {options.map((option) => {
+            const isSelected = value === option;
+
+            return (
+              <label
+                key={option}
+                className={`flex cursor-pointer items-center gap-3 px-5 py-3 text-left text-[9px] uppercase tracking-widest transition-colors hover:bg-stone-100 ${
+                  isSelected ? 'bg-stone-50 text-[#1a1a1a]' : 'text-stone-500'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name={`desktop-${label.toLowerCase()}-filter`}
+                  value={option}
+                  checked={isSelected}
+                  onChange={() => {
+                    onChange(option);
+                    setIsOpen(false);
+                  }}
+                  className="sr-only"
+                />
+                {showRadio && (
+                  <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border ${isSelected ? 'border-[#1a1a1a]' : 'border-stone-300'}`}>
+                    {isSelected && <span className="h-1.5 w-1.5 rounded-full bg-[#1a1a1a]" />}
+                  </span>
+                )}
+                <span>{formatOption(option)}</span>
+              </label>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 }
 
+function PriceRangeControl({
+  minimum,
+  maximum,
+  catalogMaximum,
+  onMinimumChange,
+  onMaximumChange,
+  formatPrice,
+  dropdown = false,
+}: {
+  minimum: number;
+  maximum: number | null;
+  catalogMaximum: number;
+  onMinimumChange: (value: number) => void;
+  onMaximumChange: (value: number | null) => void;
+  formatPrice: (value: number) => string;
+  dropdown?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const effectiveMaximum = maximum ?? catalogMaximum;
+  const [minimumInput, setMinimumInput] = useState(String(minimum));
+  const [maximumInput, setMaximumInput] = useState(String(effectiveMaximum));
+
+  useEffect(() => setMinimumInput(String(minimum)), [minimum]);
+  useEffect(() => setMaximumInput(String(effectiveMaximum)), [effectiveMaximum]);
+
+  const selectedLabel = minimum === 0 && maximum === null
+    ? 'All'
+    : `${formatPrice(minimum)} - ${formatPrice(effectiveMaximum)}`;
+  const minimumPercent = (minimum / catalogMaximum) * 100;
+  const maximumPercent = (effectiveMaximum / catalogMaximum) * 100;
+
+  const controls = (
+    <div className="w-full">
+      <div className="mb-3 grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="mb-1.5 block text-[8px] uppercase tracking-widest text-stone-400">Min INR</span>
+          <input
+            aria-label="Type minimum price in INR"
+            type="number"
+            min={0}
+            max={effectiveMaximum - PRICE_STEP}
+            step={PRICE_STEP}
+            value={minimumInput}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              setMinimumInput(nextValue);
+              const value = Number(nextValue);
+              if (nextValue !== '' && Number.isFinite(value) && value >= 0 && value <= effectiveMaximum - PRICE_STEP) {
+                onMinimumChange(value);
+              }
+            }}
+            onBlur={() => setMinimumInput(String(minimum))}
+            className="w-full border border-stone-200 bg-transparent px-3 py-2 text-[10px] text-[#1a1a1a] outline-none transition-colors focus:border-[#1a1a1a]"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-[8px] uppercase tracking-widest text-stone-400">Max INR</span>
+          <input
+            aria-label="Type maximum price in INR"
+            type="number"
+            min={minimum + PRICE_STEP}
+            max={catalogMaximum}
+            step={PRICE_STEP}
+            value={maximumInput}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              setMaximumInput(nextValue);
+              const value = Number(nextValue);
+              if (nextValue !== '' && Number.isFinite(value) && value >= minimum + PRICE_STEP && value <= catalogMaximum) {
+                onMaximumChange(value >= catalogMaximum ? null : value);
+              }
+            }}
+            onBlur={() => setMaximumInput(String(effectiveMaximum))}
+            className="w-full border border-stone-200 bg-transparent px-3 py-2 text-[10px] text-[#1a1a1a] outline-none transition-colors focus:border-[#1a1a1a]"
+          />
+        </label>
+      </div>
+      <div className="mb-5 flex items-center justify-between gap-4 text-[9px] text-stone-500">
+        <span>{formatPrice(minimum)}</span>
+        <span>{formatPrice(effectiveMaximum)}</span>
+      </div>
+      <div className="relative h-5">
+        <div className="absolute left-0 right-0 top-2 h-px bg-stone-300" />
+        <div
+          className="absolute top-2 h-px bg-[#1a1a1a]"
+          style={{ left: `${minimumPercent}%`, right: `${100 - maximumPercent}%` }}
+        />
+        <input
+          aria-label="Minimum price"
+          type="range"
+          min={0}
+          max={catalogMaximum}
+          step={PRICE_STEP}
+          value={minimum}
+          onChange={(event) => onMinimumChange(Math.min(Number(event.target.value), effectiveMaximum - PRICE_STEP))}
+          className="price-range-input"
+        />
+        <input
+          aria-label="Maximum price"
+          type="range"
+          min={0}
+          max={catalogMaximum}
+          step={PRICE_STEP}
+          value={effectiveMaximum}
+          onChange={(event) => {
+            const value = Math.max(Number(event.target.value), minimum + PRICE_STEP);
+            onMaximumChange(value >= catalogMaximum ? null : value);
+          }}
+          className="price-range-input"
+        />
+      </div>
+    </div>
+  );
+
+  if (!dropdown) return controls;
+
+  return (
+    <div className="relative z-30" onMouseLeave={() => setIsOpen(false)}>
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
+        onMouseEnter={() => setIsOpen(true)}
+        className="filter-item flex cursor-pointer items-center justify-center gap-2 rounded-full border border-stone-300/60 bg-[#fcfbf9] px-5 py-2.5 text-stone-500 transition-colors hover:border-[#1a1a1a] hover:text-[#1a1a1a]"
+      >
+        <span>Price: <span className="text-[#1a1a1a]">{selectedLabel}</span></span>
+        <ChevronDown size={12} strokeWidth={2} className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      <div className={`absolute left-0 top-[calc(100%-1px)] w-72 rounded-[1rem] border border-stone-200 bg-[#fcfbf9] p-5 shadow-xl transition-all duration-300 ${isOpen ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none -translate-y-2 opacity-0'}`}>
+        {controls}
+      </div>
+    </div>
+  );
+}
+
+function MoreCategoriesDropdown({
+  categories,
+  activeCategory,
+  onChange,
+}: {
+  categories: Array<{ name: string; count: number }>;
+  activeCategory: string;
+  onChange: (category: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="relative z-30" onMouseLeave={() => setIsOpen(false)}>
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
+        onMouseEnter={() => setIsOpen(true)}
+        className="filter-item flex cursor-pointer items-center justify-center gap-2 rounded-full border border-stone-300/60 bg-transparent px-6 py-3 text-stone-500 transition-colors duration-500 hover:border-[#1a1a1a] hover:text-[#1a1a1a]"
+      >
+        <span>More Categories</span>
+        <ChevronDown
+          size={12}
+          strokeWidth={2}
+          className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      <div
+        className={`absolute left-1/2 top-[calc(100%-1px)] max-h-72 w-64 -translate-x-1/2 overflow-y-auto rounded-[1rem] border border-stone-200 bg-[#fcfbf9] py-2 text-left shadow-xl transition-all duration-300 ${
+          isOpen
+            ? 'pointer-events-auto translate-y-0 opacity-100'
+            : 'pointer-events-none -translate-y-2 opacity-0'
+        }`}
+      >
+        {categories.map((category) => (
+          <button
+            type="button"
+            key={category.name}
+            onClick={() => {
+              onChange(category.name);
+              setIsOpen(false);
+            }}
+            className={`flex w-full cursor-pointer items-center justify-between gap-4 px-5 py-3 text-left text-[9px] uppercase tracking-widest transition-colors hover:bg-stone-100 ${
+              activeCategory === category.name
+                ? 'bg-stone-50 text-[#1a1a1a]'
+                : 'text-stone-500'
+            }`}
+          >
+            <span className="truncate">{category.name}</span>
+            <span className="shrink-0 text-stone-400">({category.count})</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Shop() {
+  const { formatPrice } = useCurrency();
   const container = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -100,7 +316,10 @@ export default function Shop() {
   const [availableMaterials, setAvailableMaterials] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('All');
-  const [activePrice, setActivePrice] = useState('All');
+  const [minimumPrice, setMinimumPrice] = useState(0);
+  const [maximumPrice, setMaximumPrice] = useState<number | null>(null);
+  const [debouncedMinimumPrice, setDebouncedMinimumPrice] = useState(0);
+  const [debouncedMaximumPrice, setDebouncedMaximumPrice] = useState<number | null>(null);
   const [activeColor, setActiveColor] = useState('All');
   const [activeMaterial, setActiveMaterial] = useState('All');
   const [sortOrder, setSortOrder] = useState('Featured');
@@ -117,10 +336,27 @@ export default function Shop() {
 
   const colors = ['All', ...availableColors];
   const materials = ['All', ...availableMaterials];
+  const catalogMaximumPrice = Math.max(
+    100000,
+    Math.ceil(Math.max(...allProducts.map((product) => product.price), 0) / 10000) * 10000,
+  );
+  const defaultVisibleCategories = categories.slice(0, MAX_VISIBLE_CATEGORIES);
+  const activeCategoryDetails = categories.find((category) => category.name === activeCategory);
+  const activeCategoryIsOverflow = Boolean(
+    activeCategoryDetails
+      && !defaultVisibleCategories.some((category) => category.name === activeCategory),
+  );
+  const visibleCategories = activeCategoryIsOverflow && activeCategoryDetails
+    ? [...defaultVisibleCategories.slice(0, MAX_VISIBLE_CATEGORIES - 1), activeCategoryDetails]
+    : defaultVisibleCategories;
+  const overflowCategories = categories.filter(
+    (category) => !visibleCategories.some((visible) => visible.name === category.name),
+  );
 
   const clearFilters = () => {
     setActiveCategory('All');
-    setActivePrice('All');
+    setMinimumPrice(0);
+    setMaximumPrice(null);
     setActiveColor('All');
     setActiveMaterial('All');
     setSortOrder('Featured');
@@ -129,6 +365,15 @@ export default function Shop() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedMinimumPrice(minimumPrice);
+      setDebouncedMaximumPrice(maximumPrice);
+    }, 400);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [maximumPrice, minimumPrice]);
 
   useEffect(() => {
     let ignore = false;
@@ -172,14 +417,8 @@ export default function Shop() {
         if (activeColor !== 'All') params.set('color', activeColor);
         if (activeMaterial !== 'All') params.set('material', activeMaterial);
 
-        if (activePrice === 'Under Rs. 40,000') {
-          params.set('maxPrice', '39999');
-        } else if (activePrice === 'Rs. 40,000 - Rs. 80,000') {
-          params.set('minPrice', '40000');
-          params.set('maxPrice', '80000');
-        } else if (activePrice === 'Over Rs. 80,000') {
-          params.set('minPrice', '80001');
-        }
+        if (debouncedMinimumPrice > 0) params.set('minPrice', String(debouncedMinimumPrice));
+        if (debouncedMaximumPrice !== null) params.set('maxPrice', String(debouncedMaximumPrice));
 
         if (sortOrder === 'Price: Low to High') {
           params.set('sort', 'price_asc');
@@ -209,7 +448,7 @@ export default function Shop() {
     return () => {
       ignore = true;
     };
-  }, [activeCategory, activeColor, activeMaterial, activePrice, sortOrder, searchQuery, showError]);
+  }, [activeCategory, activeColor, activeMaterial, debouncedMaximumPrice, debouncedMinimumPrice, sortOrder, searchQuery, showError]);
 
   useGSAP(() => {
     const tl = gsap.timeline();
@@ -296,7 +535,7 @@ export default function Shop() {
               className="flex items-center gap-2 px-8 py-3 rounded-full border border-stone-300 font-sans text-[10px] uppercase tracking-widest font-semibold hover:border-[#1a1a1a] transition-colors"
             >
               <SlidersHorizontal size={14} />
-              <span>Filters & Sort</span>
+              <span>Filters and Sort</span>
             </button>
           </div>
 
@@ -305,7 +544,7 @@ export default function Shop() {
               className="filters-container flex flex-wrap justify-center gap-3 md:gap-4 font-sans text-[9px] md:text-[10px] uppercase tracking-widest font-semibold w-full max-w-4xl relative z-20"
               style={{ minHeight: '60px' }}
             >
-              {categories.map((cat) => (
+              {visibleCategories.map((cat) => (
                 <button
                   key={cat.name}
                   onClick={() => setActiveCategory(cat.name)}
@@ -329,10 +568,25 @@ export default function Shop() {
                   </div>
                 </button>
               ))}
+              {overflowCategories.length > 0 && (
+                <MoreCategoriesDropdown
+                  categories={overflowCategories}
+                  activeCategory={activeCategory}
+                  onChange={setActiveCategory}
+                />
+              )}
             </div>
 
             <div className="filters-container flex flex-wrap justify-center gap-3 md:gap-4 font-sans text-[9px] md:text-[10px] uppercase tracking-widest font-semibold w-full relative z-30 pb-4">
-              <FilterDropdown label="Price" options={prices} value={activePrice} onChange={setActivePrice} />
+              <PriceRangeControl
+                minimum={minimumPrice}
+                maximum={maximumPrice}
+                catalogMaximum={catalogMaximumPrice}
+                onMinimumChange={setMinimumPrice}
+                onMaximumChange={setMaximumPrice}
+                formatPrice={formatPrice}
+                dropdown
+              />
               <FilterDropdown label="Color" options={colors} value={activeColor} onChange={setActiveColor} />
               <FilterDropdown label="Material" options={materials} value={activeMaterial} onChange={setActiveMaterial} />
 
@@ -358,7 +612,7 @@ export default function Shop() {
       >
         <div className="flex flex-col h-full max-h-[90vh]">
           <div className="flex justify-between items-center p-6 border-b border-stone-200">
-            <h3 className="font-serif text-2xl">Filters & Sort</h3>
+            <h3 className="font-serif text-2xl">Filters and Sort</h3>
             <button
               onClick={() => setIsMobileFiltersOpen(false)}
               className="p-2 -mr-2 bg-stone-100 rounded-full text-stone-500 hover:text-[#1a1a1a] transition-colors"
@@ -390,21 +644,14 @@ export default function Shop() {
 
             <div>
               <h4 className="font-sans text-[10px] tracking-widest uppercase font-semibold text-stone-500 mb-4">Price</h4>
-              <div className="flex flex-wrap gap-2">
-                {prices.map((price) => (
-                  <button
-                    key={price}
-                    onClick={() => setActivePrice(price)}
-                    className={`px-4 py-2 border rounded-full text-xs transition-colors ${
-                      activePrice === price
-                        ? 'border-[#1a1a1a] bg-[#1a1a1a] text-white'
-                        : 'border-stone-300 text-stone-600'
-                    }`}
-                  >
-                    {price}
-                  </button>
-                ))}
-              </div>
+              <PriceRangeControl
+                minimum={minimumPrice}
+                maximum={maximumPrice}
+                catalogMaximum={catalogMaximumPrice}
+                onMinimumChange={setMinimumPrice}
+                onMaximumChange={setMaximumPrice}
+                formatPrice={formatPrice}
+              />
             </div>
 
             <div>
@@ -503,7 +750,7 @@ export default function Shop() {
                   <div className="flex justify-between items-start">
                     <h3 className="text-xl md:text-2xl font-serif tracking-tight pr-4">{product.name}</h3>
                     <span className="text-[13px] font-light mt-1 whitespace-nowrap text-stone-600">
-                      Rs. {product.price.toLocaleString('en-IN')}
+                      {formatPrice(product.price)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -537,14 +784,6 @@ export default function Shop() {
           </div>
         )}
       </section>
-
-      <button
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        className="fixed bottom-8 right-8 z-[60] w-12 h-12 bg-white border border-stone-200 rounded-full flex items-center justify-center shadow-xl hover:border-[#1a1a1a] transition-all duration-300 group active:scale-95"
-        aria-label="Back to top"
-      >
-        <ChevronDown size={20} className="rotate-180 transition-transform group-hover:-translate-y-1" />
-      </button>
 
       <Footer />
     </div>

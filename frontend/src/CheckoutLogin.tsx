@@ -6,6 +6,7 @@ import { ArrowRight, ChevronLeft, Eye, EyeOff, Lock, ShieldCheck, ShoppingBag, T
 import { useAuthStore } from './store/authStore';
 import { useCartStore } from './store/cartStore';
 import { useToast } from './contexts/ToastContext';
+import { useCurrency } from './contexts/CurrencyContext';
 
 function getErrorMessage(error: unknown) {
   if (axios.isAxiosError(error)) {
@@ -14,17 +15,12 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Request failed.';
 }
 
-const formatPrice = (price: number) => new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-  maximumFractionDigits: 0,
-}).format(price);
-
 export default function CheckoutLogin() {
   const navigate = useNavigate();
   const { user, login, isLoading } = useAuthStore();
   const { items, isOpen: isCartOpen, toggleCart, getCartTotal, getCartCount } = useCartStore();
   const { showError, showSuccess } = useToast();
+  const { formatPrice, isEstimated } = useCurrency();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -93,6 +89,7 @@ export default function CheckoutLogin() {
             <span className="flex items-center gap-1.5"><Truck size={12} />Free Shipping</span>
             <span className="flex items-center gap-1.5"><ShieldCheck size={12} />Secure Payment</span>
           </div>
+          {isEstimated && <p className="mt-3 text-[9px] leading-relaxed text-stone-400">Estimated display prices. Your payment will be processed in INR.</p>}
         </motion.div>
       </section>
 
@@ -118,7 +115,7 @@ export default function CheckoutLogin() {
               <span className="absolute -bottom-px left-0 h-px w-0 bg-[#1a1a1a] transition-all duration-500 group-focus-within:w-full" />
             </div>
 
-            <button type="submit" disabled={isLoading} className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 bg-[#1a1a1a] py-4 font-sans text-[10px] uppercase tracking-[0.2em] text-[#fcfbf9] transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"><span>{isLoading ? 'Signing In' : 'Sign In & Proceed'}</span><ArrowRight size={14} /></button>
+            <button type="submit" disabled={isLoading} className="mt-2 flex w-full cursor-pointer items-center justify-center gap-2 bg-[#1a1a1a] py-4 font-sans text-[10px] uppercase tracking-[0.2em] text-[#fcfbf9] transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"><span>{isLoading ? 'Signing In' : 'Sign In and Proceed'}</span><ArrowRight size={14} /></button>
           </form>
 
           <div className="mt-10 border-t border-stone-200 pt-8"><p className="font-sans text-[10px] uppercase tracking-wider text-stone-500">Don't have an account? <Link to="/register?next=checkout" className="ml-1 inline-block cursor-pointer border-b border-[#1a1a1a] pb-0.5 text-[#1a1a1a] transition-colors hover:border-stone-500 hover:text-stone-600">Create an Account</Link></p></div>

@@ -3,11 +3,13 @@ import { useCartStore } from './store/cartStore';
 import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from './contexts/ToastContext';
+import { useCurrency } from './contexts/CurrencyContext';
 
 export default function Cart() {
   const { items, isOpen, toggleCart, removeItem, updateQuantity, getCartTotal, getCartCount } = useCartStore();
   const navigate = useNavigate();
   const { showError } = useToast();
+  const { formatPrice, isEstimated } = useCurrency();
 
   // Prevent scrolling when cart is open
   useEffect(() => {
@@ -69,7 +71,7 @@ export default function Cart() {
                       <Link to={`/product/${item.id}`} onClick={toggleCart} className="font-medium text-base hover:text-stone-500 transition-colors">
                         {item.name}
                       </Link>
-                      <span className="font-medium">₹{item.price.toLocaleString('en-IN')}</span>
+                      <span className="font-medium">{formatPrice(item.price)}</span>
                     </div>
                     
                     <div className="flex-1"></div>
@@ -118,8 +120,9 @@ export default function Cart() {
           <div className="p-6 md:p-8 bg-stone-50 border-t border-[#1a1a1a]/10">
             <div className="flex justify-between items-center mb-6 text-lg font-medium">
               <span>Subtotal</span>
-              <span>₹{getCartTotal().toLocaleString('en-IN')}</span>
+              <span>{formatPrice(getCartTotal())}</span>
             </div>
+            {isEstimated && <p className="mb-2 text-[10px] text-stone-500">Estimated display price. Payment is processed in INR.</p>}
             <p className="text-xs text-stone-500 mb-6 font-light">Taxes and shipping calculated at checkout.</p>
             <button onClick={() => { toggleCart(); navigate('/checkout'); }} className="w-full py-5 bg-[#1a1a1a] text-[#fcfbf9] text-[10px] tracking-[0.2em] uppercase font-bold hover:bg-black transition-colors">
               Checkout

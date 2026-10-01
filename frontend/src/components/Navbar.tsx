@@ -3,22 +3,25 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Search, X, ShoppingBag, Menu, User } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
+import { CURRENCY_OPTIONS, type DisplayCurrency, useCurrency } from '../contexts/CurrencyContext';
 
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toggleCart, getCartCount } = useCartStore();
   const { user, logout } = useAuthStore();
+  const { currency, setCurrency } = useCurrency();
   
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Close search and mobile menu when route changes
+  // Keep the search field aligned with the current results URL.
   useEffect(() => {
+    setSearchQuery(new URLSearchParams(location.search).get('q') || '');
     setIsSearchOpen(false);
     setIsMobileMenuOpen(false);
-  }, [location]);
+  }, [location.pathname, location.search]);
 
   // Prevent scrolling when mobile menu is open
   useEffect(() => {
@@ -37,7 +40,6 @@ export default function Navbar() {
     if (searchQuery.trim()) {
       navigate(`/shop?q=${encodeURIComponent(searchQuery.trim())}`);
       setIsSearchOpen(false);
-      setSearchQuery('');
     }
   };
 
@@ -56,9 +58,8 @@ export default function Navbar() {
         
         {/* CENTER: Links */}
         <nav className="hidden lg:flex absolute left-1/2 -translate-x-1/2 gap-10 text-[10px] md:text-[11px] uppercase tracking-[0.2em] font-bold items-center pt-1 opacity-90 pointer-events-auto">
+          <Link to="/" className="nav-item hover:opacity-60 transition-opacity whitespace-nowrap cursor-pointer">Home</Link>
           <Link to="/shop" className="nav-item hover:opacity-60 transition-opacity whitespace-nowrap cursor-pointer">Shop</Link>
-          <Link to="/about" className="nav-item hover:opacity-60 transition-opacity whitespace-nowrap cursor-pointer">About</Link>
-          <Link to="/contact" className="nav-item hover:opacity-60 transition-opacity whitespace-nowrap cursor-pointer">Contact</Link>
         </nav>
 
         {/* RIGHT: Search, Bag, and Mobile Menu */}
@@ -96,13 +97,27 @@ export default function Navbar() {
             </button>
           </div>
 
+          <label className="nav-item hidden cursor-pointer items-center md:flex">
+            <span className="sr-only">Display currency</span>
+            <select
+              aria-label="Display currency"
+              value={currency}
+              onChange={(event) => setCurrency(event.target.value as DisplayCurrency)}
+              className="cursor-pointer appearance-none bg-transparent pr-1 text-[9px] font-bold uppercase tracking-[0.18em] outline-none"
+            >
+              {CURRENCY_OPTIONS.map((option) => (
+                <option key={option.code} value={option.code} className="bg-[#fcfbf9] text-[#1a1a1a]">{option.label}</option>
+              ))}
+            </select>
+          </label>
+
           <button 
             onClick={toggleCart} 
             className="nav-item cursor-pointer hover:opacity-60 transition-all duration-300 flex items-center gap-2 text-[9px] uppercase tracking-[0.2em] font-bold whitespace-nowrap"
           >
-            <ShoppingBag size={16} className="md:hidden" />
+            <ShoppingBag size={16} />
             <span className="hidden md:inline-block">Bag</span>
-            <span className="font-bold">({getCartCount()})</span>
+            {getCartCount() > 0 && <span className="font-bold">({getCartCount()})</span>}
           </button>
 
           {user ? (
@@ -150,14 +165,23 @@ export default function Navbar() {
         <nav className="flex flex-col justify-center flex-1 gap-8 text-center text-[#1a1a1a]">
           <Link to="/" className="font-serif text-4xl hover:italic transition-all">Home</Link>
           <Link to="/shop" className="font-serif text-4xl hover:italic transition-all">Shop</Link>
-          <Link to="/about" className="font-serif text-4xl hover:italic transition-all">About</Link>
-          <Link to="/contact" className="font-serif text-4xl hover:italic transition-all">Contact</Link>
           <Link to={user ? '/account' : '/login'} className="font-serif text-4xl hover:italic transition-all">
             {user ? 'Account' : 'Login'}
           </Link>
         </nav>
         
         <div className="pb-8 flex flex-col items-center border-t border-stone-200 pt-8 gap-6 text-[#1a1a1a]">
+           <label className="flex items-center gap-3 text-[10px] uppercase tracking-widest text-stone-500">
+             Currency
+             <select
+               aria-label="Display currency"
+               value={currency}
+               onChange={(event) => setCurrency(event.target.value as DisplayCurrency)}
+               className="cursor-pointer border-b border-stone-300 bg-transparent pb-1 text-[#1a1a1a] outline-none"
+             >
+               {CURRENCY_OPTIONS.map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}
+             </select>
+           </label>
            <button onClick={() => { setIsMobileMenuOpen(false); toggleCart(); }} className="text-[10px] uppercase tracking-widest font-bold">
              Shopping Bag ({getCartCount()})
            </button>
@@ -168,7 +192,6 @@ export default function Navbar() {
            )}
            <div className="flex gap-8 text-[10px] uppercase tracking-widest text-stone-500">
              <a href="#">Instagram</a>
-             <a href="#">Contact</a>
            </div>
         </div>
       </div>

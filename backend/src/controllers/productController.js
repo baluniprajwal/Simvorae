@@ -517,13 +517,30 @@ export async function getProductById(req, res, next) {
       return next(createHttpError(404, 'Product not found.'));
     }
 
-    const similarProducts = await Product.find({
+    const categoryMatches = await Product.find({
       category: product.category,
       isActive: true,
       _id: { $ne: product._id },
     })
-      .limit(4)
+      .limit(8)
       .sort({ featured: -1, createdAt: -1 });
+
+    let similarProducts = categoryMatches;
+
+    if (similarProducts.length < 8) {
+      const excludedProductIds = [
+        product._id,
+        ...similarProducts.map((similarProduct) => similarProduct._id),
+      ];
+      const additionalProducts = await Product.find({
+        isActive: true,
+        _id: { $nin: excludedProductIds },
+      })
+        .limit(8 - similarProducts.length)
+        .sort({ featured: -1, createdAt: -1 });
+
+      similarProducts = [...similarProducts, ...additionalProducts];
+    }
 
     return res.status(200).json({
       success: true,

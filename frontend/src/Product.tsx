@@ -9,6 +9,7 @@ import Footer from './components/Footer';
 import { fetchJson } from './lib/api';
 import type { Product as ProductType, ProductDetailResponse } from './types/product';
 import { useToast } from './contexts/ToastContext';
+import { useCurrency } from './contexts/CurrencyContext';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -62,6 +63,7 @@ export default function Product() {
 
   const { addItem, items } = useCartStore();
   const { showError, showSuccess } = useToast();
+  const { formatPrice } = useCurrency();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -272,7 +274,7 @@ export default function Product() {
                 {product.name}
               </h1>
               <p className="font-sans text-2xl md:text-3xl font-light text-[#1a1a1a]">
-                Rs. {product.price.toLocaleString('en-IN')}
+                {formatPrice(product.price)}
               </p>
             </div>
 
@@ -318,7 +320,7 @@ export default function Product() {
                   {product.whyLoveIt || 'Designed with meticulous attention to detail, this piece seamlessly blends elevated aesthetics with everyday utility. The refined craftsmanship ensures it will become a staple in your collection.'}
                 </p>
               </AccordionItem>
-              <AccordionItem title="Details & Dimensions">
+              <AccordionItem title="Details and Dimensions">
                 <div className="flex flex-col gap-2 mt-2">
                   <div className="flex justify-between">
                     <span className="text-stone-500">Material</span>
@@ -360,7 +362,7 @@ export default function Product() {
                   )}
                 </div>
               </AccordionItem>
-              <AccordionItem title="Shipping & Returns">
+              <AccordionItem title="Shipping and Returns">
                 <p>{product.shippingReturns || 'Complimentary express shipping on all orders. Returns are accepted within 30 days of delivery in their original condition.'}</p>
               </AccordionItem>
               <AccordionItem title="More Information">
@@ -372,9 +374,17 @@ export default function Product() {
       </main>
 
       {similarProducts.length > 0 && (
-        <section className="py-24 px-6 md:px-12 max-w-[1300px] mx-auto border-t border-stone-200">
-          <h2 className="font-serif text-3xl mb-12 tracking-tight">Similar Works</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
+        <section className="mx-auto max-w-[1600px] border-t border-stone-200 px-6 py-24 md:px-12 md:py-32">
+          <div className="mb-14 flex flex-col justify-between gap-6 md:mb-20 md:flex-row md:items-end">
+            <div>
+              <span className="mb-5 block text-[9px] uppercase tracking-[0.25em] text-stone-400">More from Simvorae</span>
+              <h2 className="font-serif text-4xl tracking-tight md:text-6xl">Continue <em className="font-light text-stone-400">exploring.</em></h2>
+            </div>
+            <Link to="/shop" className="w-fit cursor-pointer border-b border-[#1a1a1a] pb-1 text-[9px] uppercase tracking-[0.2em] transition-opacity hover:opacity-60">
+              View all pieces
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-x-6 gap-y-16 sm:grid-cols-2 md:grid-cols-4 md:gap-x-8 md:gap-y-20">
             {similarProducts.map((simProd) => (
               <Link
                 to={`/product/${simProd.slug}`}
@@ -401,7 +411,7 @@ export default function Product() {
                   <div className="flex justify-between items-start">
                     <h3 className="text-xl md:text-2xl font-serif tracking-tight pr-4">{simProd.name}</h3>
                     <span className="text-[13px] font-light mt-1 whitespace-nowrap text-stone-600">
-                      Rs. {simProd.price.toLocaleString('en-IN')}
+                      {formatPrice(simProd.price)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
