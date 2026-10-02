@@ -38,10 +38,17 @@ export default function Navbar() {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/shop?q=${encodeURIComponent(searchQuery.trim())}`);
-      setIsSearchOpen(false);
+    const query = searchQuery.trim();
+
+    if (query) {
+      navigate(`/shop?q=${encodeURIComponent(query)}`);
+    } else if (new URLSearchParams(location.search).get('q')) {
+      // Emptying the box and pressing Enter clears the current search; otherwise the old query
+      // stays in the URL and comes back on refresh.
+      navigate('/shop');
     }
+
+    setIsSearchOpen(false);
   };
 
   return (

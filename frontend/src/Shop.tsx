@@ -15,6 +15,7 @@ import type {
 } from './types/product';
 import { useCurrency } from './contexts/CurrencyContext';
 import { usePageTitle } from './lib/usePageTitle';
+import { getCategoryCounts } from './lib/catalogSearch';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -328,13 +329,14 @@ export default function Shop() {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const { showError } = useToast();
 
-  const categories = [
-    { name: 'All', count: allProducts.length },
-    ...availableCategories.map((name) => ({
-      name,
-      count: allProducts.filter((product) => product.category === name).length,
-    })),
-  ];
+  const categories = getCategoryCounts(allProducts, availableCategories, searchQuery);
+
+  // "All" means "show everything": during a search it also clears the search, otherwise clicking
+  // the already-selected "All" button does nothing and the shopper stays stuck on the results.
+  const selectCategory = (name: string) => {
+    if (name === 'All' && searchQuery) setSearchParams({});
+    setActiveCategory(name);
+  };
 
   const colors = ['All', ...availableColors];
   const materials = ['All', ...availableMaterials];
@@ -532,6 +534,20 @@ export default function Shop() {
           {searchQuery ? splitWords(`Search: ${searchQuery}`) : splitWords('The Catalog')}
         </h1>
 
+        {searchQuery && (
+          <p className="-mt-4 mb-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-center font-sans text-[10px] uppercase tracking-[0.2em] text-stone-500 md:-mt-6">
+            <span>Showing results for &ldquo;{searchQuery}&rdquo; across all filters</span>
+            <span className="text-stone-300">&middot;</span>
+            <button
+              type="button"
+              onClick={() => setSearchParams({}, { replace: true })}
+              className="cursor-pointer border-b border-[#1a1a1a] pb-0.5 font-semibold text-[#1a1a1a] transition-colors hover:border-stone-500 hover:text-stone-500"
+            >
+              Clear search
+            </button>
+          </p>
+        )}
+
         <div className="flex flex-col gap-6 w-full items-center relative z-50">
           <div className="md:hidden w-full flex justify-center pb-4">
             <button
@@ -551,7 +567,7 @@ export default function Shop() {
               {visibleCategories.map((cat) => (
                 <button
                   key={cat.name}
-                  onClick={() => setActiveCategory(cat.name)}
+                  onClick={() => selectCategory(cat.name)}
                   className={`filter-item transition-colors duration-500 ease-out border relative py-3 px-6 rounded-full overflow-hidden flex items-center justify-center gap-2 group ${
                     activeCategory === cat.name
                       ? 'border-[#1a1a1a] bg-[#1a1a1a] text-[#fcfbf9]'
@@ -576,7 +592,7 @@ export default function Shop() {
                 <MoreCategoriesDropdown
                   categories={overflowCategories}
                   activeCategory={activeCategory}
-                  onChange={setActiveCategory}
+                  onChange={selectCategory}
                 />
               )}
             </div>
@@ -632,7 +648,7 @@ export default function Shop() {
                 {categories.map((cat) => (
                   <button
                     key={cat.name}
-                    onClick={() => setActiveCategory(cat.name)}
+                    onClick={() => selectCategory(cat.name)}
                     className={`text-left flex justify-between items-center py-2 border-b transition-colors ${
                       activeCategory === cat.name
                         ? 'border-[#1a1a1a] text-[#1a1a1a] font-medium'
