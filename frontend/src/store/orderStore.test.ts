@@ -9,7 +9,7 @@ const apiMock = vi.hoisted(() => ({
 
 vi.mock('../lib/api', () => ({ default: apiMock }));
 
-import { useOrderStore } from './orderStore';
+import { resetLoadedOrders, useOrderStore } from './orderStore';
 
 const backendOrder = {
   orderNumber: 'SIM-1001',
@@ -108,5 +108,20 @@ describe('order store', () => {
     void useOrderStore.getState().fetchOrders();
 
     expect(useOrderStore.getState().orders).toHaveLength(1);
+  });
+
+  it('ignores a slow admin response that arrives after the account switched', async () => {
+    let finishAdminRequest: (value: unknown) => void = () => {};
+    apiMock.get.mockReturnValueOnce(new Promise((resolve) => { finishAdminRequest = resolve; }));
+    const adminLoad = useOrderStore.getState().fetchOrders();
+
+    resetLoadedOrders();
+    apiMock.get.mockResolvedValueOnce({ data: { orders: [backendOrder] } });
+    await useOrderStore.getState().fetchMyOrders();
+
+    finishAdminRequest({ data: { orders: [backendOrder, { ...backendOrder, orderNumber: 'SIM-OTHER-CUSTOMER' }] } });
+    await adminLoad;
+
+    expect(useOrderStore.getState().orders.map((order) => order.id)).toEqual(['SIM-1001']);
   });
 });

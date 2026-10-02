@@ -1,4 +1,4 @@
-import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
 export const CURRENCY_OPTIONS = [
   { code: 'INR', label: 'INR' },
@@ -79,6 +79,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [currency, setCurrencyState] = useState<DisplayCurrency>('INR');
   const [rate, setRate] = useState(1);
   const [isRateReady, setIsRateReady] = useState(true);
+  // Country detection is only a default; it must never override a currency the visitor picked.
+  const hasChosenCurrencyRef = useRef(false);
 
   useEffect(() => {
     const savedCurrency = storage.get(CURRENCY_STORAGE_KEY) as DisplayCurrency | null;
@@ -95,10 +97,12 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         return response.json() as Promise<{ country?: string }>;
       })
       .then(({ country }) => {
+        if (hasChosenCurrencyRef.current) return;
         const detectedCurrency = country ? COUNTRY_CURRENCY[country.toUpperCase()] : undefined;
         if (detectedCurrency) setCurrencyState(detectedCurrency);
       })
       .catch(() => {
+        if (hasChosenCurrencyRef.current) return;
         setCurrencyState('INR');
       });
   }, []);
@@ -126,12 +130,15 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     }
 
     setIsRateReady(false);
+    // Switching currencies quickly can let an older rate response arrive last; ignore it.
+    let isCurrent = true;
     fetch(`https://api.frankfurter.dev/v2/rate/INR/${currency}`)
       .then((response) => {
         if (!response.ok) throw new Error('Exchange rate unavailable.');
         return response.json() as Promise<{ rate?: number }>;
       })
       .then((result) => {
+        if (!isCurrent) return;
         if (!Number.isFinite(result.rate) || !result.rate) throw new Error('Invalid exchange rate.');
         setRate(result.rate);
         setIsRateReady(true);
@@ -141,15 +148,21 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         }));
       })
       .catch(() => {
+        if (!isCurrent) return;
         // Show INR for this visit but keep the saved preference: rate outages are usually temporary,
         // and the next visit retries the visitor's chosen currency.
         setCurrencyState('INR');
         setRate(1);
         setIsRateReady(true);
       });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [currency]);
 
   const setCurrency = (nextCurrency: DisplayCurrency) => {
+    hasChosenCurrencyRef.current = true;
     setCurrencyState(nextCurrency);
     storage.set(CURRENCY_STORAGE_KEY, nextCurrency);
   };

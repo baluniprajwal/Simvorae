@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import api from '../lib/api';
-import { useOrderStore } from './orderStore';
+import { resetLoadedOrders } from './orderStore';
 
 // Orders loaded for one person must never be shown to the next person on a shared device.
-const clearLoadedOrders = () => useOrderStore.setState({ orders: [], ordersScope: null });
+const clearLoadedOrders = resetLoadedOrders;
 
 type CustomerAddress = {
   label?: string;

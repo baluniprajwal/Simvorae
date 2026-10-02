@@ -211,12 +211,17 @@ const mapBackendOrder = (order: BackendOrder): Order => ({
   })),
 });
 
+// Every list load and every reset takes a new number. A response is applied only if nothing newer
+// happened meanwhile, so a slow admin request cannot land after the account has switched.
+let ordersRequestId = 0;
+
 export const useOrderStore = create<OrderStore>((set) => ({
   orders: [],
   ordersScope: null,
   isLoading: false,
   error: '',
   fetchOrders: async () => {
+    const requestId = ++ordersRequestId;
     try {
       // Admin and customer views share this list; never show one scope's orders in the other.
       set((state) => ({
@@ -225,8 +230,10 @@ export const useOrderStore = create<OrderStore>((set) => ({
         ...(state.ordersScope !== 'admin' && { orders: [], ordersScope: 'admin' as const }),
       }));
       const response = await api.get<OrdersResponse>('/api/orders');
+      if (requestId !== ordersRequestId) return;
       set({ orders: response.data.orders.map(mapBackendOrder), isLoading: false });
     } catch (error) {
+      if (requestId !== ordersRequestId) return;
       const message = axios.isAxiosError(error)
         ? error.response?.data?.message || error.message
         : 'Failed to load orders.';
@@ -234,6 +241,7 @@ export const useOrderStore = create<OrderStore>((set) => ({
     }
   },
   fetchMyOrders: async () => {
+    const requestId = ++ordersRequestId;
     try {
       set((state) => ({
         isLoading: true,
@@ -241,8 +249,10 @@ export const useOrderStore = create<OrderStore>((set) => ({
         ...(state.ordersScope !== 'customer' && { orders: [], ordersScope: 'customer' as const }),
       }));
       const response = await api.get<OrdersResponse>('/api/orders/my-orders');
+      if (requestId !== ordersRequestId) return;
       set({ orders: response.data.orders.map(mapBackendOrder), isLoading: false });
     } catch (error) {
+      if (requestId !== ordersRequestId) return;
       const message = axios.isAxiosError(error)
         ? error.response?.data?.message || error.message
         : 'Failed to load your orders.';
@@ -250,10 +260,13 @@ export const useOrderStore = create<OrderStore>((set) => ({
     }
   },
   fetchMyOrder: async (id) => {
+    const requestId = ordersRequestId;
     try {
       set({ isLoading: true, error: '' });
       const response = await api.get<OrderResponse>(`/api/orders/my-orders/${id}`);
       const order = mapBackendOrder(response.data.order);
+      // The caller still gets its order, but it is not added to a list that has since been reset.
+      if (requestId !== ordersRequestId) return order;
       set((state) => ({
         orders: [
           order,
@@ -416,3 +429,9 @@ export const useOrderStore = create<OrderStore>((set) => ({
     }
   },
 }));
+
+// Clears loaded orders and invalidates any request still in flight (sign-in, sign-out, account switch).
+export function resetLoadedOrders() {
+  ordersRequestId += 1;
+  useOrderStore.setState({ orders: [], ordersScope: null, isLoading: false, error: '' });
+}

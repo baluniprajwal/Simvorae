@@ -25,6 +25,24 @@ function query(value) {
   };
 }
 
+// Applies updateOne to one stored document the way MongoDB does: only when the filter matches the
+// stored state at that moment, including a 'payment.status' $in condition.
+function mockConditionalUpdate(t, Model, stored) {
+  return t.mock.method(Model, 'updateOne', async (filter, update) => {
+    const allowedStatuses = filter['payment.status']?.$in;
+    const matches = filter._id === stored._id
+      && (!allowedStatuses || allowedStatuses.includes(stored.payment.status));
+
+    if (!matches) return { matchedCount: 0, modifiedCount: 0 };
+
+    for (const [path, value] of Object.entries(update.$set)) {
+      const [parent, key] = path.split('.');
+      stored[parent][key] = value;
+    }
+    return { matchedCount: 1, modifiedCount: 1 };
+  });
+}
+
 function createAttempt(overrides = {}) {
   return {
     _id: 'attempt-1',
@@ -84,8 +102,7 @@ function capturedPayment(overrides = {}) {
 
 test('failed payment webhook keeps the attempt so a retry on the same Razorpay order can succeed', async (t) => {
   const attempt = createAttempt();
-  const saveCalls = [];
-  attempt.save = async () => saveCalls.push({ ...attempt.payment });
+  const attemptUpdate = mockConditionalUpdate(t, CheckoutAttempt, attempt);
 
   t.mock.method(Order, 'findOne', () => query(null));
   t.mock.method(CheckoutAttempt, 'findOne', () => query(attempt));
@@ -102,8 +119,9 @@ test('failed payment webhook keeps the attempt so a retry on the same Razorpay o
   assert.equal(deleteAttempt.mock.callCount(), 0, 'the attempt must survive a failed payment');
   assert.equal(restock.mock.callCount(), 0, 'the stock reservation must stay in place');
   assert.equal(attempt.stockReserved, true);
-  assert.equal(saveCalls.length, 1);
-  assert.equal(saveCalls[0].status, 'failed');
+  assert.equal(attemptUpdate.mock.callCount(), 1);
+  assert.equal(attempt.payment.status, 'failed');
+  assert.equal(attempt.payment.razorpayPaymentId, 'pay_failed');
 });
 
 test('captured webhook after a failed first try still promotes the attempt to a paid order', async (t) => {
@@ -215,5 +233,76 @@ test('a late or retried captured webhook does not revive a cancelled and refunde
   assert.equal(result.statusCode, 200);
   assert.equal(refundedOrder.payment.status, 'refunded');
   assert.equal(refundedOrder.orderStatus, 'cancelled');
+  assert.equal(refundedOrder.payment.razorpayPaymentId, 'pay_1');
   assert.equal(refundedOrder.save.mock.callCount(), 0);
+});
+
+test('late failed or authorized webhooks cannot reopen a refunded order', async (t) => {
+  const refundedOrder = {
+    _id: 'order-1',
+    orderNumber: 'SIM-TEST-1',
+    stockDebited: true,
+    stockRestored: true,
+    totals: { total: 1000, currency: 'INR' },
+    payment: { status: 'refunded', razorpayOrderId: 'order_rzp_1', razorpayPaymentId: 'pay_1' },
+    orderStatus: 'cancelled',
+    save: t.mock.fn(async () => {}),
+  };
+  t.mock.method(Order, 'findOne', () => query(refundedOrder));
+  t.mock.method(Order, 'findOneAndUpdate', async () => null);
+  mockConditionalUpdate(t, Order, refundedOrder);
+
+  for (const [event, entity] of [
+    ['payment.failed', capturedPayment({ id: 'pay_old', status: 'failed', captured: false })],
+    ['payment.authorized', capturedPayment({ id: 'pay_old', status: 'authorized', captured: false })],
+    ['payment.captured', capturedPayment()],
+  ]) {
+    const result = await sendWebhook(t, { event, payload: { payment: { entity } } });
+    assert.equal(result.error, null, event);
+    assert.equal(refundedOrder.payment.status, 'refunded', `${event} must not change a refunded order`);
+  }
+
+  assert.equal(refundedOrder.orderStatus, 'cancelled');
+  assert.equal(refundedOrder.save.mock.callCount(), 0);
+});
+
+test('an older failed webhook overlapping a successful capture cannot overwrite the paid order', async (t) => {
+  // The order as stored in the database.
+  const stored = {
+    _id: 'order-1',
+    orderNumber: 'SIM-TEST-1',
+    stockDebited: true,
+    totals: { total: 1000, currency: 'INR' },
+    payment: { status: 'pending', razorpayOrderId: 'order_rzp_1', razorpayPaymentId: '' },
+    orderStatus: 'pending',
+  };
+  // Each webhook request works on its own copy loaded from the database, like Mongoose documents.
+  const loadCopy = () => {
+    const copy = structuredClone(stored);
+    copy.save = async () => {
+      stored.payment = { ...copy.payment };
+      stored.orderStatus = copy.orderStatus;
+    };
+    return copy;
+  };
+  // Both requests load the order while it is still pending; the capture then finishes first.
+  const copies = [loadCopy(), loadCopy()];
+  t.mock.method(Order, 'findOne', () => query(copies.shift()));
+  t.mock.method(Order, 'findOneAndUpdate', async () => null);
+  mockConditionalUpdate(t, Order, stored);
+
+  const captured = await sendWebhook(t, {
+    event: 'payment.captured',
+    payload: { payment: { entity: capturedPayment({ id: 'pay_success' }) } },
+  });
+  const failed = await sendWebhook(t, {
+    event: 'payment.failed',
+    payload: { payment: { entity: capturedPayment({ id: 'pay_declined', status: 'failed', captured: false }) } },
+  });
+
+  assert.equal(captured.error, null);
+  assert.equal(failed.error, null);
+  assert.equal(stored.payment.status, 'paid', 'the successful payment must survive the older failure');
+  assert.equal(stored.payment.razorpayPaymentId, 'pay_success');
+  assert.equal(stored.orderStatus, 'confirmed');
 });

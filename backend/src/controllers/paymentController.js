@@ -107,6 +107,7 @@ async function sendPaymentConfirmationBestEffort(order) {
 }
 
 const REFUND_PAYMENT_STATUSES = ['refund_pending', 'refunded'];
+const OPEN_PAYMENT_STATUSES = ['pending', 'authorized', 'failed'];
 
 async function confirmPaidOrder({ order, razorpayPaymentId, razorpaySignature = '' }) {
   if (order.payment.status === 'paid') {
@@ -373,16 +374,20 @@ export async function handleRazorpayWebhook(req, res, next) {
       });
     }
 
-    if (order && event === 'payment.authorized' && order.payment.status !== 'paid') {
-      order.payment.status = 'authorized';
-      order.payment.razorpayPaymentId = payment.id || order.payment.razorpayPaymentId;
-      await order.save();
-    }
-
-    if (order && event === 'payment.failed' && order.payment.status !== 'paid') {
-      order.payment.status = 'failed';
-      order.payment.razorpayPaymentId = payment.id || order.payment.razorpayPaymentId;
-      await order.save();
+    // Only orders still waiting for payment may move to authorized/failed. The status condition is
+    // part of the update itself: checking a loaded copy and then saving lets an overlapping
+    // captured webhook mark the order paid in between, and the save would overwrite it. A late
+    // "failed" must also never touch a refunded order, or a later capture could revive it.
+    if (order && (event === 'payment.authorized' || event === 'payment.failed')) {
+      await Order.updateOne(
+        { _id: order._id, 'payment.status': { $in: OPEN_PAYMENT_STATUSES } },
+        {
+          $set: {
+            'payment.status': event === 'payment.authorized' ? 'authorized' : 'failed',
+            'payment.razorpayPaymentId': payment.id || order.payment.razorpayPaymentId,
+          },
+        },
+      );
     }
 
     if (order) {
@@ -414,18 +419,19 @@ export async function handleRazorpayWebhook(req, res, next) {
       }
     }
 
-    if (event === 'payment.authorized') {
-      attempt.payment.status = 'authorized';
-      attempt.payment.razorpayPaymentId = payment.id || attempt.payment.razorpayPaymentId;
-      await attempt.save();
-    }
-
-    // Razorpay Checkout lets the customer retry on the same Razorpay order after a failure,
-    // so keep the attempt and its reservation; the expiry sweep releases it if nothing succeeds.
-    if (event === 'payment.failed') {
-      attempt.payment.status = 'failed';
-      attempt.payment.razorpayPaymentId = payment.id || attempt.payment.razorpayPaymentId;
-      await attempt.save();
+    // Razorpay Checkout lets the customer retry on the same Razorpay order after a failure, so keep
+    // the attempt and its reservation; the expiry sweep releases it if nothing succeeds. Update in
+    // place: an overlapping capture may already have turned the attempt into an order and deleted it.
+    if (event === 'payment.authorized' || event === 'payment.failed') {
+      await CheckoutAttempt.updateOne(
+        { _id: attempt._id },
+        {
+          $set: {
+            'payment.status': event === 'payment.authorized' ? 'authorized' : 'failed',
+            'payment.razorpayPaymentId': payment.id || attempt.payment.razorpayPaymentId,
+          },
+        },
+      );
     }
 
     return res.status(200).json({

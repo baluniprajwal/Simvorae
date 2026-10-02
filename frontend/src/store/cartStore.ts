@@ -92,15 +92,11 @@ export const useCartStore = create<CartStore>()(persist((set, get) => ({
         continue;
       }
 
-      if (product.stock <= 0) {
-        notes.push(`${product.name} has sold out and was removed from your bag.`);
-        continue;
-      }
-
-      const quantity = Math.min(item.quantity, product.stock);
-
-      if (quantity < item.quantity) {
-        notes.push(`Only ${product.stock} of ${product.name} available; your bag was updated.`);
+      // Do not remove or shrink items because of stock: this customer's own checkout reservation
+      // lowers public stock (to 0 for a last unit), so a refresh mid-checkout would empty their bag.
+      // Checkout releases their reservation and confirms real availability on the server.
+      if (product.stock < item.quantity) {
+        notes.push(`${product.name} may have limited availability; it will be confirmed at checkout.`);
       }
 
       if (product.price !== item.price) {
@@ -112,8 +108,7 @@ export const useCartStore = create<CartStore>()(persist((set, get) => ({
         name: product.name,
         price: product.price,
         image: product.image || item.image,
-        quantity,
-        stockQuantity: product.stock,
+        stockQuantity: product.stock > 0 ? product.stock : item.stockQuantity,
       });
     }
 

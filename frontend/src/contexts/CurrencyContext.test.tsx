@@ -82,4 +82,54 @@ describe('currency display', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Use INR' }));
     await waitFor(() => expect(screen.getByTestId('currency')).toHaveTextContent('INR'));
   });
+
+  it('ignores an older exchange-rate response after switching currency again', async () => {
+    const pending: Record<string, (rate: number) => void> = {};
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url === '/api/country') return Promise.reject(new Error('no detection'));
+      const code = url.split('/').pop() as string;
+      return new Promise((resolve) => {
+        pending[code] = (rate) => resolve({ ok: true, json: async () => ({ rate }) });
+      });
+    }));
+
+    function Switcher() {
+      const { setCurrency, formatPrice } = useCurrency();
+      return (
+        <div>
+          <span data-testid="price">{formatPrice(100000)}</span>
+          <button type="button" onClick={() => setCurrency('USD')}>USD</button>
+          <button type="button" onClick={() => setCurrency('GBP')}>GBP</button>
+        </div>
+      );
+    }
+
+    render(<CurrencyProvider><Switcher /></CurrencyProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'USD' }));
+    await waitFor(() => expect(pending.USD).toBeDefined());
+    fireEvent.click(screen.getByRole('button', { name: 'GBP' }));
+    await waitFor(() => expect(pending.GBP).toBeDefined());
+
+    pending.GBP(0.009);
+    await waitFor(() => expect(screen.getByTestId('price').textContent).toMatch(/900/));
+    pending.USD(0.012);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(screen.getByTestId('price').textContent).toMatch(/900/);
+    expect(screen.getByTestId('price').textContent).not.toMatch(/1,200/);
+  });
+
+  it('does not let country detection override a currency the visitor already picked', async () => {
+    let finishDetection: (value: unknown) => void = () => {};
+    vi.stubGlobal('fetch', vi.fn((url: string) => (url === '/api/country'
+      ? new Promise((resolve) => { finishDetection = resolve; })
+      : Promise.resolve({ ok: true, json: async () => ({ rate: 0.012 }) }))));
+
+    render(<CurrencyProvider><CurrencyProbe /></CurrencyProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Use INR' }));
+    finishDetection({ ok: true, headers: { get: () => 'application/json' }, json: async () => ({ country: 'US' }) });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(screen.getByTestId('currency')).toHaveTextContent('INR');
+  });
 });
