@@ -69,8 +69,8 @@ export default function Home() {
     fetchJson<{ sections: HomepageSections; settings: HomepageSettings }>('/api/products/homepage')
       .then(({ sections, settings }) => {
         if (isMounted) {
-          setHomepageSections(sections);
-          setHomepageSettings(settings);
+          setHomepageSections({ ...emptyHomepageSections(), ...sections });
+          setHomepageSettings({ ...defaultHomepageSettings(), ...settings });
         }
       })
       .catch(() => {
@@ -178,26 +178,6 @@ export default function Home() {
       repeat: -1,
     });
 
-    // Featured Collection Reveals
-    const items = gsap.utils.toArray('.collection-item');
-    items.forEach((item: any, i) => {
-      gsap.fromTo(item, 
-        { y: 100, opacity: 0, clipPath: 'polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)' },
-        {
-          scrollTrigger: {
-            trigger: item,
-            start: 'top 85%',
-          },
-          y: 0,
-          opacity: 1,
-          clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)',
-          duration: 1.6,
-          ease: 'power3.out',
-          delay: i % 2 === 0 ? 0 : 0.2
-        }
-      );
-    });
-    
     // Horizontal Slider
     const sliderWrapper = container.current?.querySelector('.horizontal-slider-wrapper') as HTMLElement;
     const slider = container.current?.querySelector('.horizontal-slider') as HTMLElement;
@@ -233,6 +213,28 @@ export default function Home() {
     );
 
   }, { scope: container, dependencies: [isLoaded] });
+
+  // Product sections arrive asynchronously, independently of the intro animation.
+  useGSAP(() => {
+    if (!isLoaded) return;
+
+    const items = gsap.utils.toArray<HTMLElement>('.collection-item');
+    items.forEach((item, i) => {
+      gsap.fromTo(item,
+        { y: 100, opacity: 0, clipPath: 'polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)' },
+        {
+          scrollTrigger: { trigger: item, start: 'top 85%' },
+          y: 0,
+          opacity: 1,
+          clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)',
+          duration: 1.6,
+          ease: 'power3.out',
+          delay: i % 2 === 0 ? 0 : 0.2,
+        },
+      );
+    });
+    ScrollTrigger.refresh();
+  }, { scope: container, dependencies: [isLoaded, homepageSections, homepageSettings], revertOnUpdate: true });
 
   // Helpers
   const splitText = (text: string) => {
@@ -339,7 +341,7 @@ export default function Home() {
       </section>
 
       {/* SIGNATURE SILHOUETTES */}
-      {homepageSettings.signatureSilhouettes.enabled && (
+      {homepageSettings.signatureSilhouettes.enabled && signatureProducts.length > 0 && (
       <section className="py-24 md:py-32 px-4 md:px-12 max-w-[1800px] mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-end mb-16 md:mb-24 gap-8 px-2 md:px-6">
           <h2 className="font-serif text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-[0.9] tracking-tighter">
@@ -353,96 +355,108 @@ export default function Home() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-12 lg:items-stretch">
           {/* Main Featured Item */}
-          <div className="collection-item group lg:col-span-6 flex flex-col relative cursor-pointer h-full">
-            <Link to={signatureProducts[0] ? `/product/${signatureProducts[0].slug}` : '/shop'} className="w-full flex-1 flex flex-col relative outline-none block h-full">
-                <div className="overflow-hidden rounded-[1.5rem] relative bg-stone-100 flex-1 aspect-[4/5] lg:aspect-auto">
+          <div className={`collection-item group ${signatureProducts.length > 1 ? 'lg:col-span-6' : 'lg:col-span-12'} flex flex-col relative cursor-pointer h-full`}>
+            {signatureProducts[0] && (
+            <Link to={`/product/${signatureProducts[0].slug}`} className="w-full flex-1 flex flex-col relative outline-none block h-full">
+                <div className={`overflow-hidden rounded-[1.5rem] relative bg-stone-100 flex-1 aspect-[4/5] ${signatureProducts.length > 1 ? 'lg:aspect-auto' : ''}`}>
                   <img 
-                    src={signatureProducts[0]?.image || "https://images.unsplash.com/photo-1590874103328-eac38a683ce7?q=80&w=1200&auto=format&fit=crop"}
-                    alt={signatureProducts[0]?.name || 'Classic Tote'}
+                    src={signatureProducts[0].image}
+                    alt={signatureProducts[0].name}
                     className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                 </div>
                 <div className="flex justify-between items-start font-sans mt-6 px-2 lg:mt-8 pb-4 lg:pb-0">
                   <div>
-                    <p className="text-[10px] tracking-[0.25em] uppercase mb-2 text-stone-500">01 &mdash; {signatureProducts[0]?.category || 'Classic Tote'}</p>
-                    <h3 className="text-3xl font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[0]?.name || 'The Drape Tote'}</h3>
+                    <p className="text-[10px] tracking-[0.25em] uppercase mb-2 text-stone-500">01 &mdash; {signatureProducts[0].category}</p>
+                    <h3 className="text-3xl font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[0].name}</h3>
                   </div>
-                  <span className="text-sm font-light mt-1 text-[#1a1a1a]">{formatPrice(signatureProducts[0]?.price ?? 68000)}</span>
+                  <span className="text-sm font-light mt-1 text-[#1a1a1a]">{formatPrice(signatureProducts[0].price)}</span>
                 </div>
             </Link>
+            )}
           </div>
 
           {/* Right Side 2x2 Grid */}
+          {signatureProducts.length > 1 && (
           <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-8 md:gap-12 h-full">
-            <Link to={signatureProducts[1] ? `/product/${signatureProducts[1].slug}` : '/shop'} className="collection-item group flex flex-col h-full cursor-pointer">
+            {signatureProducts[1] && (
+            <Link to={`/product/${signatureProducts[1].slug}`} className="collection-item group flex flex-col h-full cursor-pointer">
                 <div className="overflow-hidden rounded-[1.5rem] relative flex-1 aspect-[4/5] bg-stone-100">
                     <img 
-                        src={signatureProducts[1]?.image || "https://images.unsplash.com/photo-1548036328-c928907cfcb7?q=80&w=1200&auto=format&fit=crop"}
-                        alt={signatureProducts[1]?.name || 'Hobo Shoulder Bag'}
+                        src={signatureProducts[1].image}
+                        alt={signatureProducts[1].name}
                         className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                     />
                 </div>
                 <div className="flex justify-between items-start font-sans mt-4 px-2 pb-4 lg:pb-0">
                    <div>
-                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[1]?.category || 'Hobo Shoulder Bag'}</p>
-                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[1]?.name || 'Structured Hobo'}</h3>
+                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[1].category}</p>
+                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[1].name}</h3>
                    </div>
-                   <span className="text-sm font-light text-[#1a1a1a]">{formatPrice(signatureProducts[1]?.price ?? 33600)}</span>
+                   <span className="text-sm font-light text-[#1a1a1a]">{formatPrice(signatureProducts[1].price)}</span>
                 </div>
             </Link>
+            )}
 
-            <Link to={signatureProducts[2] ? `/product/${signatureProducts[2].slug}` : '/shop'} className="collection-item group flex flex-col h-full cursor-pointer">
+            {signatureProducts[2] && (
+            <Link to={`/product/${signatureProducts[2].slug}`} className="collection-item group flex flex-col h-full cursor-pointer">
                 <div className="overflow-hidden rounded-[1.5rem] relative flex-1 aspect-[4/5] bg-stone-100">
                     <img 
-                        src={signatureProducts[2]?.image || "https://images.unsplash.com/photo-1591561954557-26941169b49e?q=80&w=1600&auto=format&fit=crop"}
-                        alt={signatureProducts[2]?.name || 'Crossbody Bag'}
+                        src={signatureProducts[2].image}
+                        alt={signatureProducts[2].name}
                         className="w-full h-full absolute inset-0 object-cover object-[center_30%] transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                     />
                 </div>
                 <div className="flex justify-between items-start font-sans mt-4 px-2 pb-4 lg:pb-0">
                    <div>
-                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[2]?.category || 'Crossbody Bag'}</p>
-                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[2]?.name || 'Woven Crossbody'}</h3>
+                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[2].category}</p>
+                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[2].name}</h3>
                    </div>
-                   <span className="text-sm font-light text-[#1a1a1a]">{formatPrice(signatureProducts[2]?.price ?? 48000)}</span>
+                   <span className="text-sm font-light text-[#1a1a1a]">{formatPrice(signatureProducts[2].price)}</span>
                 </div>
             </Link>
+            )}
 
-            <Link to={signatureProducts[3] ? `/product/${signatureProducts[3].slug}` : '/shop'} className="collection-item group flex flex-col h-full cursor-pointer">
+            {signatureProducts[3] && (
+            <Link to={`/product/${signatureProducts[3].slug}`} className="collection-item group flex flex-col h-full cursor-pointer">
                 <div className="overflow-hidden rounded-[1.5rem] relative flex-1 aspect-[4/5] bg-stone-100">
                     <img 
-                        src={signatureProducts[3]?.image || "https://images.unsplash.com/photo-1581605405669-fcdf81165afa?q=80&w=800&auto=format&fit=crop"}
-                        alt={signatureProducts[3]?.name || 'Top Handle Bag'}
+                        src={signatureProducts[3].image}
+                        alt={signatureProducts[3].name}
                         className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                     />
                 </div>
                 <div className="flex justify-between items-start font-sans mt-4 px-2 pb-4 lg:pb-0">
                    <div>
-                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[3]?.category || 'Top Handle Bag'}</p>
-                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[3]?.name || 'Mono Top-Handle'}</h3>
+                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[3].category}</p>
+                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[3].name}</h3>
                    </div>
-                   <span className="text-sm font-light text-[#1a1a1a]">{formatPrice(signatureProducts[3]?.price ?? 256000)}</span>
+                   <span className="text-sm font-light text-[#1a1a1a]">{formatPrice(signatureProducts[3].price)}</span>
                 </div>
             </Link>
+            )}
 
-            <Link to={signatureProducts[4] ? `/product/${signatureProducts[4].slug}` : '/shop'} className="collection-item group flex flex-col h-full cursor-pointer">
+            {signatureProducts[4] && (
+            <Link to={`/product/${signatureProducts[4].slug}`} className="collection-item group flex flex-col h-full cursor-pointer">
                 <div className="overflow-hidden rounded-[1.5rem] relative flex-1 aspect-[4/5] bg-stone-100">
                     <img 
-                        src={signatureProducts[4]?.image || "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?q=80&w=1200&auto=format&fit=crop"}
-                        alt={signatureProducts[4]?.name || 'Chain Clutch'}
+                        src={signatureProducts[4].image}
+                        alt={signatureProducts[4].name}
                         className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                     />
                 </div>
                 <div className="flex justify-between items-start font-sans mt-4 px-2 pb-4 lg:pb-0">
                    <div>
-                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[4]?.category || 'Chain Clutch'}</p>
-                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[4]?.name || 'Classic Box Clutch'}</h3>
+                       <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">{signatureProducts[4].category}</p>
+                       <h3 className="text-lg font-serif tracking-tight text-[#1a1a1a]">{signatureProducts[4].name}</h3>
                    </div>
-                   <span className="text-sm font-light text-[#1a1a1a]">{formatPrice(signatureProducts[4]?.price ?? 96000)}</span>
+                   <span className="text-sm font-light text-[#1a1a1a]">{formatPrice(signatureProducts[4].price)}</span>
                 </div>
             </Link>
+            )}
           </div>
+          )}
         </div>
 
         <div className="flex justify-center mt-24">
@@ -455,7 +469,7 @@ export default function Home() {
       )}
 
       {/* THE ARCHIVE - EDITORIAL GRID */}
-      {homepageSettings.artisanCrafted.enabled && (
+      {homepageSettings.artisanCrafted.enabled && artisanProducts.length > 0 && (
       <section className="py-24 md:py-32 px-4 md:px-12 max-w-[1800px] mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start mb-16 md:mb-24 gap-8">
             <div className="md:w-1/2">
@@ -476,61 +490,68 @@ export default function Home() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 lg:gap-12">
             {/* Left Column */}
-            <div className="lg:col-span-4 flex flex-col">
-                <Link to={artisanProducts[0] ? `/product/${artisanProducts[0].slug}` : '/shop'} className="collection-item group block h-full flex flex-col cursor-pointer">
-                    <div className="overflow-hidden rounded-[1.5rem] relative aspect-[3/4] sm:aspect-square lg:aspect-auto flex-1 bg-stone-100 mb-6">
+            <div className={`${artisanProducts.length > 1 ? 'lg:col-span-4' : 'lg:col-span-12'} flex flex-col`}>
+                {artisanProducts[0] && (
+                <Link to={`/product/${artisanProducts[0].slug}`} className="collection-item group block h-full flex flex-col cursor-pointer">
+                    <div className={`overflow-hidden rounded-[1.5rem] relative aspect-[3/4] sm:aspect-square ${artisanProducts.length > 1 ? 'lg:aspect-auto' : ''} flex-1 bg-stone-100 mb-6`}>
                         <img 
-                            src={artisanProducts[0]?.image || "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?q=80&w=1200&auto=format&fit=crop"}
-                            alt={artisanProducts[0]?.name || 'Soft Calfskin Pouch'}
+                            src={artisanProducts[0].image}
+                            alt={artisanProducts[0].name}
                             className="w-full h-full absolute inset-0 object-cover transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                         />
                     </div>
                     <div className="flex justify-between items-start font-sans px-2 pb-6 lg:pb-0">
                        <div>
                            <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">Archive &mdash; 01</p>
-                           <h3 className="text-xl font-serif tracking-tight text-[#1a1a1a]">{artisanProducts[0]?.name || 'Soft Calfskin Pouch'}</h3>
+                           <h3 className="text-xl font-serif tracking-tight text-[#1a1a1a]">{artisanProducts[0].name}</h3>
                        </div>
                     </div>
                 </Link>
+                )}
             </div>
 
             {/* Right Column */}
+            {artisanProducts.length > 1 && (
             <div className="lg:col-span-8 flex flex-col gap-6 md:gap-8 lg:gap-12">
                 {/* Top Wide Image */}
-                <Link to={artisanProducts[1] ? `/product/${artisanProducts[1].slug}` : '/shop'} className="collection-item group block cursor-pointer">
+                {artisanProducts[1] && (
+                <Link to={`/product/${artisanProducts[1].slug}`} className="collection-item group block cursor-pointer">
                     <div className="overflow-hidden rounded-[1.5rem] relative aspect-[4/3] md:aspect-[21/9] bg-stone-100 mb-6">
                         <img 
-                            src={artisanProducts[1]?.image || "https://images.unsplash.com/photo-1551028719-00167b16eac5?q=80&w=1600&auto=format&fit=crop"}
-                            alt={artisanProducts[1]?.name || 'Calfskin Weekend'}
+                            src={artisanProducts[1].image}
+                            alt={artisanProducts[1].name}
                             className="w-full h-full absolute inset-0 object-cover object-[center_30%] transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                         />
                     </div>
                     <div className="flex justify-between items-start font-sans px-2">
                        <div>
                            <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">Archive &mdash; 02</p>
-                           <h3 className="text-xl font-serif tracking-tight text-[#1a1a1a]">{artisanProducts[1]?.name || 'Calfskin Weekend'}</h3>
+                           <h3 className="text-xl font-serif tracking-tight text-[#1a1a1a]">{artisanProducts[1].name}</h3>
                        </div>
                     </div>
                 </Link>
+                )}
 
                 {/* Bottom Row inside Right Column */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 md:gap-8 lg:gap-12 flex-1">
                     {/* Item 3 */}
-                    <Link to={artisanProducts[2] ? `/product/${artisanProducts[2].slug}` : '/shop'} className="collection-item group block flex flex-col h-full cursor-pointer">
+                    {artisanProducts[2] && (
+                    <Link to={`/product/${artisanProducts[2].slug}`} className="collection-item group block flex flex-col h-full cursor-pointer">
                         <div className="overflow-hidden rounded-[1.5rem] relative aspect-square bg-stone-100 mb-6 flex-1">
                             <img 
-                                src={artisanProducts[2]?.image || "https://images.unsplash.com/photo-1511499767150-a48a237f0083?q=80&w=800&auto=format&fit=crop"}
-                                alt={artisanProducts[2]?.name || 'Acetate Chain Mini'}
+                                src={artisanProducts[2].image}
+                                alt={artisanProducts[2].name}
                                 className="w-full h-full absolute inset-0 object-cover transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                             />
                         </div>
                         <div className="flex justify-between items-start font-sans px-2 pb-6 sm:pb-0">
                            <div>
                                <p className="text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-500">Archive &mdash; 03</p>
-                               <h3 className="text-xl font-serif tracking-tight text-[#1a1a1a]">{artisanProducts[2]?.name || 'Acetate Chain Mini'}</h3>
+                               <h3 className="text-xl font-serif tracking-tight text-[#1a1a1a]">{artisanProducts[2].name}</h3>
                            </div>
                         </div>
                     </Link>
+                    )}
 
                     {/* Quote Box */}
                     <div className="p-8 md:p-12 bg-stone-100 rounded-[1.5rem] flex flex-col justify-between h-full min-h-[300px]">
@@ -545,6 +566,7 @@ export default function Home() {
                     </div>
                 </div>
             </div>
+            )}
         </div>
       </section>
       )}
@@ -567,7 +589,7 @@ export default function Home() {
       </section>
 
       {/* PERMANENT COLLECTION (EDITORIAL GRID) */}
-      {homepageSettings.everydayCarry.enabled && (
+      {homepageSettings.everydayCarry.enabled && carryProducts.length > 0 && (
       <section className="py-24 md:py-32 bg-[#1a1a1a] text-[#fcfbf9] rounded-b-[2rem] md:rounded-b-[3rem]">
         <div className="px-4 md:px-12 max-w-[1800px] mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 md:mb-24 gap-8">
@@ -589,12 +611,13 @@ export default function Home() {
 
             <div className="flex flex-col lg:flex-row gap-6 md:gap-8 xl:h-[80vh]">
                {/* Left Big Item */}
-               <Link to={carryProducts[0] ? `/product/${carryProducts[0].slug}` : '/shop'} className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 w-full lg:w-5/12 h-[52vh] md:h-[60vh] xl:h-full cursor-pointer">
-                  <img src={carryProducts[0]?.image || "https://images.unsplash.com/photo-1485231183945-fd66023fd5ca?q=80&w=1200&auto=format&fit=crop"} className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[0]?.name || "Leather Carryall"} />
+               {carryProducts[0] && (
+               <Link to={`/product/${carryProducts[0].slug}`} className={`collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 w-full ${carryProducts.length > 1 ? 'lg:w-5/12' : ''} h-[52vh] md:h-[60vh] xl:h-full cursor-pointer`}>
+                  <img src={carryProducts[0].image} className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[0].name} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 transition-opacity group-hover:opacity-60"></div>
                   
                   <div className="absolute top-0 w-full p-6 lg:p-8 flex justify-between items-start z-10">
-                     <span className="bg-[#fcfbf9] text-[#1a1a1a] text-[9px] uppercase tracking-widest px-4 py-2 rounded-full font-bold shadow-sm">{carryProducts[0]?.category || 'Classic Tote'}</span>
+                     <span className="bg-[#fcfbf9] text-[#1a1a1a] text-[9px] uppercase tracking-widest px-4 py-2 rounded-full font-bold shadow-sm">{carryProducts[0].category}</span>
                      <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center -translate-y-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500">
                         <ArrowUpRight size={16} className="text-white" />
                      </div>
@@ -603,62 +626,73 @@ export default function Home() {
                   <div className="absolute bottom-0 w-full p-6 lg:p-8 z-10 flex flex-col md:flex-row md:justify-between md:items-end gap-2">
                      <div>
                         <p className="font-sans text-[10px] tracking-[0.25em] uppercase mb-2 text-stone-300">C-01</p>
-                        <h3 className="font-serif text-3xl lg:text-4xl tracking-tight text-white mb-1">{carryProducts[0]?.name || 'Leather Carryall'}</h3>
+                        <h3 className="font-serif text-3xl lg:text-4xl tracking-tight text-white mb-1">{carryProducts[0].name}</h3>
                      </div>
-                     <p className="font-sans text-sm text-stone-300 font-light pb-1 md:pb-2">{formatPrice(carryProducts[0]?.price ?? 36000)}</p>
+                     <p className="font-sans text-sm text-stone-300 font-light pb-1 md:pb-2">{formatPrice(carryProducts[0].price)}</p>
                   </div>
                </Link>
+               )}
 
                {/* Right Side Stacked layout */}
+               {carryProducts.length > 1 && (
                <div className="w-full lg:w-7/12 flex flex-col gap-6 md:gap-8 h-full">
                    
                    {/* Top Wide Item */}
-                   <Link to={carryProducts[1] ? `/product/${carryProducts[1].slug}` : '/shop'} className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 min-h-[40vh] md:min-h-[45vh] xl:min-h-0 cursor-pointer">
-                       <img src={carryProducts[1]?.image || "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?q=80&w=1600&auto=format&fit=crop"} className="absolute inset-0 w-full h-full object-cover object-[center_30%] opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[1]?.name || "Structured Hobo"} />
+                   {carryProducts[1] && (
+                   <Link to={`/product/${carryProducts[1].slug}`} className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 min-h-[40vh] md:min-h-[45vh] xl:min-h-0 cursor-pointer">
+                       <img src={carryProducts[1].image} className="absolute inset-0 w-full h-full object-cover object-[center_30%] opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[1].name} />
                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 transition-opacity group-hover:opacity-60"></div>
                        
                        <div className="absolute top-0 w-full p-6 flex justify-between items-start z-10">
-                         <span className="bg-[#fcfbf9]/10 backdrop-blur-md text-white text-[9px] uppercase tracking-widest px-4 py-2 rounded-full font-medium shadow-sm border border-white/10">{carryProducts[1]?.category || 'Hobo Shoulder Bag'}</span>
+                         <span className="bg-[#fcfbf9]/10 backdrop-blur-md text-white text-[9px] uppercase tracking-widest px-4 py-2 rounded-full font-medium shadow-sm border border-white/10">{carryProducts[1].category}</span>
                        </div>
 
                        <div className="absolute bottom-0 w-full p-6 z-10 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-2">
                          <div>
                             <p className="font-sans text-[10px] tracking-[0.25em] uppercase mb-2 text-stone-300">C-02</p>
-                            <h3 className="font-serif text-2xl lg:text-3xl tracking-tight text-white mb-1">{carryProducts[1]?.name || 'Structured Hobo'}</h3>
+                            <h3 className="font-serif text-2xl lg:text-3xl tracking-tight text-white mb-1">{carryProducts[1].name}</h3>
                          </div>
-                         <p className="font-sans text-sm text-stone-300 font-light sm:pb-1">{formatPrice(carryProducts[1]?.price ?? 33600)}</p>
+                         <p className="font-sans text-sm text-stone-300 font-light sm:pb-1">{formatPrice(carryProducts[1].price)}</p>
                        </div>
                    </Link>
+                   )}
 
                    {/* Bottom Split Items */}
+                   {carryProducts.length > 2 && (
                    <div className="flex flex-col sm:flex-row gap-6 md:gap-8 flex-1 min-h-[40vh] md:min-h-[45vh] xl:min-h-0">
-                       <Link to={carryProducts[2] ? `/product/${carryProducts[2].slug}` : '/shop'} className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 aspect-square sm:aspect-auto cursor-pointer">
-                           <img src={carryProducts[2]?.image || "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?q=80&w=1200&auto=format&fit=crop"} className="absolute inset-0 w-full h-full object-cover object-center opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[2]?.name || "Soft Calfskin Pouch"} />
+                       {carryProducts[2] && (
+                       <Link to={`/product/${carryProducts[2].slug}`} className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 aspect-square sm:aspect-auto cursor-pointer">
+                           <img src={carryProducts[2].image} className="absolute inset-0 w-full h-full object-cover object-center opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[2].name} />
                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 z-0 transition-opacity group-hover:opacity-60"></div>
                            
                            <div className="absolute bottom-0 w-full p-5 md:p-6 z-10">
-                              <p className="font-sans text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-300">{carryProducts[2]?.category || 'Hobo Shoulder Bag'}</p>
+                              <p className="font-sans text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-300">{carryProducts[2].category}</p>
                               <div className="flex justify-between items-end">
-                                  <h3 className="font-serif text-xl lg:text-3xl tracking-tight text-white pr-2">{carryProducts[2]?.name || 'Soft Calfskin'}</h3>
-                                  <p className="font-sans text-sm text-stone-300 font-light whitespace-nowrap mb-1">{formatPrice(carryProducts[2]?.price ?? 25600)}</p>
+                                  <h3 className="font-serif text-xl lg:text-3xl tracking-tight text-white pr-2">{carryProducts[2].name}</h3>
+                                  <p className="font-sans text-sm text-stone-300 font-light whitespace-nowrap mb-1">{formatPrice(carryProducts[2].price)}</p>
                               </div>
                            </div>
                        </Link>
+                       )}
 
-                       <Link to={carryProducts[3] ? `/product/${carryProducts[3].slug}` : '/shop'} className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 aspect-square sm:aspect-auto cursor-pointer">
-                           <img src={carryProducts[3]?.image || "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?q=80&w=1200&auto=format&fit=crop"} className="absolute inset-0 w-full h-full object-cover object-center opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[3]?.name || "Brutalist Minaudiere"} />
+                       {carryProducts[3] && (
+                       <Link to={`/product/${carryProducts[3].slug}`} className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 aspect-square sm:aspect-auto cursor-pointer">
+                           <img src={carryProducts[3].image} className="absolute inset-0 w-full h-full object-cover object-center opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[3].name} />
                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 z-0 transition-opacity group-hover:opacity-60"></div>
                            
                            <div className="absolute bottom-0 w-full p-5 md:p-6 z-10">
-                              <p className="font-sans text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-300">{carryProducts[3]?.category || 'Chain Clutch'}</p>
+                              <p className="font-sans text-[9px] tracking-[0.25em] uppercase mb-1 text-stone-300">{carryProducts[3].category}</p>
                               <div className="flex justify-between items-end">
-                                  <h3 className="font-serif text-xl lg:text-3xl tracking-tight text-white pr-2">{carryProducts[3]?.name || 'Minaudiere'}</h3>
-                                  <p className="font-sans text-sm text-stone-300 font-light whitespace-nowrap mb-1">{formatPrice(carryProducts[3]?.price ?? 17600)}</p>
+                                  <h3 className="font-serif text-xl lg:text-3xl tracking-tight text-white pr-2">{carryProducts[3].name}</h3>
+                                  <p className="font-sans text-sm text-stone-300 font-light whitespace-nowrap mb-1">{formatPrice(carryProducts[3].price)}</p>
                               </div>
                            </div>
                        </Link>
+                       )}
                    </div>
+                   )}
                </div>
+               )}
             </div>
             
             <div className="flex justify-center mt-16 md:mt-24 pb-8">
