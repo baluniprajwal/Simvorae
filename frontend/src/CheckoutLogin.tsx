@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import BrandWordmark from './components/BrandWordmark';
 import { motion } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, ChevronLeft, Eye, EyeOff, Lock, ShieldCheck, ShoppingBag, Truck } from 'lucide-react';
@@ -49,7 +50,7 @@ export default function CheckoutLogin() {
         <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-[#121212]/70 to-[#121212]/30" />
 
         <div className="relative z-10 flex items-center justify-between">
-          <Link to="/" className="cursor-pointer font-serif text-2xl uppercase tracking-widest transition-opacity hover:opacity-80 md:text-3xl">Simvorae</Link>
+          <Link to="/" aria-label="Simvorae home" className="cursor-pointer transition-opacity hover:opacity-80"><BrandWordmark /></Link>
           <div className="flex items-center gap-2 border border-white/10 bg-white/10 px-3 py-1.5 font-sans text-[9px] uppercase tracking-[0.2em] text-stone-300 backdrop-blur-md"><Lock size={11} /><span>Secure Access</span></div>
         </div>
 

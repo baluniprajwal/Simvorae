@@ -31,6 +31,58 @@ body {
   overflow-x: hidden;
 }
 
+.brand-wordmark {
+  display: inline-block;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 500;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .brand-wordmark {
+    font-size: 24px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .brand-wordmark {
+    font-size: 28px;
+  }
+}
+
+.brand-wordmark.brand-wordmark--decorative {
+  font-size: clamp(2rem, 12vw, 14rem);
+}
+
+.site-header {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@keyframes mobile-search-enter {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mobile-search-overlay {
+    animation: mobile-search-enter 220ms ease-out;
+  }
+}
+
+.auth-brand-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 7rem;
+  background: linear-gradient(to bottom, rgb(0 0 0 / 45%), transparent);
+  pointer-events: none;
+}
+
 @media (pointer: fine) {
   .admin-scrollbar {
     scrollbar-width: thin;

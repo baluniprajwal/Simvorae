@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import BrandWordmark from './components/BrandWordmark';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
@@ -1421,8 +1422,8 @@ export default function Admin() {
       <div className="pointer-events-none fixed inset-0 z-0 opacity-[0.03]" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/stardust.png")' }} />
 
       <div className="fixed left-0 right-0 top-0 z-40 flex h-16 items-center justify-between border-b border-stone-200 bg-[#fcfbf9] px-6 lg:hidden">
-        <Link to="/" className="font-serif text-xl uppercase tracking-widest text-[#1a1a1a]">
-          Simvorae
+        <Link to="/" aria-label="Simvorae home" className="text-[#1a1a1a]">
+          <BrandWordmark />
         </Link>
         <button
           type="button"
@@ -1455,8 +1456,8 @@ export default function Admin() {
 
       <aside className={`fixed left-0 top-0 z-50 flex h-[100dvh] w-64 flex-col border-r border-stone-200 bg-[#fcfbf9] p-8 transition-transform duration-300 lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="mb-16">
-          <Link to="/" className="font-serif text-2xl uppercase tracking-widest text-[#1a1a1a] transition-opacity hover:opacity-70">
-            Simvorae
+          <Link to="/" aria-label="Simvorae home" className="text-[#1a1a1a] transition-opacity hover:opacity-70">
+            <BrandWordmark />
             <span className="mt-2 block font-sans text-[8px] font-bold uppercase tracking-[0.3em] text-stone-400">ADMIN PORTAL</span>
           </Link>
         </div>

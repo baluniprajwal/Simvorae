@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { ArrowUpRight, Play } from 'lucide-react';
-import { useCartStore } from './store/cartStore';
+import { ArrowUpRight } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import BrandWordmark from './components/BrandWordmark';
+import HomepageSectionSkeleton from './components/HomepageSectionSkeleton';
 import { fetchJson } from './lib/api';
 import type { Product } from './types/product';
 import { useCurrency } from './contexts/CurrencyContext';
@@ -54,10 +55,9 @@ export default function Home() {
     }
   });
   const [isLoaded, setIsLoaded] = useState(skipIntro);
-  const [progress, setProgress] = useState(0);
+  const [isProductsLoading, setIsProductsLoading] = useState(true);
   const [homepageSections, setHomepageSections] = useState<HomepageSections>(emptyHomepageSections());
   const [homepageSettings, setHomepageSettings] = useState<HomepageSettings>(defaultHomepageSettings());
-  const { toggleCart, getCartCount } = useCartStore();
   const { formatPrice } = useCurrency();
   const signatureProducts = homepageSections.signatureSilhouettes;
   const artisanProducts = homepageSections.artisanCrafted;
@@ -75,6 +75,9 @@ export default function Home() {
       })
       .catch(() => {
         // Keep the editorial page usable even if merchandising data is temporarily unavailable.
+      })
+      .finally(() => {
+        if (isMounted) setIsProductsLoading(false);
       });
 
     return () => {
@@ -82,79 +85,51 @@ export default function Home() {
     };
   }, []);
 
-  // Fake Loading Progress
+  // A short brand introduction, not an artificial percentage-loading delay.
   useEffect(() => {
     if (skipIntro) return;
-    let currentProgress = 0;
-    const interval = setInterval(() => {
-      currentProgress += Math.floor(Math.random() * 15) + 5;
-      if (currentProgress >= 100) {
-        currentProgress = 100;
-        clearInterval(interval);
-        setTimeout(() => {
-          setIsLoaded(true);
-          try {
-            window.sessionStorage.setItem(INTRO_SEEN_KEY, '1');
-          } catch {
-            // Without storage the intro simply plays again next time.
-          }
-        }, 400); // slight delay when at 100 before leaving
+    const delay = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 0 : 350;
+    const timeout = window.setTimeout(() => {
+      setIsLoaded(true);
+      try {
+        window.sessionStorage.setItem(INTRO_SEEN_KEY, '1');
+      } catch {
+        // Without storage the intro simply plays again next time.
       }
-      setProgress(currentProgress);
-    }, 120);
-    return () => clearInterval(interval);
+    }, delay);
+    return () => window.clearTimeout(timeout);
   }, [skipIntro]);
 
   // Main Animations
   useGSAP(() => {
     if (!isLoaded) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
 
     const tl = gsap.timeline();
 
-    // 1. Preloader out
-    if (!skipIntro) {
-      tl.to('.preloader', {
-        duration: 1.2,
-        clipPath: 'polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)',
-        ease: 'power4.inOut',
-      });
-    }
-
     // 2. Hero Image Reveal
     tl.fromTo('.hero-img-inner',
-      { scale: 1.4, opacity: 0, clipPath: 'polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)' },
-      { scale: 1, opacity: 1, clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)', duration: 2, ease: 'power4.out' },
-      '-=0.6'
-    );
-
-    // 3. Navbar fade in
-    tl.fromTo('.nav-item', 
-      { y: -20, opacity: 0 },
-      {
-        y: 0,
-        opacity: 1,
-        duration: 1,
-        ease: 'power3.out',
-        stagger: 0.1
-      }, '-=1.5'
+      { scale: 1.08, opacity: 0 },
+      { scale: 1, opacity: 1, duration: 0.9, ease: 'power3.out' },
+      0
     );
 
     // 4. Hero Text Reveal (Chars/Words)
     tl.from('.hero-word span', {
-      yPercent: 120,
+      yPercent: 60,
       opacity: 0,
       rotationZ: 3,
-      duration: 1.4,
+      duration: 0.75,
       ease: 'power4.out',
-      stagger: 0.04
-    }, '-=1.6');
+      stagger: 0.015
+    }, 0.1);
     
     tl.from('.hero-sub-text', {
       opacity: 0,
       x: -20,
-      duration: 1,
+      duration: 0.6,
       ease: 'power2.out'
-    }, '-=1');
+    }, 0.2);
 
     // -- Scroll Animations --
     
@@ -166,16 +141,8 @@ export default function Home() {
         end: 'bottom top',
         scrub: true,
       },
-      yPercent: 25,
+      yPercent: 12,
       ease: 'none'
-    });
-
-    // Marquee
-    gsap.to('.marquee-track', {
-      xPercent: -50,
-      ease: 'none',
-      duration: 20,
-      repeat: -1,
     });
 
     // Horizontal Slider
@@ -217,30 +184,30 @@ export default function Home() {
   // Product sections arrive asynchronously, independently of the intro animation.
   useGSAP(() => {
     if (!isLoaded) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
 
     const items = gsap.utils.toArray<HTMLElement>('.collection-item');
     items.forEach((item, i) => {
       gsap.fromTo(item,
-        { y: 100, opacity: 0, clipPath: 'polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)' },
+        { y: 40, opacity: 0 },
         {
           scrollTrigger: { trigger: item, start: 'top 85%' },
           y: 0,
           opacity: 1,
-          clipPath: 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)',
-          duration: 1.6,
+          duration: 0.8,
           ease: 'power3.out',
-          delay: i % 2 === 0 ? 0 : 0.2,
+          delay: i % 2 === 0 ? 0 : 0.08,
         },
       );
     });
     ScrollTrigger.refresh();
-  }, { scope: container, dependencies: [isLoaded, homepageSections, homepageSettings], revertOnUpdate: true });
+  }, { scope: container, dependencies: [isLoaded, isProductsLoading, homepageSections, homepageSettings], revertOnUpdate: true });
 
   // Helpers
   const splitText = (text: string) => {
     return text.split('').map((char, i) => (
       <span key={i} className="inline-block whitespace-pre">
-        {char === ' ' ? '&nbsp;' : char}
+        {char}
       </span>
     ));
   };
@@ -252,19 +219,10 @@ export default function Home() {
       <div className="pointer-events-none fixed inset-0 z-40 h-full w-full opacity-[0.035]" style={{backgroundImage: 'url("https://www.transparenttextures.com/patterns/stardust.png")'}}></div>
 
       {/* PRELOADER */}
-      {!skipIntro && (
-      <div className="preloader fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#1a1a1a] text-[#fcfbf9]">
-        <div className="overflow-hidden mb-4">
-          <div className="font-serif text-5xl md:text-7xl italic tracking-wider font-light" style={{ transform: isLoaded ? 'translateY(100%)' : 'translateY(0)', transition: 'transform 0.8s cubic-bezier(0.2,1,0.2,1)' }}>
-            Simvorae
-          </div>
-        </div>
-        <div className="w-48 h-[1px] bg-white/20 relative mt-4">
-          <div className="absolute top-0 left-0 h-full bg-white transition-all duration-300" style={{ width: `${progress}%` }}></div>
-        </div>
-        <div className="mt-4 font-sans text-[10px] tracking-[0.3em] font-light opacity-50">
-          {progress.toString().padStart(3, '0')}%
-        </div>
+      {!skipIntro && !isLoaded && (
+      <div role="status" aria-label="Opening Simvorae" className="preloader pointer-events-none fixed inset-0 z-[180] flex flex-col items-center justify-center gap-6 bg-[#1a1a1a] text-[#fcfbf9]">
+        <BrandWordmark />
+        <div aria-hidden="true" className="h-px w-20 bg-white/30" />
       </div>
       )}
 
@@ -277,6 +235,10 @@ export default function Home() {
             <img 
               className="hero-img-inner absolute inset-0 w-full h-full object-cover object-[center_30%] will-change-transform"
               src="https://images.unsplash.com/photo-1591561954557-26941169b49e?q=80&w=2600&auto=format&fit=crop" 
+              srcSet="https://images.unsplash.com/photo-1591561954557-26941169b49e?q=80&w=800&auto=format&fit=crop 800w, https://images.unsplash.com/photo-1591561954557-26941169b49e?q=80&w=1600&auto=format&fit=crop 1600w, https://images.unsplash.com/photo-1591561954557-26941169b49e?q=80&w=2600&auto=format&fit=crop 2600w"
+              sizes="100vw"
+              fetchPriority="high"
+              decoding="async"
               alt="Luxury Handbag Editorial" 
             />
             {/* Dark contrast overlays */}
@@ -318,30 +280,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* MARQUEE SECTION */}
-      <section className="py-16 md:py-24 overflow-hidden border-y border-[#1a1a1a]/10 bg-stone-100">
-        <div className="marquee-track flex whitespace-nowrap font-serif text-6xl md:text-[6rem] opacity-70 text-stone-900">
-          <span className="px-8 font-light">NEW YORK</span>
-          <span className="px-8 italic text-stone-400">&mdash;</span>
-          <span className="px-8 font-light">PARIS</span>
-          <span className="px-8 italic text-stone-400">&mdash;</span>
-          <span className="px-8 font-light">MILAN</span>
-          <span className="px-8 italic text-stone-400">&mdash;</span>
-          <span className="px-8 font-light">LONDON</span>
-          <span className="px-8 italic text-stone-400">&mdash;</span>
-          <span className="px-8 font-light">TOKYO</span>
-          <span className="px-8 italic text-stone-400">&mdash;</span>
-          <span className="px-8 font-light">NEW YORK</span>
-          <span className="px-8 italic text-stone-400">&mdash;</span>
-          <span className="px-8 font-light">PARIS</span>
-          <span className="px-8 italic text-stone-400">&mdash;</span>
-          <span className="px-8 font-light">MILAN</span>
-          <span className="px-8 italic text-stone-400">&mdash;</span>
-        </div>
-      </section>
 
       {/* SIGNATURE SILHOUETTES */}
-      {homepageSettings.signatureSilhouettes.enabled && signatureProducts.length > 0 && (
+      {isProductsLoading && <HomepageSectionSkeleton variant="signature" />}
+      {!isProductsLoading && homepageSettings.signatureSilhouettes.enabled && signatureProducts.length > 0 && (
       <section className="py-24 md:py-32 px-4 md:px-12 max-w-[1800px] mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-end mb-16 md:mb-24 gap-8 px-2 md:px-6">
           <h2 className="font-serif text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-[0.9] tracking-tighter">
@@ -359,8 +301,7 @@ export default function Home() {
             {signatureProducts[0] && (
             <Link to={`/product/${signatureProducts[0].slug}`} className="w-full flex-1 flex flex-col relative outline-none block h-full">
                 <div className={`overflow-hidden rounded-[1.5rem] relative bg-stone-100 flex-1 aspect-[4/5] ${signatureProducts.length > 1 ? 'lg:aspect-auto' : ''}`}>
-                  <img 
-                    src={signatureProducts[0].image}
+                  <img loading="lazy" decoding="async" src={signatureProducts[0].image}
                     alt={signatureProducts[0].name}
                     className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                   />
@@ -383,8 +324,7 @@ export default function Home() {
             {signatureProducts[1] && (
             <Link to={`/product/${signatureProducts[1].slug}`} className="collection-item group flex flex-col h-full cursor-pointer">
                 <div className="overflow-hidden rounded-[1.5rem] relative flex-1 aspect-[4/5] bg-stone-100">
-                    <img 
-                        src={signatureProducts[1].image}
+                  <img loading="lazy" decoding="async" src={signatureProducts[1].image}
                         alt={signatureProducts[1].name}
                         className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                     />
@@ -402,8 +342,7 @@ export default function Home() {
             {signatureProducts[2] && (
             <Link to={`/product/${signatureProducts[2].slug}`} className="collection-item group flex flex-col h-full cursor-pointer">
                 <div className="overflow-hidden rounded-[1.5rem] relative flex-1 aspect-[4/5] bg-stone-100">
-                    <img 
-                        src={signatureProducts[2].image}
+                  <img loading="lazy" decoding="async" src={signatureProducts[2].image}
                         alt={signatureProducts[2].name}
                         className="w-full h-full absolute inset-0 object-cover object-[center_30%] transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                     />
@@ -421,8 +360,7 @@ export default function Home() {
             {signatureProducts[3] && (
             <Link to={`/product/${signatureProducts[3].slug}`} className="collection-item group flex flex-col h-full cursor-pointer">
                 <div className="overflow-hidden rounded-[1.5rem] relative flex-1 aspect-[4/5] bg-stone-100">
-                    <img 
-                        src={signatureProducts[3].image}
+                  <img loading="lazy" decoding="async" src={signatureProducts[3].image}
                         alt={signatureProducts[3].name}
                         className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                     />
@@ -440,8 +378,7 @@ export default function Home() {
             {signatureProducts[4] && (
             <Link to={`/product/${signatureProducts[4].slug}`} className="collection-item group flex flex-col h-full cursor-pointer">
                 <div className="overflow-hidden rounded-[1.5rem] relative flex-1 aspect-[4/5] bg-stone-100">
-                    <img 
-                        src={signatureProducts[4].image}
+                  <img loading="lazy" decoding="async" src={signatureProducts[4].image}
                         alt={signatureProducts[4].name}
                         className="w-full h-full absolute inset-0 object-cover object-center transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                     />
@@ -469,7 +406,8 @@ export default function Home() {
       )}
 
       {/* THE ARCHIVE - EDITORIAL GRID */}
-      {homepageSettings.artisanCrafted.enabled && artisanProducts.length > 0 && (
+      {isProductsLoading && <HomepageSectionSkeleton variant="artisan" />}
+      {!isProductsLoading && homepageSettings.artisanCrafted.enabled && artisanProducts.length > 0 && (
       <section className="py-24 md:py-32 px-4 md:px-12 max-w-[1800px] mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start mb-16 md:mb-24 gap-8">
             <div className="md:w-1/2">
@@ -494,8 +432,7 @@ export default function Home() {
                 {artisanProducts[0] && (
                 <Link to={`/product/${artisanProducts[0].slug}`} className="collection-item group block h-full flex flex-col cursor-pointer">
                     <div className={`overflow-hidden rounded-[1.5rem] relative aspect-[3/4] sm:aspect-square ${artisanProducts.length > 1 ? 'lg:aspect-auto' : ''} flex-1 bg-stone-100 mb-6`}>
-                        <img 
-                            src={artisanProducts[0].image}
+                      <img loading="lazy" decoding="async" src={artisanProducts[0].image}
                             alt={artisanProducts[0].name}
                             className="w-full h-full absolute inset-0 object-cover transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                         />
@@ -517,8 +454,7 @@ export default function Home() {
                 {artisanProducts[1] && (
                 <Link to={`/product/${artisanProducts[1].slug}`} className="collection-item group block cursor-pointer">
                     <div className="overflow-hidden rounded-[1.5rem] relative aspect-[4/3] md:aspect-[21/9] bg-stone-100 mb-6">
-                        <img 
-                            src={artisanProducts[1].image}
+                      <img loading="lazy" decoding="async" src={artisanProducts[1].image}
                             alt={artisanProducts[1].name}
                             className="w-full h-full absolute inset-0 object-cover object-[center_30%] transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                         />
@@ -538,8 +474,7 @@ export default function Home() {
                     {artisanProducts[2] && (
                     <Link to={`/product/${artisanProducts[2].slug}`} className="collection-item group block flex flex-col h-full cursor-pointer">
                         <div className="overflow-hidden rounded-[1.5rem] relative aspect-square bg-stone-100 mb-6 flex-1">
-                            <img 
-                                src={artisanProducts[2].image}
+                          <img loading="lazy" decoding="async" src={artisanProducts[2].image}
                                 alt={artisanProducts[2].name}
                                 className="w-full h-full absolute inset-0 object-cover transition-transform duration-[1.5s] ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-105"
                             />
@@ -577,6 +512,8 @@ export default function Home() {
           <img 
             className="campaign-img-inner absolute inset-0 w-full h-full object-cover object-center will-change-transform"
             src="https://images.unsplash.com/photo-1585487000160-6ebcfceb0d03?q=80&w=2000&auto=format&fit=crop" 
+            loading="lazy"
+            decoding="async"
             alt="Handbag Campaign Image" 
           />
           <div className="absolute inset-0 bg-black/40 mix-blend-multiply"></div>
@@ -589,7 +526,8 @@ export default function Home() {
       </section>
 
       {/* PERMANENT COLLECTION (EDITORIAL GRID) */}
-      {homepageSettings.everydayCarry.enabled && carryProducts.length > 0 && (
+      {isProductsLoading && <HomepageSectionSkeleton variant="carry" />}
+      {!isProductsLoading && homepageSettings.everydayCarry.enabled && carryProducts.length > 0 && (
       <section className="py-24 md:py-32 bg-[#1a1a1a] text-[#fcfbf9] rounded-b-[2rem] md:rounded-b-[3rem]">
         <div className="px-4 md:px-12 max-w-[1800px] mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 md:mb-24 gap-8">
@@ -613,11 +551,10 @@ export default function Home() {
                {/* Left Big Item */}
                {carryProducts[0] && (
                <Link to={`/product/${carryProducts[0].slug}`} className={`collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 w-full ${carryProducts.length > 1 ? 'lg:w-5/12' : ''} h-[52vh] md:h-[60vh] xl:h-full cursor-pointer`}>
-                  <img src={carryProducts[0].image} className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[0].name} />
+                 <img loading="lazy" decoding="async" src={carryProducts[0].image} className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[0].name} />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 transition-opacity group-hover:opacity-60"></div>
                   
-                  <div className="absolute top-0 w-full p-6 lg:p-8 flex justify-between items-start z-10">
-                     <span className="bg-[#fcfbf9] text-[#1a1a1a] text-[9px] uppercase tracking-widest px-4 py-2 rounded-full font-bold shadow-sm">{carryProducts[0].category}</span>
+                  <div className="absolute top-0 w-full p-6 lg:p-8 flex justify-end items-start z-10">
                      <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center -translate-y-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-500">
                         <ArrowUpRight size={16} className="text-white" />
                      </div>
@@ -640,13 +577,9 @@ export default function Home() {
                    {/* Top Wide Item */}
                    {carryProducts[1] && (
                    <Link to={`/product/${carryProducts[1].slug}`} className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 min-h-[40vh] md:min-h-[45vh] xl:min-h-0 cursor-pointer">
-                       <img src={carryProducts[1].image} className="absolute inset-0 w-full h-full object-cover object-[center_30%] opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[1].name} />
+                     <img loading="lazy" decoding="async" src={carryProducts[1].image} className="absolute inset-0 w-full h-full object-cover object-[center_30%] opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[1].name} />
                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 transition-opacity group-hover:opacity-60"></div>
                        
-                       <div className="absolute top-0 w-full p-6 flex justify-between items-start z-10">
-                         <span className="bg-[#fcfbf9]/10 backdrop-blur-md text-white text-[9px] uppercase tracking-widest px-4 py-2 rounded-full font-medium shadow-sm border border-white/10">{carryProducts[1].category}</span>
-                       </div>
-
                        <div className="absolute bottom-0 w-full p-6 z-10 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-2">
                          <div>
                             <p className="font-sans text-[10px] tracking-[0.25em] uppercase mb-2 text-stone-300">C-02</p>
@@ -662,7 +595,7 @@ export default function Home() {
                    <div className="flex flex-col sm:flex-row gap-6 md:gap-8 flex-1 min-h-[40vh] md:min-h-[45vh] xl:min-h-0">
                        {carryProducts[2] && (
                        <Link to={`/product/${carryProducts[2].slug}`} className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 aspect-square sm:aspect-auto cursor-pointer">
-                           <img src={carryProducts[2].image} className="absolute inset-0 w-full h-full object-cover object-center opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[2].name} />
+                         <img loading="lazy" decoding="async" src={carryProducts[2].image} className="absolute inset-0 w-full h-full object-cover object-center opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[2].name} />
                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 z-0 transition-opacity group-hover:opacity-60"></div>
                            
                            <div className="absolute bottom-0 w-full p-5 md:p-6 z-10">
@@ -677,7 +610,7 @@ export default function Home() {
 
                        {carryProducts[3] && (
                        <Link to={`/product/${carryProducts[3].slug}`} className="collection-item group relative block overflow-hidden rounded-[1.5rem] bg-stone-900 flex-1 aspect-square sm:aspect-auto cursor-pointer">
-                           <img src={carryProducts[3].image} className="absolute inset-0 w-full h-full object-cover object-center opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[3].name} />
+                         <img loading="lazy" decoding="async" src={carryProducts[3].image} className="absolute inset-0 w-full h-full object-cover object-center opacity-80 group-hover:opacity-100 transition-all duration-700 group-hover:scale-105" alt={carryProducts[3].name} />
                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80 z-0 transition-opacity group-hover:opacity-60"></div>
                            
                            <div className="absolute bottom-0 w-full p-5 md:p-6 z-10">

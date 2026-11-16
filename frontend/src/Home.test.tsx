@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product } from './types/product';
@@ -64,12 +64,15 @@ describe('homepage merchandising', () => {
 
   afterEach(() => {
     window.sessionStorage.clear();
+    vi.useRealTimers();
   });
 
   it('does not show dummy products while the request is loading', async () => {
     fetchJson.mockReturnValue(new Promise(() => {}));
     await renderHome();
     expectNoProductSections();
+    expect(screen.getAllByRole('status', { name: /Loading .* collection/ })).toHaveLength(3);
+    expect(screen.getByRole('status', { name: 'Loading signature collection' })).toHaveAttribute('aria-busy', 'true');
   });
 
   it('hides empty sections but keeps the editorial page and navigation', async () => {
@@ -81,6 +84,9 @@ describe('homepage merchandising', () => {
     expect(screen.getByRole('img', { name: 'Handbag Campaign Image' })).toBeInTheDocument();
     expect(screen.getByRole('contentinfo')).toBeInTheDocument();
     expect(fetchJson).toHaveBeenCalledWith('/api/products/homepage');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByText('NEW YORK')).not.toBeInTheDocument();
+    expect(screen.queryByText('MILAN')).not.toBeInTheDocument();
   });
 
   it.each([1, 2])('renders only real cards with %i product(s) per section', async (count) => {
@@ -95,10 +101,12 @@ describe('homepage merchandising', () => {
     expect(productLinks()).toHaveLength(count * 3);
     for (const item of Object.values(sections).flat()) {
       expect(screen.getByRole('img', { name: item.name })).toHaveAttribute('src', item.image);
+      expect(screen.getByRole('img', { name: item.name })).toHaveAttribute('loading', 'lazy');
       expect(screen.getByText(item.name)).toBeInTheDocument();
       expect(document.querySelector(`a[href="/product/${item.slug}"]`)).toBeInTheDocument();
     }
     expect(screen.getAllByText('INR 1234')).toHaveLength(count * 2);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(screen.queryByText('The Drape Tote')).not.toBeInTheDocument();
     expect(screen.queryByText('Structured Hobo')).not.toBeInTheDocument();
     expect(screen.queryByText('Leather Carryall')).not.toBeInTheDocument();
@@ -136,16 +144,65 @@ describe('homepage merchandising', () => {
     expect(screen.queryByText('Real bag signature')).not.toBeInTheDocument();
   });
 
+  it('does not overlay category pills on the everyday carry images', async () => {
+    const items = [product('carry-0'), product('carry-1')];
+    fetchJson.mockResolvedValue({ sections: { ...emptySections, everydayCarry: items } });
+    await renderHome();
+    expect(productLinks()).toHaveLength(2);
+    for (const item of items) {
+      const card = document.querySelector<HTMLAnchorElement>(`a[href="/product/${item.slug}"]`)!;
+      expect(within(card).queryByText(item.category)).not.toBeInTheDocument();
+      expect(within(card).getByText(item.name)).toBeInTheDocument();
+      expect(within(card).getByText('INR 1234')).toBeInTheDocument();
+    }
+  });
+
   it('does not invent products if the API fails', async () => {
     fetchJson.mockRejectedValue(new Error('Unavailable'));
     await renderHome();
     expectNoProductSections();
     expect(screen.getByRole('contentinfo')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('handles missing sections and settings without crashing', async () => {
     fetchJson.mockResolvedValue({});
     await renderHome();
     expectNoProductSections();
+  });
+
+  it('removes skeletons when a delayed empty response arrives', async () => {
+    let resolve!: (value: unknown) => void;
+    fetchJson.mockReturnValue(new Promise((done) => { resolve = done; }));
+    await renderHome();
+    expect(screen.getAllByRole('status')).toHaveLength(3);
+    await act(async () => { resolve({ sections: emptySections }); });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expectNoProductSections();
+  });
+
+  it('replaces skeletons with real products after a delayed response', async () => {
+    let resolve!: (value: unknown) => void;
+    fetchJson.mockReturnValue(new Promise((done) => { resolve = done; }));
+    await renderHome();
+    expect(screen.getAllByRole('status')).toHaveLength(3);
+    await act(async () => {
+      resolve({ sections: { ...emptySections, signatureSilhouettes: [product('new-tote')] } });
+    });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(productLinks()).toHaveLength(1);
+    expect(screen.getByText('Real bag new-tote')).toBeInTheDocument();
+  });
+
+  it('shows the shared wordmark briefly instead of random loading percentages', async () => {
+    vi.useFakeTimers();
+    window.sessionStorage.clear();
+    fetchJson.mockResolvedValue({ sections: emptySections });
+    await renderHome();
+    expect(screen.getByRole('status', { name: 'Opening Simvorae' })).toHaveTextContent('SIMVORAE');
+    expect(screen.queryByText(/\d+%/)).not.toBeInTheDocument();
+    act(() => { vi.advanceTimersByTime(350); });
+    expect(screen.queryByRole('status', { name: 'Opening Simvorae' })).not.toBeInTheDocument();
+    expect(window.sessionStorage.getItem('simvorae_intro_seen')).toBe('1');
   });
 });

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import BrandWordmark from './components/BrandWordmark';
 import axios from 'axios';
 import { motion } from 'motion/react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -92,9 +93,9 @@ export default function Register() {
           style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/stardust.png")' }}
         />
 
-        <div className="relative order-1 h-[38vh] w-full overflow-hidden md:h-full md:w-1/2">
-          <Link to="/" className="absolute left-6 top-6 z-50 font-serif text-2xl uppercase tracking-widest text-[#fcfbf9] transition-opacity hover:opacity-80 md:left-12 md:top-10 md:text-3xl">
-            Simvorae
+        <div className="auth-brand-panel relative order-1 h-[38vh] w-full overflow-hidden md:h-full md:w-1/2">
+          <Link to="/" aria-label="Simvorae home" className="absolute left-1/2 top-6 z-50 -translate-x-1/2 whitespace-nowrap transition-opacity hover:opacity-75 md:top-10 text-[#fcfbf9]">
+            <BrandWordmark />
           </Link>
           <img
             src="https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=1200&auto=format&fit=crop"
@@ -158,9 +159,9 @@ export default function Register() {
         style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/stardust.png")' }}
       />
 
-      <div className="relative order-1 h-[40vh] w-full overflow-hidden md:h-full md:w-1/2">
-        <Link to="/" className="absolute left-6 top-6 z-50 font-serif text-2xl uppercase tracking-widest text-[#fcfbf9] transition-opacity hover:opacity-80 md:left-12 md:top-10 md:text-3xl">
-          Simvorae
+      <div className="auth-brand-panel relative order-1 h-[40vh] w-full overflow-hidden md:h-full md:w-1/2">
+        <Link to="/" aria-label="Simvorae home" className="absolute left-1/2 top-6 z-50 -translate-x-1/2 whitespace-nowrap transition-opacity hover:opacity-75 md:top-10 text-[#fcfbf9]">
+          <BrandWordmark />
         </Link>
         <motion.img
           initial={{ scale: 1.1, opacity: 0 }}

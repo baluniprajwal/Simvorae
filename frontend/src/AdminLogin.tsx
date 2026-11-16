@@ -1,4 +1,5 @@
 import axios from 'axios';
+import BrandWordmark from './components/BrandWordmark';
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
@@ -66,11 +67,8 @@ export default function AdminLogin() {
         style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/stardust.png")' }}
       />
 
-      <Link
-        to="/"
-        className="absolute left-6 top-6 z-50 font-serif text-2xl uppercase tracking-widest text-[#1a1a1a] transition-opacity hover:opacity-70 md:left-12 md:top-10"
-      >
-        Simvorae
+      <Link to="/" aria-label="Simvorae home" className="absolute left-1/2 top-6 z-50 -translate-x-1/2 whitespace-nowrap transition-opacity hover:opacity-75 md:top-10 text-[#1a1a1a]">
+        <BrandWordmark />
       </Link>
 
       <motion.div
